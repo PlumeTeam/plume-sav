@@ -1,15 +1,31 @@
 'use client'
 
 import { useFormState, useFormStatus } from 'react-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { loginAction, type LoginFormState } from '../actions'
+
+const TURNSTILE_SITE_KEY =
+  process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '0x4AAAAAAB9Gpk5pYILNvYaj'
 
 const initialState: LoginFormState = { error: null }
 
 export function LoginForm() {
   const [state, formAction] = useFormState(loginAction, initialState)
+  const [captchaToken, setCaptchaToken] = useState('')
+  const turnstileRef = useRef<TurnstileInstance>(null)
+
+  useEffect(() => {
+    if (state.error) {
+      turnstileRef.current?.reset()
+      setCaptchaToken('')
+    }
+  }, [state.error])
 
   return (
     <form action={formAction} className="space-y-4">
+      <input type="hidden" name="captchaToken" value={captchaToken} readOnly />
+
       <div>
         <label htmlFor="email" className="block text-sm font-medium">
           Email
@@ -44,23 +60,34 @@ export function LoginForm() {
         )}
       </div>
 
+      <div className="flex justify-center py-1">
+        <Turnstile
+          ref={turnstileRef}
+          siteKey={TURNSTILE_SITE_KEY}
+          onSuccess={setCaptchaToken}
+          onError={() => setCaptchaToken('')}
+          onExpire={() => setCaptchaToken('')}
+          options={{ theme: 'light', size: 'normal' }}
+        />
+      </div>
+
       {state.error?._form?.[0] && (
         <p className="text-sm text-red-600" role="alert">
           {state.error._form[0]}
         </p>
       )}
 
-      <SubmitButton />
+      <SubmitButton captchaReady={!!captchaToken} />
     </form>
   )
 }
 
-function SubmitButton() {
+function SubmitButton({ captchaReady }: { captchaReady: boolean }) {
   const { pending } = useFormStatus()
   return (
     <button
       type="submit"
-      disabled={pending}
+      disabled={pending || !captchaReady}
       className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50"
     >
       {pending ? 'Connexion…' : 'Se connecter'}

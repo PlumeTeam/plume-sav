@@ -26,8 +26,14 @@ export async function loginAction(
     return { error: parsed.error.flatten().fieldErrors }
   }
 
+  const captchaToken = (formData.get('captchaToken') as string) || undefined
+
   const supabase = await createClient()
-  const { error } = await supabase.auth.signInWithPassword(parsed.data)
+  const { error } = await supabase.auth.signInWithPassword({
+    email: parsed.data.email,
+    password: parsed.data.password,
+    options: captchaToken ? { captchaToken } : undefined,
+  })
 
   if (error) {
     return { error: { _form: [error.message] } }
