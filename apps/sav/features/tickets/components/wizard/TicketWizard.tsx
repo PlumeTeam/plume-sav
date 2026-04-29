@@ -6,11 +6,16 @@ import { StepWingInfo } from './StepWingInfo'
 import { StepProblem } from './StepProblem'
 import { StepPhotos } from './StepPhotos'
 import { StepReview } from './StepReview'
+import type { ClientWing } from '../../queries'
 
 const STEPS = ['Votre aile', 'Le problème', 'Photos', 'Vérification']
 const TOTAL_STEPS = STEPS.length
 
-export function TicketWizard() {
+interface TicketWizardProps {
+  wings?: ClientWing[]
+}
+
+export function TicketWizard({ wings = [] }: TicketWizardProps) {
   const { currentStep, setStep } = useWizardStore()
 
   function next() {
@@ -53,7 +58,7 @@ export function TicketWizard() {
 
       {/* Step content */}
       <main className="py-4">
-        {currentStep === 1 && <StepWingInfo onNext={next} />}
+        {currentStep === 1 && <StepWingInfo wings={wings} onNext={next} />}
         {currentStep === 2 && <StepProblem onNext={next} onBack={back} />}
         {currentStep === 3 && <StepPhotos onNext={next} onBack={back} />}
         {currentStep === 4 && <StepReview onBack={back} />}

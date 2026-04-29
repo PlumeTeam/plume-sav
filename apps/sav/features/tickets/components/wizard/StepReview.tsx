@@ -160,7 +160,7 @@ export function StepReview({ onBack }: StepReviewProps) {
       )}
 
       {/* Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 flex gap-3 border-t border-slate-100 bg-white px-4 pb-safe-bottom pt-3">
+      <div className="fixed bottom-0 left-0 right-0 z-30 flex gap-3 border-t border-slate-100 bg-white px-4 pb-safe-bottom pt-3">
         <button
           type="button"
           onClick={onBack}
