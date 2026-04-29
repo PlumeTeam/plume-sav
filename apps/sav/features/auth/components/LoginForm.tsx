@@ -13,12 +13,14 @@ const initialState: LoginFormState = { error: null }
 export function LoginForm() {
   const [state, formAction] = useFormState(loginAction, initialState)
   const [captchaToken, setCaptchaToken] = useState('')
+  const [turnstileError, setTurnstileError] = useState(false)
   const turnstileRef = useRef<TurnstileInstance>(null)
 
   useEffect(() => {
     if (state.error) {
       turnstileRef.current?.reset()
       setCaptchaToken('')
+      setTurnstileError(false)
     }
   }, [state.error])
 
@@ -64,12 +66,19 @@ export function LoginForm() {
         <Turnstile
           ref={turnstileRef}
           siteKey={TURNSTILE_SITE_KEY}
-          onSuccess={setCaptchaToken}
-          onError={() => setCaptchaToken('')}
-          onExpire={() => setCaptchaToken('')}
+          onSuccess={(token) => { setCaptchaToken(token); setTurnstileError(false) }}
+          onError={() => { setCaptchaToken(''); setTurnstileError(true) }}
+          onExpire={() => { setCaptchaToken(''); setTurnstileError(false) }}
           options={{ theme: 'light', size: 'normal' }}
         />
       </div>
+
+      {turnstileError && (
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700" role="alert">
+          Le widget de sécurité ne peut pas se charger sur ce domaine. Contactez
+          l&apos;administrateur pour ajouter ce domaine à Cloudflare Turnstile.
+        </p>
+      )}
 
       {state.error?._form?.[0] && (
         <p className="text-sm text-red-600" role="alert">
