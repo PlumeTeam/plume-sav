@@ -17,6 +17,12 @@ const ROLE_MAP: Partial<Record<string, UserRole>> = {
   atelier:     'workshop',
 }
 
+export async function getCurrentUser() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  return user
+}
+
 export async function getCurrentUserRoles(): Promise<UserRole[]> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
