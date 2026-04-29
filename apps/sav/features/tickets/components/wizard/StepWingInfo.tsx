@@ -121,7 +121,7 @@ export function StepWingInfo({ onNext }: StepWingInfoProps) {
           type="submit"
           className="btn-primary w-full"
         >
-          Suivant — Décrire le problème
+          Suivant
         </button>
       </div>
     </form>

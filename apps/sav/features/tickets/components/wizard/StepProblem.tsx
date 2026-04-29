@@ -132,7 +132,7 @@ export function StepProblem({ onNext, onBack }: StepProblemProps) {
           ← Retour
         </button>
         <button type="submit" className="btn-primary flex-[2]">
-          Suivant — Photos
+          Suivant
         </button>
       </div>
     </form>

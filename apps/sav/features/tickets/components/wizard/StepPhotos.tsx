@@ -147,7 +147,7 @@ export function StepPhotos({ onNext, onBack }: StepPhotosProps) {
           ← Retour
         </button>
         <button type="button" onClick={handleContinue} className="btn-primary flex-[2]">
-          Suivant — Vérification
+          Suivant
         </button>
       </div>
     </div>

@@ -175,7 +175,7 @@ export function StepReview({ onBack }: StepReviewProps) {
           disabled={isSubmitting}
           className="btn-primary flex-[2] disabled:opacity-60"
         >
-          {isSubmitting ? 'Envoi en cours…' : '✓ Envoyer ma demande'}
+          {isSubmitting ? 'Envoi en cours…' : 'Soumettre'}
         </button>
       </div>
     </div>

@@ -1,6 +1,15 @@
 import { createClient } from '@/lib/supabase/server'
 import type { TicketWithPhotos, TicketDetail, TicketStatus } from './types'
 
+export type ClientWing = {
+  id: string
+  serial_number: string
+  product_label: string
+  size: string | null
+  color_name: string | null
+  registered_at: string
+}
+
 const DETAIL_SELECT = `
   *,
   ticket_photos ( id, storage_path, photo_type, caption, sort_order, created_at ),
@@ -16,6 +25,27 @@ export type TicketStats = {
 }
 
 // ── Client ───────────────────────────────────────────────────────────────────
+
+export async function getClientWings(): Promise<ClientWing[]> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  // customer_wings is a shared-platform table not in the SAV DB types — cast via any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
+  const { data, error } = await db
+    .from('customer_wings')
+    .select('id, serial_number, product_label, size, color_name, registered_at')
+    .eq('owner_user_id', user.id)
+    .order('registered_at', { ascending: false })
+
+  if (error) {
+    console.error('getClientWings error:', error.message)
+    return []
+  }
+  return (data ?? []) as ClientWing[]
+}
 
 export async function getClientTickets(): Promise<TicketWithPhotos[]> {
   const supabase = await createClient()
