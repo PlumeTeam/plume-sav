@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  /* Reusable input field — used across all forms */
+  .field-input {
+    @apply block w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900
+           placeholder:text-slate-400
+           focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent
+           disabled:bg-slate-50 disabled:text-slate-400;
+    min-height: 48px; /* WCAG AA touch target */
+  }
+
+  /* Primary button — slate-900, full-width compatible */
+  .btn-primary {
+    @apply flex items-center justify-center rounded-xl bg-slate-900 px-6 py-3.5
+           text-sm font-semibold text-white
+           active:scale-[0.98] transition-transform
+           disabled:opacity-50;
+    min-height: 48px;
+  }
+
+  /* Secondary button — outlined */
+  .btn-secondary {
+    @apply flex items-center justify-center rounded-xl border border-slate-200 bg-white px-6 py-3.5
+           text-sm font-semibold text-slate-700
+           active:bg-slate-50 transition-colors
+           disabled:opacity-50;
+    min-height: 48px;
+  }
+}
+
+@layer utilities {
+  /* Safe area for iOS bottom bar */
+  .pb-safe-bottom {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  /* Hide scrollbar but keep scroll */
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}

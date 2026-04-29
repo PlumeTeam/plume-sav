@@ -1,0 +1,23 @@
+{
+  "name": "plume-sav",
+  "version": "0.0.1",
+  "private": true,
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "dev": "pnpm --filter @plume/sav dev",
+    "build": "pnpm --filter @plume/sav build",
+    "start": "pnpm --filter @plume/sav start",
+    "lint": "pnpm --filter @plume/sav lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test --run",
+    "test:e2e": "pnpm --filter @plume/sav test:e2e",
+    "db:gen-types": "pnpm --filter @plume/db gen-types"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=18.17.0",
+    "pnpm": ">=9"
+  }
+}
