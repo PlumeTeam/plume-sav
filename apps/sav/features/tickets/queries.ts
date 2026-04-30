@@ -4,7 +4,8 @@ import type { TicketWithPhotos, TicketDetail, TicketStatus } from './types'
 export type ClientWing = {
   id: string
   serial_number: string
-  product_label: string
+  product_model: string   // kebab model code, e.g. "blow-ultra"
+  product_label: string   // full display name, e.g. "Blow Ultra 22 Electric Blue"
   size: string | null
   color_name: string | null
   registered_at: string
@@ -36,7 +37,7 @@ export async function getClientWings(): Promise<ClientWing[]> {
   const db = supabase as any
   const { data, error } = await db
     .from('customer_wings')
-    .select('id, serial_number, product_label, size, color_name, registered_at')
+    .select('id, serial_number, product_model, product_label, size, color_name, registered_at')
     .eq('owner_user_id', user.id)
     .order('registered_at', { ascending: false })
 

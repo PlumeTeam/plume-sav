@@ -28,8 +28,13 @@ export function StepWingInfo({ wings, onNext }: StepWingInfoProps) {
 
   function selectWing(wing: ClientWing) {
     setSelectedWingId(wing.id)
+    // Convert kebab model code to title case: "blow-ultra" → "Blow Ultra"
+    const modelName = wing.product_model
+      .split('-')
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ')
     setValue('wingBrand',  'Plume',              { shouldValidate: true })
-    setValue('wingModel',  wing.product_label,   { shouldValidate: true })
+    setValue('wingModel',  modelName,            { shouldValidate: true })
     setValue('wingSize',   wing.size   ?? '',    { shouldValidate: true })
     setValue('wingColor',  wing.color_name ?? '', { shouldValidate: true })
     setValue('wingSerial', wing.serial_number,   { shouldValidate: true })

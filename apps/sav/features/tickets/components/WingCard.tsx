@@ -13,13 +13,17 @@ export function WingCard({ wing }: WingCardProps) {
   const { reset, setWingInfo } = useWizardStore()
 
   function handleCreateTicket() {
+    const modelName = wing.product_model
+      .split('-')
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ')
     reset()
     setWingInfo({
-      wingBrand: 'Plume',
-      wingModel: wing.product_label,
-      wingSize:  wing.size   ?? '',
-      wingSerial: wing.serial_number,
-      wingColor: wing.color_name ?? '',
+      wingBrand:   'Plume',
+      wingModel:   modelName,
+      wingSize:    wing.size   ?? '',
+      wingSerial:  wing.serial_number,
+      wingColor:   wing.color_name ?? '',
       purchaseDate: '',
       flightHours:  '',
     })
