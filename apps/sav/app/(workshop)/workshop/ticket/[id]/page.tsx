@@ -87,11 +87,23 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
         )}
 
         <section className="card p-5">
+          <h2 className="section-title mb-3">Client</h2>
+          <div className="space-y-2">
+            <InfoRow label="Nom" value={[ticket.first_name, ticket.last_name].filter(Boolean).join(' ') || '—'} />
+            <InfoRow label="Email" value={ticket.email ?? '—'} />
+            {ticket.phone && <InfoRow label="Téléphone" value={ticket.phone} />}
+          </div>
+        </section>
+
+        <section className="card p-5">
           <h2 className="section-title mb-3">Produit</h2>
           <div className="space-y-2">
             <InfoRow label="Marque / Modèle" value={`${ticket.product_brand ?? '—'} ${ticket.product_model ?? '—'}`} />
             <InfoRow label="N° de série" value={ticket.serial_number ?? '—'} mono />
             {ticket.purchase_date && <InfoRow label="Date d'achat" value={formatDate(ticket.purchase_date)} />}
+            {ticket.flight_hours_estimate != null && (
+              <InfoRow label="Heures de vol" value={`${ticket.flight_hours_estimate} h`} />
+            )}
           </div>
         </section>
 
