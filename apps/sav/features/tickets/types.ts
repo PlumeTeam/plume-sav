@@ -52,18 +52,20 @@ export const WING_BRANDS = [
   'Skywalk', 'U-Turn', 'Gradient', 'Triple Seven', 'Sup Air', 'Autre',
 ] as const
 
+// Categories shown in the client wizard. 'porosity' is intentionally excluded:
+// it's not something a client can self-diagnose — the workshop reports it after
+// inspection. The DB enum still includes it for staff-side use.
 export const PROBLEM_CATEGORIES: Array<{
-  value: ProblemCategory
+  value: Exclude<ProblemCategory, 'porosity'>
   label: string
   description: string
   emoji: string
 }> = [
-  { value: 'tear',         label: 'Déchirure',            description: 'Accroc, coupure ou déchirure du tissu',     emoji: '🪡' },
-  { value: 'line_issue',   label: 'Suspente',             description: 'Suspente cassée, emmêlée ou usée',          emoji: '🧵' },
-  { value: 'riser_issue',  label: 'Élévateur',            description: "Problème d'élévateur ou poulie",           emoji: '🔗' },
-  { value: 'buckle_issue', label: 'Boucle',               description: 'Boucle défectueuse ou cassée',             emoji: '🔒' },
-  { value: 'porosity',     label: 'Porosité',             description: 'Tissu poreux, aile vieillissante',          emoji: '💨' },
-  { value: 'other',        label: 'Autre',                description: 'Autre problème non listé',                  emoji: '❓' },
+  { value: 'tear',         label: 'Déchirure',  description: 'Accroc, coupure ou déchirure du tissu', emoji: '🪡' },
+  { value: 'line_issue',   label: 'Suspente',   description: 'Suspente cassée, emmêlée ou usée',      emoji: '🧵' },
+  { value: 'riser_issue',  label: 'Élévateur',  description: "Problème d'élévateur ou poulie",        emoji: '🔗' },
+  { value: 'buckle_issue', label: 'Boucle',     description: 'Boucle défectueuse ou cassée',          emoji: '🔒' },
+  { value: 'other',        label: 'Autre',      description: 'Autre problème non listé',              emoji: '❓' },
 ]
 
 export const WING_BEHAVIOR_TYPES = [

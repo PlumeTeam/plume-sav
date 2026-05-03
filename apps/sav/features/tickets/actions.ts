@@ -13,10 +13,11 @@ import {
 import type { MessageSenderRole, TicketStatus, ServiceType, ProblemCategory } from './types'
 import type { RequestStatus } from './types'
 
-// Maps SAV problem category to the shared-platform service_type enum
+// Maps SAV problem category to the shared-platform service_type enum.
+// 'porosity' is excluded from the client wizard (staff-only diagnosis), so
+// the wizard never reaches this function with that value.
 function deriveServiceType(category: ProblemCategory): ServiceType {
   if (['tear', 'line_issue', 'riser_issue', 'buckle_issue'].includes(category)) return 'repair'
-  if (category === 'porosity') return 'revision'
   return 'sav'
 }
 

@@ -11,9 +11,10 @@ export const wingInfoSchema = z.object({
   flightHours: z.string().regex(/^\d*$/, 'Nombre entier requis'),
 })
 
+// 'porosity' is intentionally absent from the wizard — clients can't self-diagnose it.
 export const problemSchema = z.object({
   problemCategory: z.enum([
-    'tear', 'line_issue', 'riser_issue', 'buckle_issue', 'porosity', 'other',
+    'tear', 'line_issue', 'riser_issue', 'buckle_issue', 'other',
   ], { errorMap: () => ({ message: 'Catégorie requise' }) }),
   problemDescription: z.string()
     .min(10, 'Description trop courte (10 caractères minimum)')
@@ -29,7 +30,7 @@ export const createTicketSchema = z.object({
   wingColor: z.string().min(1),
   purchaseDate: z.string().min(1),
   flightHours: z.coerce.number().int().min(0).optional(),
-  problemCategory: z.enum(['tear', 'line_issue', 'riser_issue', 'buckle_issue', 'porosity', 'other']),
+  problemCategory: z.enum(['tear', 'line_issue', 'riser_issue', 'buckle_issue', 'other']),
   problemDescription: z.string().min(10).max(2000),
   urgency: z.enum(['normal', 'urgent']),
   // Behavior IDs from WING_BEHAVIOR_TYPES — present only for "comportement" tickets,
