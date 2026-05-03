@@ -38,7 +38,8 @@ export interface WizardProblem {
   problemCategory: ProblemCategory | ''
   problemDescription: string
   urgency: UrgencyLevel
-  wingBehaviors?: string[] // IDs from WING_BEHAVIOR_TYPES, used when problemCategory is 'other'
+  wingBehaviors?: string[]    // IDs from WING_BEHAVIOR_TYPES, used when problemCategory is 'other'
+  partnerSchoolId?: string    // School the wizard sends the ticket to
 }
 
 export interface WizardPhoto {

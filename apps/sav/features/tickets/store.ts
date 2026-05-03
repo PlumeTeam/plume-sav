@@ -2,10 +2,41 @@
 
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { WizardWingInfo, WizardProblem, WizardPhoto, ProblemCategory, UrgencyLevel } from './types'
+import type { WizardWingInfo, WizardProblem, WizardPhoto } from './types'
+
+// Conversational flow — one question per screen.
+// The actual sequence shown is computed by buildWizardFlow() based on the
+// user's answers (e.g. 'behaviors' is skipped for visual problems).
+export type StepId =
+  | 'wing'
+  | 'problem-category'
+  | 'behaviors'
+  | 'description'
+  | 'urgency'
+  | 'photos'
+  | 'school'
+  | 'review'
+
+export const STEP_LABELS: Record<StepId, string> = {
+  'wing':             'Votre aile',
+  'problem-category': 'Type de problème',
+  'behaviors':        'Comportements',
+  'description':      'Description',
+  'urgency':          'Urgence',
+  'photos':           'Photos',
+  'school':           'École partenaire',
+  'review':           'Récapitulatif',
+}
+
+export function buildWizardFlow(problemCategory: string | undefined): StepId[] {
+  const flow: StepId[] = ['wing', 'problem-category']
+  if (problemCategory === 'other') flow.push('behaviors')
+  flow.push('description', 'urgency', 'photos', 'school', 'review')
+  return flow
+}
 
 interface WizardState {
-  currentStep: number
+  currentStepId: StepId
   wingInfo: WizardWingInfo
   problem: WizardProblem
   photos: WizardPhoto[]
@@ -14,7 +45,7 @@ interface WizardState {
 }
 
 interface WizardActions {
-  setStep: (step: number) => void
+  setStepId: (id: StepId) => void
   setWingInfo: (info: Partial<WizardWingInfo>) => void
   setProblem: (problem: Partial<WizardProblem>) => void
   addPhoto: (photo: WizardPhoto, file: File) => void
@@ -38,10 +69,11 @@ const defaultProblem: WizardProblem = {
   problemCategory: '',
   problemDescription: '',
   urgency: 'normal',
+  wingBehaviors: [],
 }
 
 const defaultState: WizardState = {
-  currentStep: 1,
+  currentStepId: 'wing',
   wingInfo: defaultWingInfo,
   problem: defaultProblem,
   photos: [],
@@ -53,7 +85,7 @@ export const useWizardStore = create<WizardState & WizardActions>()(
     (set) => ({
       ...defaultState,
 
-      setStep: (step) => set({ currentStep: step }),
+      setStepId: (id) => set({ currentStepId: id }),
 
       setWingInfo: (info) =>
         set((s) => ({ wingInfo: { ...s.wingInfo, ...info } })),
@@ -83,9 +115,9 @@ export const useWizardStore = create<WizardState & WizardActions>()(
       reset: () => set(defaultState),
     }),
     {
-      name: 'plume-ticket-wizard-draft',
+      // Bumped to v2 when the wizard switched from index-based to id-based steps.
+      name: 'plume-ticket-wizard-draft-v2',
       storage: createJSONStorage(() => {
-        // Safe access: localStorage may not be available during SSR
         if (typeof window === 'undefined') {
           return {
             getItem: () => null,
@@ -97,7 +129,7 @@ export const useWizardStore = create<WizardState & WizardActions>()(
       }),
       // Don't persist File objects (non-serializable)
       partialize: (state) => ({
-        currentStep: state.currentStep,
+        currentStepId: state.currentStepId,
         wingInfo: state.wingInfo,
         problem: state.problem,
         photos: state.photos,

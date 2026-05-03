@@ -1,42 +1,59 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { useWizardStore } from '../../store'
+import { useWizardStore, buildWizardFlow, type StepId } from '../../store'
 import { WizardProgress } from './WizardProgress'
 import { StepWingInfo } from './StepWingInfo'
-import { StepProblem } from './StepProblem'
+import { StepProblemCategory } from './StepProblemCategory'
+import { StepBehaviors } from './StepBehaviors'
+import { StepDescription } from './StepDescription'
+import { StepUrgency } from './StepUrgency'
 import { StepPhotos } from './StepPhotos'
+import { StepSchool } from './StepSchool'
 import { StepReview } from './StepReview'
 import { PlumeLogo } from '@/app/_components/PlumeLogo'
 import type { ClientWing, PartnerSchool } from '../../queries'
 
-const STEPS = ['Votre aile', 'Le problème', 'Photos', 'Vérification']
-const TOTAL_STEPS = STEPS.length
-
 interface TicketWizardProps {
-  wings?: ClientWing[]
+  wings?:   ClientWing[]
   schools?: PartnerSchool[]
 }
 
 export function TicketWizard({ wings = [], schools = [] }: TicketWizardProps) {
   const router = useRouter()
-  const { currentStep, setStep } = useWizardStore()
+  const { currentStepId, setStepId, problem } = useWizardStore()
 
-  // Wizard mounts at step 1 by default; clamp persisted state to a valid step.
+  // Compute the dynamic flow based on current answers
+  const flow = useMemo<StepId[]>(
+    () => buildWizardFlow(problem.problemCategory),
+    [problem.problemCategory]
+  )
+
+  // If the current step disappeared from the flow (e.g. user changed
+  // problem-category from 'other' to something visual after picking
+  // behaviors), rewind to the last valid step.
   useEffect(() => {
-    if (currentStep < 1 || currentStep > TOTAL_STEPS) setStep(1)
-  }, [currentStep, setStep])
+    if (!flow.includes(currentStepId)) {
+      // Walk back up the flow to find a still-valid step.
+      const fallback = flow[flow.length - 1] ?? 'wing'
+      setStepId(fallback)
+      return
+    }
+  }, [flow, currentStepId, setStepId])
 
-  function next() {
-    if (currentStep < TOTAL_STEPS) setStep(currentStep + 1)
-    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
+  function go(direction: 'next' | 'back') {
+    const idx = flow.indexOf(currentStepId)
+    if (idx === -1) return
+    const target = direction === 'next' ? flow[idx + 1] : flow[idx - 1]
+    if (target) {
+      setStepId(target)
+      if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
   }
 
-  function back() {
-    if (currentStep > 1) setStep(currentStep - 1)
-    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
+  const next = () => go('next')
+  const back = () => go('back')
 
   function cancel() {
     if (typeof window !== 'undefined' && window.confirm('Abandonner le ticket en cours ? Vos saisies seront perdues.')) {
@@ -45,11 +62,13 @@ export function TicketWizard({ wings = [], schools = [] }: TicketWizardProps) {
     }
   }
 
+  const isFirstStep = flow.indexOf(currentStepId) === 0
+
   return (
     <div className="flex min-h-screen flex-col bg-brand-cream">
       <header className="sticky top-0 z-20 border-b border-brand-stone/60 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
         <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3">
-          {currentStep > 1 ? (
+          {!isFirstStep ? (
             <button
               onClick={back}
               type="button"
@@ -75,14 +94,21 @@ export function TicketWizard({ wings = [], schools = [] }: TicketWizardProps) {
             <PlumeLogo size="sm" />
           </span>
         </div>
-        <WizardProgress currentStep={currentStep} totalSteps={TOTAL_STEPS} labels={STEPS} />
+        <WizardProgress flow={flow} currentId={currentStepId} />
       </header>
 
       <main className="mx-auto w-full max-w-2xl flex-1 py-4">
-        {currentStep === 1 && <StepWingInfo wings={wings} onNext={next} />}
-        {currentStep === 2 && <StepProblem onNext={next} onBack={back} />}
-        {currentStep === 3 && <StepPhotos onNext={next} onBack={back} />}
-        {currentStep === 4 && <StepReview onBack={back} schools={schools} />}
+        {/* `key` re-mounts each step so the slide-up animation triggers on every nav */}
+        <div key={currentStepId}>
+          {currentStepId === 'wing'             && <StepWingInfo wings={wings} onNext={next} />}
+          {currentStepId === 'problem-category' && <StepProblemCategory onNext={next} onBack={back} />}
+          {currentStepId === 'behaviors'        && <StepBehaviors onNext={next} onBack={back} />}
+          {currentStepId === 'description'      && <StepDescription onNext={next} onBack={back} />}
+          {currentStepId === 'urgency'          && <StepUrgency onNext={next} onBack={back} />}
+          {currentStepId === 'photos'           && <StepPhotos onNext={next} onBack={back} />}
+          {currentStepId === 'school'           && <StepSchool schools={schools} onNext={next} onBack={back} />}
+          {currentStepId === 'review'           && <StepReview schools={schools} onBack={back} />}
+        </div>
       </main>
     </div>
   )
