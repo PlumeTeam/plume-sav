@@ -26,12 +26,12 @@ export default async function TicketDetailPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen">
-      {/* Page header */}
-      <header className="border-b border-brand-stone/60 bg-white">
-        <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3">
+      {/* Contextual sub-header — sits on the cream background, no double bar */}
+      <header className="bg-brand-cream">
+        <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 pt-4 pb-2">
           <Link
             href="/client"
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-brand-ink active:bg-brand-cream"
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-brand-ink hover:bg-white"
             aria-label="Retour"
           >
             ←

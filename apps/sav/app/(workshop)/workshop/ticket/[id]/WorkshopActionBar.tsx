@@ -18,13 +18,15 @@ interface WorkshopActionBarProps {
 }
 
 const STATUS_TRANSITIONS: Partial<Record<RequestStatus, Array<{ label: string; newStatus: RequestStatus; help?: string }>>> = {
-  processing: [
-    { label: 'Diagnostic terminé → en réparation', newStatus: 'approved',
-      help: 'Confirme que le diagnostic est sauvegardé et que la réparation peut commencer.' },
-  ],
   approved: [
-    { label: 'Marquer comme réparé', newStatus: 'completed' },
+    { label: 'Marquer comme réparé', newStatus: 'completed',
+      help: 'Confirme que la réparation est terminée et que le ticket peut être clôturé.' },
   ],
+}
+
+const NO_ACTION_HINT: Partial<Record<RequestStatus, string>> = {
+  processing: 'Saisissez le diagnostic ci-dessous. L’école validera ensuite la mise en réparation.',
+  completed:  'Ticket clôturé — plus rien à faire.',
 }
 
 export function WorkshopActionBar({
@@ -105,7 +107,7 @@ export function WorkshopActionBar({
         </p>
       )}
 
-      {transitions.length > 0 && (
+      {transitions.length > 0 ? (
         <div className="space-y-2">
           {transitions.map(({ label, newStatus, help }) => (
             <div key={newStatus}>
@@ -120,6 +122,12 @@ export function WorkshopActionBar({
             </div>
           ))}
         </div>
+      ) : (
+        NO_ACTION_HINT[currentStatus] && (
+          <p className="rounded-xl bg-brand-cream px-3 py-2 text-xs text-slate-600">
+            {NO_ACTION_HINT[currentStatus]}
+          </p>
+        )
       )}
 
       <div className="flex flex-wrap gap-2">

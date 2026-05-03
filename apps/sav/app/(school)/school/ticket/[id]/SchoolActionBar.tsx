@@ -23,6 +23,14 @@ const STATUS_TRANSITIONS: Partial<Record<RequestStatus, Array<{ label: string; n
   ],
 }
 
+const STATUS_HINTS: Partial<Record<RequestStatus, string>> = {
+  pending:    'Vérifiez la demande puis lancez l’inspection ou rejetez-la.',
+  processing: 'Validez la mise en réparation : le ticket passera dans la file de l’atelier.',
+  approved:   'Le ticket est dans l’atelier. Marquez-le réparé une fois reçu.',
+  completed:  'Ticket clôturé.',
+  rejected:   'Ce ticket a été rejeté. Vous pouvez l’annoter pour traçabilité.',
+}
+
 export function SchoolActionBar({ ticketId, currentStatus }: SchoolActionBarProps) {
   const [isPending, startTransition]   = useTransition()
   const [showMessageForm, setShowMessageForm] = useState(false)
@@ -75,24 +83,31 @@ export function SchoolActionBar({ ticketId, currentStatus }: SchoolActionBarProp
       )}
 
       {transitions.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {transitions.map(({ label, newStatus, variant }) => (
-            <button
-              key={newStatus}
-              onClick={() => handleStatusChange(newStatus)}
-              disabled={isPending}
-              className={
-                variant === 'primary' ? 'btn-primary' :
-                variant === 'danger'  ? 'btn-danger'  :
-                'btn-secondary'
-              }
-            >
-              {label}
-            </button>
-          ))}
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-2">
+            {transitions.map(({ label, newStatus, variant }) => (
+              <button
+                key={newStatus}
+                onClick={() => handleStatusChange(newStatus)}
+                disabled={isPending}
+                className={
+                  variant === 'primary' ? 'btn-primary' :
+                  variant === 'danger'  ? 'btn-danger'  :
+                  'btn-secondary'
+                }
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {STATUS_HINTS[currentStatus] && (
+            <p className="text-xs text-slate-500">{STATUS_HINTS[currentStatus]}</p>
+          )}
         </div>
       ) : (
-        <p className="text-sm text-slate-500">Aucune action disponible à ce stade.</p>
+        <p className="rounded-xl bg-brand-cream px-3 py-2 text-xs text-slate-600">
+          {STATUS_HINTS[currentStatus] ?? 'Aucune action disponible à ce stade.'}
+        </p>
       )}
 
       {!showMessageForm && (

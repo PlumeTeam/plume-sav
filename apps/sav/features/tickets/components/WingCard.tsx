@@ -18,6 +18,10 @@ export function WingCard({ wing }: WingCardProps) {
       .filter(Boolean)
       .map(w => w.charAt(0).toUpperCase() + w.slice(1))
       .join(' ')
+    // Prefill purchase date from registration date (best-effort; client can edit)
+    const purchaseDate = wing.registered_at
+      ? new Date(wing.registered_at).toISOString().split('T')[0]!
+      : ''
     reset()
     setWingInfo({
       wingBrand:    'Plume',
@@ -25,7 +29,7 @@ export function WingCard({ wing }: WingCardProps) {
       wingSize:     wing.size ?? '',
       wingSerial:   wing.serial_number,
       wingColor:    wing.color_name ?? '',
-      purchaseDate: '',
+      purchaseDate,
       flightHours:  '',
     })
     router.push('/client/new-ticket')

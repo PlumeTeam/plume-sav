@@ -23,11 +23,11 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-brand-stone/60 bg-white">
-        <div className="mx-auto flex max-w-4xl items-center gap-3 px-4 py-3">
+      <header className="bg-brand-cream">
+        <div className="mx-auto flex max-w-4xl items-center gap-3 px-4 pt-4 pb-2">
           <Link
             href="/school"
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-brand-ink active:bg-brand-cream"
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-brand-ink hover:bg-white"
             aria-label="Retour"
           >
             ←
