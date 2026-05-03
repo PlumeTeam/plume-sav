@@ -44,7 +44,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
               {ticket.wing_brand} {ticket.wing_model} {ticket.wing_size}
             </p>
           </div>
-          <StatusBadge status={ticket.status} size="sm" />
+          <StatusBadge status={ticket.sav_status} size="sm" />
         </div>
       </header>
 
@@ -54,7 +54,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-400">
             Suivi
           </h2>
-          <TicketTimeline status={ticket.status} />
+          <TicketTimeline status={ticket.sav_status} />
         </section>
 
         {/* Actions école */}
@@ -62,7 +62,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-400">
             Actions
           </h2>
-          <SchoolActionBar ticketId={ticket.id} currentStatus={ticket.status} />
+          <SchoolActionBar ticketId={ticket.id} currentStatus={ticket.sav_status} />
         </section>
 
         {/* Wing info */}

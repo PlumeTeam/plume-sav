@@ -15,7 +15,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
   const ticket = await getTicketDetail(params.id)
   if (!ticket) notFound()
 
-  const currentStep = getStatusStep(ticket.status)
+  const currentStep = getStatusStep(ticket.sav_status)
   const problemLabel = PROBLEM_CATEGORIES.find((c) => c.value === ticket.problem_category)
   const sortedPhotos = [...ticket.ticket_photos].sort((a, b) => a.sort_order - b.sort_order)
   const publicMessages = ticket.ticket_messages.filter((m) => m.visibility_level === 'all')
@@ -43,7 +43,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
               {ticket.wing_brand} {ticket.wing_model} {ticket.wing_size}
             </p>
           </div>
-          <StatusBadge status={ticket.status} size="sm" />
+          <StatusBadge status={ticket.sav_status} size="sm" />
         </div>
       </header>
 

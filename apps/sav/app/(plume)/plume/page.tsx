@@ -89,7 +89,7 @@ export default async function PlumeDashboardPage() {
                         {ticket.wing_brand} {ticket.wing_model}
                       </td>
                       <td className="px-4 py-3">
-                        <StatusBadge status={ticket.status} size="sm" />
+                        <StatusBadge status={ticket.sav_status} size="sm" />
                       </td>
                       <td className="px-4 py-3">
                         {ticket.urgency === 'urgent' && (

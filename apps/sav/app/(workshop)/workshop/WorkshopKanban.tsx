@@ -30,7 +30,7 @@ export function WorkshopKanban({ tickets }: WorkshopKanbanProps) {
   const byColumn = useMemo(
     () =>
       COLUMNS.reduce<Record<string, TicketWithPhotos[]>>((acc, col) => {
-        acc[col.id] = tickets.filter((t) => col.statuses.includes(t.status))
+        acc[col.id] = tickets.filter((t) => col.statuses.includes(t.sav_status))
         return acc
       }, {}),
     [tickets]
@@ -127,7 +127,7 @@ function WorkshopTicketCard({
       </p>
       {!compact && (
         <div className="mt-2 flex items-center justify-between">
-          <StatusBadge status={ticket.status} size="sm" />
+          <StatusBadge status={ticket.sav_status} size="sm" />
           <span className="text-xs text-slate-400">{formatDate(ticket.created_at)}</span>
         </div>
       )}

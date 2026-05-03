@@ -53,11 +53,11 @@ export async function getClientTickets(): Promise<TicketWithPhotos[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
+  // RLS (updated by migration) handles visibility : client_id OR user_id = auth.uid()
   const { data, error } = await supabase
     .from('service_requests')
     .select('*, ticket_photos ( id, storage_path, photo_type, sort_order )')
-    .eq('client_id', user.id)
-    .neq('status', 'draft')
+    .neq('sav_status', 'draft')
     .order('created_at', { ascending: false })
     .returns<TicketWithPhotos[]>()
 
@@ -77,7 +77,6 @@ export async function getTicketDetail(ticketId: string): Promise<TicketDetail | 
     .from('service_requests')
     .select(DETAIL_SELECT)
     .eq('id', ticketId)
-    .eq('client_id', user.id)
     .single()
     .returns<TicketDetail>()
 
@@ -99,7 +98,7 @@ export async function getSchoolTickets(): Promise<TicketWithPhotos[]> {
   const { data, error } = await supabase
     .from('service_requests')
     .select('*, ticket_photos ( id, storage_path, photo_type, sort_order )')
-    .neq('status', 'draft')
+    .in('sav_status', ['submitted', 'in_review', 'diagnosed'])
     .order('urgency', { ascending: false })
     .order('created_at', { ascending: false })
     .returns<TicketWithPhotos[]>()
@@ -141,7 +140,7 @@ export async function getWorkshopTickets(): Promise<TicketWithPhotos[]> {
   const { data, error } = await supabase
     .from('service_requests')
     .select('*, ticket_photos ( id, storage_path, photo_type, sort_order )')
-    .in('status', ['diagnosed', 'repair_in_progress', 'repaired', 'shipped'])
+    .in('sav_status', ['diagnosed', 'repair_in_progress', 'repaired', 'shipped'])
     .order('urgency', { ascending: false })
     .order('created_at', { ascending: false })
     .returns<TicketWithPhotos[]>()
@@ -182,7 +181,7 @@ export async function getAllTickets(): Promise<TicketWithPhotos[]> {
   const { data, error } = await supabase
     .from('service_requests')
     .select('*, ticket_photos ( id, storage_path, photo_type, sort_order )')
-    .neq('status', 'draft')
+    .neq('sav_status', 'draft')
     .order('urgency', { ascending: false })
     .order('created_at', { ascending: false })
     .returns<TicketWithPhotos[]>()
@@ -201,7 +200,7 @@ export async function getTicketStats(): Promise<TicketStats> {
 
   const byStatus: Partial<Record<TicketStatus, number>> = {}
   for (const t of tickets) {
-    byStatus[t.status] = (byStatus[t.status] ?? 0) + 1
+    byStatus[t.sav_status] = (byStatus[t.sav_status] ?? 0) + 1
   }
 
   return {

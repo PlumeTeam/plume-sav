@@ -1,4 +1,4 @@
-import type { Database, TicketStatus, ProblemCategory, UrgencyLevel, PhotoType, MessageSenderRole } from '@plume/db'
+import type { Database, TicketStatus, RequestStatus, ServiceType, ProblemCategory, UrgencyLevel, PhotoType, MessageSenderRole } from '@plume/db'
 
 export type Ticket = Database['public']['Tables']['service_requests']['Row']
 export type TicketInsert = Database['public']['Tables']['service_requests']['Insert']
@@ -6,7 +6,7 @@ export type TicketPhoto = Database['public']['Tables']['ticket_photos']['Row']
 export type TicketMessage = Database['public']['Tables']['ticket_messages']['Row']
 export type TicketStatusHistory = Database['public']['Tables']['ticket_status_history']['Row']
 
-export type { TicketStatus, ProblemCategory, UrgencyLevel, PhotoType, MessageSenderRole }
+export type { TicketStatus, RequestStatus, ServiceType, ProblemCategory, UrgencyLevel, PhotoType, MessageSenderRole }
 
 export type TicketWithPhotos = Ticket & {
   ticket_photos: TicketPhoto[]
@@ -65,6 +65,7 @@ export const PROBLEM_CATEGORIES: Array<{
   { value: 'other',        label: 'Autre',                description: 'Autre problème non listé',                  emoji: '❓' },
 ]
 
+// STATUS_CONFIG is keyed by TicketStatus (sav_status column — ticket_status enum)
 export const STATUS_CONFIG: Record<TicketStatus, { label: string; color: string; bg: string }> = {
   draft:              { label: 'Brouillon',         color: 'text-slate-600',  bg: 'bg-slate-100' },
   submitted:          { label: 'Envoyé',            color: 'text-blue-700',   bg: 'bg-blue-100' },

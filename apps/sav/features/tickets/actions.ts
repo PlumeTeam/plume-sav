@@ -10,7 +10,29 @@ import {
   roleMessageSchema,
   diagnosisSchema,
 } from './schemas'
-import type { MessageSenderRole, TicketStatus } from './types'
+import type { MessageSenderRole, TicketStatus, ServiceType, ProblemCategory } from './types'
+import type { RequestStatus } from './types'
+
+// Maps SAV problem category to the shared-platform service_type enum
+function deriveServiceType(category: ProblemCategory): ServiceType {
+  if (['tear', 'line_issue', 'riser_issue', 'buckle_issue'].includes(category)) return 'repair'
+  if (category === 'porosity') return 'revision'
+  return 'sav'
+}
+
+// Maps SAV workflow status (ticket_status) to shared-platform status (request_status)
+function savStatusToRequestStatus(savStatus: TicketStatus): RequestStatus {
+  switch (savStatus) {
+    case 'repaired':
+    case 'shipped':
+    case 'closed':
+      return 'completed'
+    case 'rejected':
+      return 'rejected'
+    default:
+      return 'processing'
+  }
+}
 
 export async function createTicketAction(input: unknown) {
   const parsed = createTicketSchema.safeParse(input)
@@ -28,11 +50,26 @@ export async function createTicketAction(input: unknown) {
     urgency, photoPaths,
   } = parsed.data
 
+  const serviceType = deriveServiceType(problemCategory)
+
   const { data: ticket, error: ticketError } = await supabase
     .from('service_requests')
     .insert({
+      // Colonnes identity — satisfait les contraintes originales et la RLS SAV
+      user_id: user.id,
       client_id: user.id,
-      status: 'submitted',
+      email: user.email ?? null,
+      // Champ requis NOT NULL de la table originale
+      service_type: serviceType,
+      // Statuts : request_status (cross-app) + ticket_status (workflow SAV)
+      status: 'pending',
+      sav_status: 'submitted',
+      // Colonnes originales en double pour compatibilité cross-app
+      product_brand: wingBrand,
+      product_model: wingModel,
+      serial_number: wingSerial,
+      description: problemDescription,
+      // Colonnes SAV spécifiques
       wing_brand: wingBrand,
       wing_model: wingModel,
       wing_size: wingSize,
@@ -48,6 +85,7 @@ export async function createTicketAction(input: unknown) {
     .single()
 
   if (ticketError || !ticket) {
+    console.error('createTicketAction error:', ticketError?.message)
     return { error: { _form: ['Erreur lors de la création du ticket'] } }
   }
 
@@ -120,23 +158,26 @@ export async function updateTicketStatusAction(formData: FormData) {
 
   const { data: current, error: fetchError } = await supabase
     .from('service_requests')
-    .select('status')
+    .select('sav_status')
     .eq('id', ticketId)
     .single()
-    .returns<{ status: TicketStatus }>()
+    .returns<{ sav_status: TicketStatus }>()
 
   if (fetchError || !current) return { error: { _form: ['Ticket introuvable'] } }
 
   const { error: updateError } = await supabase
     .from('service_requests')
-    .update({ status: newStatus })
+    .update({
+      sav_status: newStatus,
+      status: savStatusToRequestStatus(newStatus),
+    })
     .eq('id', ticketId)
 
   if (updateError) return { error: { _form: ['Erreur lors de la mise à jour'] } }
 
   await supabase.from('ticket_status_history').insert({
     ticket_id: ticketId,
-    old_status: current.status,
+    old_status: current.sav_status,
     new_status: newStatus,
     changed_by: user.id,
     note: note ?? null,

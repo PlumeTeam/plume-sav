@@ -39,7 +39,7 @@ export function TicketCard({ ticket, basePath = '/client', showUrgency = false }
           <p className="text-sm font-semibold text-slate-900 truncate">
             {ticket.wing_brand} {ticket.wing_model} {ticket.wing_size}
           </p>
-          <StatusBadge status={ticket.status} size="sm" />
+          <StatusBadge status={ticket.sav_status} size="sm" />
         </div>
         <p className="mt-0.5 text-xs text-slate-500">
           {ticket.ticket_number ?? 'N° en cours…'}

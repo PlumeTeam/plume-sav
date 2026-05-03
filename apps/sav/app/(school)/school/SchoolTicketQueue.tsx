@@ -35,7 +35,7 @@ export function SchoolTicketQueue({ tickets }: SchoolTicketQueueProps) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return tickets
-      .filter((t) => matchesFilter(t.status, tab))
+      .filter((t) => matchesFilter(t.sav_status, tab))
       .filter((t) => {
         if (!q) return true
         return (
@@ -49,9 +49,9 @@ export function SchoolTicketQueue({ tickets }: SchoolTicketQueueProps) {
   const countByTab = useMemo(
     () => ({
       all: tickets.length,
-      pending: tickets.filter((t) => matchesFilter(t.status, 'pending')).length,
-      active: tickets.filter((t) => matchesFilter(t.status, 'active')).length,
-      done: tickets.filter((t) => matchesFilter(t.status, 'done')).length,
+      pending: tickets.filter((t) => matchesFilter(t.sav_status, 'pending')).length,
+      active: tickets.filter((t) => matchesFilter(t.sav_status, 'active')).length,
+      done: tickets.filter((t) => matchesFilter(t.sav_status, 'done')).length,
     }),
     [tickets]
   )

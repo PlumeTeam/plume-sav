@@ -44,7 +44,7 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
               {ticket.wing_brand} {ticket.wing_model} {ticket.wing_size}
             </p>
           </div>
-          <StatusBadge status={ticket.status} size="sm" />
+          <StatusBadge status={ticket.sav_status} size="sm" />
         </div>
       </header>
 
@@ -52,7 +52,7 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
         {/* Timeline */}
         <section className="bg-white px-4 py-5">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-400">Suivi</h2>
-          <TicketTimeline status={ticket.status} />
+          <TicketTimeline status={ticket.sav_status} />
         </section>
 
         {/* Workshop actions */}
@@ -60,7 +60,7 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-400">Actions atelier</h2>
           <WorkshopActionBar
             ticketId={ticket.id}
-            currentStatus={ticket.status}
+            currentStatus={ticket.sav_status}
             diagnosisNotes={ticket.diagnosis_notes}
             estimatedCost={ticket.estimated_cost}
             estimatedHours={ticket.estimated_hours}
