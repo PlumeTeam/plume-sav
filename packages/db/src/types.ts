@@ -24,6 +24,13 @@ export type PhotoType = 'overview' | 'damage_closeup' | 'serial_tag' | 'other'
 
 export type MessageSenderRole = 'client' | 'school' | 'workshop' | 'plume_admin'
 
+// Résolution choisie par l'école au terme du diagnostic — voir migration 20260503120000
+export type SchoolResolution =
+  | 'resolved_by_school'
+  | 'normal_behavior_explained'
+  | 'escalated_to_workshop'
+  | 'escalated_to_plume'
+
 export interface Database {
   public: {
     Tables: {
@@ -67,6 +74,17 @@ export interface Database {
           diagnosis_notes: string | null
           estimated_hours: number | null
           parts_needed: string | null
+          // Diagnostic workflow (migration 20260503120000)
+          school_checklist: Json | null
+          school_resolution: SchoolResolution | null
+          school_resolution_note: string | null
+          school_resolved_at: string | null
+          school_resolved_by: string | null
+          workshop_checklist: Json | null
+          assigned_workshop_id: string | null
+          assigned_workshop_label: string | null
+          workshop_assigned_at: string | null
+          workshop_assigned_by: string | null
           created_at: string
           updated_at: string
         }
@@ -107,6 +125,16 @@ export interface Database {
           diagnosis_notes?: string | null
           estimated_hours?: number | null
           parts_needed?: string | null
+          school_checklist?: Json | null
+          school_resolution?: SchoolResolution | null
+          school_resolution_note?: string | null
+          school_resolved_at?: string | null
+          school_resolved_by?: string | null
+          workshop_checklist?: Json | null
+          assigned_workshop_id?: string | null
+          assigned_workshop_label?: string | null
+          workshop_assigned_at?: string | null
+          workshop_assigned_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -147,6 +175,16 @@ export interface Database {
           diagnosis_notes?: string | null
           estimated_hours?: number | null
           parts_needed?: string | null
+          school_checklist?: Json | null
+          school_resolution?: SchoolResolution | null
+          school_resolution_note?: string | null
+          school_resolved_at?: string | null
+          school_resolved_by?: string | null
+          workshop_checklist?: Json | null
+          assigned_workshop_id?: string | null
+          assigned_workshop_label?: string | null
+          workshop_assigned_at?: string | null
+          workshop_assigned_by?: string | null
           created_at?: string
           updated_at?: string
         }

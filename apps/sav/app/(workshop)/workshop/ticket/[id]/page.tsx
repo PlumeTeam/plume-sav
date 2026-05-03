@@ -5,12 +5,17 @@ import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { TicketTimeline } from '@/features/tickets/components/TicketTimeline'
 import { CommentThread } from '@/features/tickets/components/CommentThread'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
+import { DiagnosisChecklist } from '@/features/tickets/components/DiagnosisChecklist'
+import { WORKSHOP_TECHNICAL_CHECKLIST } from '@/features/tickets/constants'
+import { saveWorkshopChecklistAction } from '@/features/tickets/actions'
 import { formatDate } from '@/features/tickets/utils'
 import { WorkshopActionBar } from './WorkshopActionBar'
 
 interface PageProps { params: { id: string } }
 
 export const dynamic = 'force-dynamic'
+
+type ChecklistJson = { checkedIds?: string[]; notes?: string | null } | null
 
 export default async function WorkshopTicketDetailPage({ params }: PageProps) {
   const ticket = await getWorkshopTicketDetail(params.id)
@@ -20,6 +25,10 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   )
   const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
+
+  const stored: ChecklistJson = (ticket.workshop_checklist ?? null) as ChecklistJson
+  const initialChecked = Array.isArray(stored?.checkedIds) ? stored!.checkedIds! : []
+  const initialNotes   = typeof stored?.notes === 'string' ? stored!.notes! : ''
 
   return (
     <div className="min-h-screen">
@@ -46,6 +55,29 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
         <section className="card p-5">
           <h2 className="section-title mb-4">Suivi</h2>
           <TicketTimeline status={ticket.status} />
+        </section>
+
+        {/* Contexte de l'escalation école */}
+        {ticket.school_resolution === 'escalated_to_workshop' && ticket.school_resolution_note && (
+          <section className="card p-5 bg-brand-coral/5 border-brand-coral/30">
+            <h2 className="section-title mb-2">Note de l&apos;école qui a escaladé</h2>
+            <p className="whitespace-pre-line text-sm text-brand-ink">{ticket.school_resolution_note}</p>
+          </section>
+        )}
+
+        {/* Checklist technique atelier */}
+        <section className="card p-5">
+          <h2 className="section-title mb-3">Checklist diagnostic technique</h2>
+          <DiagnosisChecklist
+            ticketId={ticket.id}
+            items={WORKSHOP_TECHNICAL_CHECKLIST}
+            initialChecked={initialChecked}
+            initialNotes={initialNotes}
+            saveAction={saveWorkshopChecklistAction}
+            variant="navy"
+            notesLabel="Notes diagnostic"
+            notesPlaceholder="Mesures, interventions effectuées, pièces remplacées, anomalies constatées…"
+          />
         </section>
 
         <section className="card p-5">

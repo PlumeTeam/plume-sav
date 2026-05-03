@@ -5,20 +5,28 @@ import { useWizardStore } from '../../store'
 import { createTicketAction } from '../../actions'
 import { PROBLEM_CATEGORIES } from '../../types'
 import { createClient } from '@/lib/supabase/client'
+import type { PartnerSchool } from '../../queries'
 
 interface StepReviewProps {
   onBack: () => void
+  schools: PartnerSchool[]
 }
 
-export function StepReview({ onBack }: StepReviewProps) {
+export function StepReview({ onBack, schools }: StepReviewProps) {
   const { wingInfo, problem, photos, _photoFiles, reset } = useWizardStore()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError]   = useState<string | null>(null)
   const [progress, setProgress]         = useState<{ done: number; total: number } | null>(null)
+  const [schoolId, setSchoolId] = useState<string>(schools[0]?.id ?? '')
 
   const problemLabel = PROBLEM_CATEGORIES.find((c) => c.value === problem.problemCategory)
+  const selectedSchool = schools.find((s) => s.id === schoolId)
 
   async function handleSubmit() {
+    if (!schoolId) {
+      setSubmitError('Choisissez une école pour traiter votre demande.')
+      return
+    }
     setIsSubmitting(true)
     setSubmitError(null)
 
@@ -86,6 +94,7 @@ export function StepReview({ onBack }: StepReviewProps) {
         problemDescription: problem.problemDescription,
         urgency:            problem.urgency,
         wingBehaviors:      problem.wingBehaviors,
+        schoolId,
         photoPaths:         uploadedPhotos,
       })
 
@@ -112,7 +121,7 @@ export function StepReview({ onBack }: StepReviewProps) {
       <div>
         <h2 className="font-display text-xl font-bold text-brand-ink">Récapitulatif</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Vérifiez les informations avant d&apos;envoyer votre demande.
+          Vérifiez les informations puis envoyez votre demande à votre école partenaire.
         </p>
       </div>
 
@@ -150,12 +159,34 @@ export function StepReview({ onBack }: StepReviewProps) {
         )}
       </Section>
 
-      <div className="rounded-2xl bg-brand-coral/10 px-4 py-3">
-        <p className="text-sm font-semibold text-brand-ink">Et après ?</p>
-        <p className="mt-1 text-xs text-brand-ink/80">
-          Votre école partenaire reçoit la demande, organise l&apos;inspection sous 4 h, et vous tient informé via la messagerie du ticket.
-        </p>
-      </div>
+      {/* ── Envoi à l'école ─────────────────────────────────────── */}
+      <Section title="Envoi à votre école">
+        <div>
+          <label htmlFor="school-picker" className="mb-1.5 block text-sm font-medium text-brand-ink">
+            École partenaire
+          </label>
+          <select
+            id="school-picker"
+            value={schoolId}
+            onChange={(e) => setSchoolId(e.target.value)}
+            className="field-input"
+            required
+          >
+            {schools.length === 0 && <option value="">Aucune école disponible</option>}
+            {schools.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}{s.region ? ` — ${s.region}` : ''}{s.city ? ` (${s.city})` : ''}
+              </option>
+            ))}
+          </select>
+          {selectedSchool && (
+            <p className="mt-2 text-xs text-slate-500">
+              Votre demande sera envoyée à <strong className="text-brand-ink">{selectedSchool.name}</strong> pour un premier diagnostic.
+              L&apos;école pourra la résoudre directement, vous expliquer si tout est normal, ou la transmettre à un atelier du réseau Plume.
+            </p>
+          )}
+        </div>
+      </Section>
 
       {submitError && (
         <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{submitError}</p>
@@ -179,8 +210,12 @@ export function StepReview({ onBack }: StepReviewProps) {
           <button type="button" onClick={onBack} disabled={isSubmitting} className="btn-secondary flex-1">
             ← Retour
           </button>
-          <button type="button" onClick={handleSubmit} disabled={isSubmitting} className="btn-primary flex-[2]">
-            {isSubmitting ? 'Envoi…' : 'Envoyer la demande'}
+          <button type="button" onClick={handleSubmit} disabled={isSubmitting || !schoolId} className="btn-primary flex-[2]">
+            {isSubmitting
+              ? 'Envoi…'
+              : selectedSchool
+                ? `Envoyer à ${selectedSchool.name}`
+                : 'Envoyer la demande'}
           </button>
         </div>
       </div>

@@ -1,12 +1,13 @@
-import type { Database, TicketStatus, RequestStatus, ServiceType, ProblemCategory, UrgencyLevel, PhotoType, MessageSenderRole } from '@plume/db'
+import type { Database, TicketStatus, RequestStatus, ServiceType, ProblemCategory, UrgencyLevel, PhotoType, MessageSenderRole, SchoolResolution } from '@plume/db'
 
 export type Ticket = Database['public']['Tables']['service_requests']['Row']
 export type TicketInsert = Database['public']['Tables']['service_requests']['Insert']
+export type TicketUpdate = Database['public']['Tables']['service_requests']['Update']
 export type TicketPhoto = Database['public']['Tables']['ticket_photos']['Row']
 export type TicketMessage = Database['public']['Tables']['ticket_messages']['Row']
 export type TicketStatusHistory = Database['public']['Tables']['ticket_status_history']['Row']
 
-export type { TicketStatus, RequestStatus, ServiceType, ProblemCategory, UrgencyLevel, PhotoType, MessageSenderRole }
+export type { TicketStatus, RequestStatus, ServiceType, ProblemCategory, UrgencyLevel, PhotoType, MessageSenderRole, SchoolResolution }
 
 export type TicketWithPhotos = Ticket & {
   ticket_photos: TicketPhoto[]

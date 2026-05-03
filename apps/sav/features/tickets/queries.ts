@@ -11,6 +11,37 @@ export type ClientWing = {
   registered_at: string
 }
 
+export type PartnerSchool = {
+  id:      string
+  name:    string
+  city?:   string | null
+  region?: string | null
+}
+
+// Hardcoded fallback used when partner_schools is empty/unavailable.
+// Real schools should land in the partner_schools table.
+const FALLBACK_PARTNER_SCHOOLS: PartnerSchool[] = [
+  { id: 'plume-default-annecy',   name: 'École Plume Annecy',     region: 'Haute-Savoie' },
+  { id: 'plume-default-stHilaire',name: 'Saint-Hilaire Parapente', region: 'Isère' },
+  { id: 'plume-default-chamonix', name: 'Chamonix Parapente',      region: 'Haute-Savoie' },
+]
+
+export async function getPartnerSchools(): Promise<PartnerSchool[]> {
+  const supabase = await createClient()
+  // partner_schools is a shared-platform table not in the SAV DB types.
+  const db = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
+  const { data, error } = await db
+    .from('partner_schools')
+    .select('id, name, city, region')
+    .order('name', { ascending: true })
+
+  if (error || !data || data.length === 0) {
+    if (error) console.warn('getPartnerSchools fallback (table query failed):', error.message)
+    return FALLBACK_PARTNER_SCHOOLS
+  }
+  return data as PartnerSchool[]
+}
+
 const DETAIL_SELECT = `
   *,
   ticket_photos ( id, storage_path, photo_type, caption, sort_order, created_at ),

@@ -33,9 +33,9 @@ export const createTicketSchema = z.object({
   problemCategory: z.enum(['tear', 'line_issue', 'riser_issue', 'buckle_issue', 'other']),
   problemDescription: z.string().min(10).max(2000),
   urgency: z.enum(['normal', 'urgent']),
-  // Behavior IDs from WING_BEHAVIOR_TYPES — present only for "comportement" tickets,
-  // and they relax the photo requirement (no visible damage to capture).
   wingBehaviors: z.array(z.string()).optional(),
+  // Partner school the wizard sends the ticket to. Required for the new flow.
+  schoolId: z.string().min(1, 'Choisissez une école pour traiter votre demande'),
   photoPaths: z.array(z.object({
     storagePath: z.string().min(1),
     photoType: z.enum(['overview', 'damage_closeup', 'serial_tag', 'other']),
@@ -50,6 +50,45 @@ export const createTicketSchema = z.object({
       message: 'Au moins une photo est requise',
     })
   }
+})
+
+// École : sauvegarde de la checklist de premier diagnostic
+export const schoolChecklistSchema = z.object({
+  ticketId:    z.string().uuid(),
+  checkedIds:  z.array(z.string()).default([]),
+  notes:       z.string().max(2000).optional(),
+})
+
+// École : choix d'une issue (3 outcomes + escalation Plume)
+export const schoolResolutionSchema = z.object({
+  ticketId:   z.string().uuid(),
+  resolution: z.enum([
+    'resolved_by_school',
+    'normal_behavior_explained',
+    'escalated_to_workshop',
+    'escalated_to_plume',
+  ]),
+  note: z.string().max(2000).optional(),
+  // Requis quand resolution === 'escalated_to_workshop'
+  workshopId:    z.string().optional(),
+  workshopLabel: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.resolution === 'escalated_to_workshop') {
+    if (!data.workshopId || !data.workshopLabel) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['workshopId'],
+        message: 'Choisissez un atelier du réseau partenaire',
+      })
+    }
+  }
+})
+
+// Atelier : sauvegarde de la checklist diagnostic technique
+export const workshopChecklistSchema = z.object({
+  ticketId:    z.string().uuid(),
+  checkedIds:  z.array(z.string()).default([]),
+  notes:       z.string().max(5000).optional(),
 })
 
 export const addMessageSchema = z.object({
@@ -93,6 +132,9 @@ export type AddMessageInput = z.infer<typeof addMessageSchema>
 export type UpdateStatusInput = z.infer<typeof updateStatusSchema>
 export type RoleMessageInput = z.infer<typeof roleMessageSchema>
 export type DiagnosisInput = z.infer<typeof diagnosisSchema>
+export type SchoolChecklistInput   = z.infer<typeof schoolChecklistSchema>
+export type SchoolResolutionInput  = z.infer<typeof schoolResolutionSchema>
+export type WorkshopChecklistInput = z.infer<typeof workshopChecklistSchema>
 
 // Re-export for convenience
 export { WING_BRANDS }

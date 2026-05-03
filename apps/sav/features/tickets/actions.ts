@@ -9,9 +9,26 @@ import {
   updateStatusSchema,
   roleMessageSchema,
   diagnosisSchema,
+  schoolChecklistSchema,
+  schoolResolutionSchema,
+  workshopChecklistSchema,
 } from './schemas'
-import type { MessageSenderRole, TicketStatus, ServiceType, ProblemCategory } from './types'
-import type { RequestStatus } from './types'
+import type { MessageSenderRole, TicketStatus, ServiceType, ProblemCategory, TicketUpdate } from './types'
+import type { RequestStatus, SchoolResolution } from './types'
+
+// Maps school resolution outcome → request_status the ticket transitions into.
+function resolutionToRequestStatus(r: SchoolResolution): RequestStatus {
+  switch (r) {
+    case 'resolved_by_school':         return 'completed'
+    case 'normal_behavior_explained':  return 'completed'
+    case 'escalated_to_workshop':      return 'approved'   // visible by workshop queue
+    case 'escalated_to_plume':         return 'processing' // stays open, plume picks up
+    default: {
+      const _exhaustive: never = r
+      return 'processing'
+    }
+  }
+}
 
 // Maps SAV problem category to the shared-platform service_type enum.
 // 'porosity' is excluded from the client wizard (staff-only diagnosis), so
@@ -48,10 +65,14 @@ export async function createTicketAction(input: unknown) {
   const {
     wingBrand, wingModel, wingSize, wingSerial, wingColor,
     purchaseDate, flightHours, problemCategory, problemDescription,
-    urgency, photoPaths,
+    urgency, photoPaths, schoolId,
   } = parsed.data
 
   const serviceType = deriveServiceType(problemCategory)
+
+  // school_id references partner_schools(id); when the wizard sends a fallback
+  // hardcoded id (no real partner_schools row), set null so we don't break FK.
+  const persistedSchoolId = schoolId.startsWith('plume-default-') ? null : schoolId
 
   const { data: ticket, error: ticketError } = await supabase
     .from('service_requests')
@@ -79,6 +100,7 @@ export async function createTicketAction(input: unknown) {
       problem_category: problemCategory,
       problem_description: problemDescription,
       urgency,
+      school_id: persistedSchoolId,
     })
     .select('id')
     .single()
@@ -254,6 +276,130 @@ export async function saveDiagnosisAction(formData: FormData) {
       estimated_hours: estimatedHours ?? null,
       parts_needed: partsNeeded ?? null,
     })
+    .eq('id', ticketId)
+
+  if (error) return { error: { _form: ['Erreur lors de la sauvegarde'] } }
+
+  revalidatePath(`/workshop/ticket/${ticketId}`)
+  return { success: true }
+}
+
+// ============================================================
+// Workflow diagnostic école / atelier (migration 20260503120000)
+// ============================================================
+
+export async function saveSchoolChecklistAction(formData: FormData) {
+  const parsed = schoolChecklistSchema.safeParse({
+    ticketId:   formData.get('ticketId'),
+    checkedIds: formData.getAll('checkedIds'),
+    notes:      formData.get('notes') || undefined,
+  })
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: { _form: ['Non authentifié'] } }
+
+  const { ticketId, checkedIds, notes } = parsed.data
+  const payload = { checkedIds, notes: notes ?? null, updatedAt: new Date().toISOString() }
+
+  const { error } = await supabase
+    .from('service_requests')
+    .update({ school_checklist: payload })
+    .eq('id', ticketId)
+
+  if (error) return { error: { _form: ['Erreur lors de la sauvegarde de la checklist'] } }
+
+  revalidatePath(`/school/ticket/${ticketId}`)
+  return { success: true }
+}
+
+export async function applySchoolResolutionAction(formData: FormData) {
+  const parsed = schoolResolutionSchema.safeParse({
+    ticketId:      formData.get('ticketId'),
+    resolution:    formData.get('resolution'),
+    note:          formData.get('note') || undefined,
+    workshopId:    formData.get('workshopId') || undefined,
+    workshopLabel: formData.get('workshopLabel') || undefined,
+  })
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: { _form: ['Non authentifié'] } }
+
+  const { ticketId, resolution, note, workshopId, workshopLabel } = parsed.data
+  const newStatus = resolutionToRequestStatus(resolution)
+  const newSavStatus = (() => {
+    switch (resolution) {
+      case 'resolved_by_school':
+      case 'normal_behavior_explained':
+        return 'closed' as TicketStatus
+      case 'escalated_to_workshop':
+        return 'repair_in_progress' as TicketStatus
+      case 'escalated_to_plume':
+        return 'in_review' as TicketStatus
+    }
+  })()
+
+  const now = new Date().toISOString()
+  const update: TicketUpdate = {
+    school_resolution:      resolution,
+    school_resolution_note: note ?? null,
+    school_resolved_at:     now,
+    school_resolved_by:     user.id,
+    status:                 newStatus,
+    sav_status:             newSavStatus,
+  }
+  if (resolution === 'escalated_to_workshop') {
+    update.assigned_workshop_id    = workshopId ?? null
+    update.assigned_workshop_label = workshopLabel ?? null
+    update.workshop_assigned_at    = now
+    update.workshop_assigned_by    = user.id
+  }
+
+  const { error } = await supabase
+    .from('service_requests')
+    .update(update)
+    .eq('id', ticketId)
+
+  if (error) return { error: { _form: ['Erreur lors de la résolution'] } }
+
+  await supabase.from('ticket_status_history').insert({
+    ticket_id:  ticketId,
+    old_status: null,
+    new_status: newSavStatus,
+    changed_by: user.id,
+    note:       note ? `[${resolution}] ${note}` : `[${resolution}]`,
+  })
+
+  revalidatePath(`/school/ticket/${ticketId}`)
+  revalidatePath(`/workshop/ticket/${ticketId}`)
+  revalidatePath(`/client/ticket/${ticketId}`)
+  revalidatePath('/school')
+  revalidatePath('/workshop')
+  revalidatePath('/plume')
+  return { success: true }
+}
+
+export async function saveWorkshopChecklistAction(formData: FormData) {
+  const parsed = workshopChecklistSchema.safeParse({
+    ticketId:   formData.get('ticketId'),
+    checkedIds: formData.getAll('checkedIds'),
+    notes:      formData.get('notes') || undefined,
+  })
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: { _form: ['Non authentifié'] } }
+
+  const { ticketId, checkedIds, notes } = parsed.data
+  const payload = { checkedIds, notes: notes ?? null, updatedAt: new Date().toISOString() }
+
+  const { error } = await supabase
+    .from('service_requests')
+    .update({ workshop_checklist: payload })
     .eq('id', ticketId)
 
   if (error) return { error: { _form: ['Erreur lors de la sauvegarde'] } }

@@ -9,16 +9,17 @@ import { StepProblem } from './StepProblem'
 import { StepPhotos } from './StepPhotos'
 import { StepReview } from './StepReview'
 import { PlumeLogo } from '@/app/_components/PlumeLogo'
-import type { ClientWing } from '../../queries'
+import type { ClientWing, PartnerSchool } from '../../queries'
 
 const STEPS = ['Votre aile', 'Le problème', 'Photos', 'Vérification']
 const TOTAL_STEPS = STEPS.length
 
 interface TicketWizardProps {
   wings?: ClientWing[]
+  schools?: PartnerSchool[]
 }
 
-export function TicketWizard({ wings = [] }: TicketWizardProps) {
+export function TicketWizard({ wings = [], schools = [] }: TicketWizardProps) {
   const router = useRouter()
   const { currentStep, setStep } = useWizardStore()
 
@@ -81,7 +82,7 @@ export function TicketWizard({ wings = [] }: TicketWizardProps) {
         {currentStep === 1 && <StepWingInfo wings={wings} onNext={next} />}
         {currentStep === 2 && <StepProblem onNext={next} onBack={back} />}
         {currentStep === 3 && <StepPhotos onNext={next} onBack={back} />}
-        {currentStep === 4 && <StepReview onBack={back} />}
+        {currentStep === 4 && <StepReview onBack={back} schools={schools} />}
       </main>
     </div>
   )

@@ -5,12 +5,22 @@ import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { TicketTimeline } from '@/features/tickets/components/TicketTimeline'
 import { CommentThread } from '@/features/tickets/components/CommentThread'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
+import { DiagnosisChecklist } from '@/features/tickets/components/DiagnosisChecklist'
+import {
+  SCHOOL_VISUAL_CHECKLIST,
+  SCHOOL_BEHAVIOR_CHECKLIST,
+} from '@/features/tickets/constants'
+import { saveSchoolChecklistAction } from '@/features/tickets/actions'
 import { formatDate } from '@/features/tickets/utils'
-import { SchoolActionBar } from './SchoolActionBar'
+import { SchoolMessageBox } from './SchoolMessageBox'
+import { SchoolResolutionPanel } from './SchoolResolutionPanel'
+import type { SchoolResolution } from '@/features/tickets/types'
 
 interface PageProps { params: { id: string } }
 
 export const dynamic = 'force-dynamic'
+
+type ChecklistJson = { checkedIds?: string[]; notes?: string | null } | null
 
 export default async function SchoolTicketDetailPage({ params }: PageProps) {
   const ticket = await getSchoolTicketDetail(params.id)
@@ -20,6 +30,15 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
     .filter((m) => m.visibility_level === 'all' || m.sender_role === 'school')
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
   const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
+
+  // Pick the relevant checklist based on the wizard's category.
+  // problem_category === 'other' is the wizard's "Comportement" path.
+  const isBehavior = ticket.problem_category === 'other'
+  const checklistItems = isBehavior ? SCHOOL_BEHAVIOR_CHECKLIST : SCHOOL_VISUAL_CHECKLIST
+
+  const stored: ChecklistJson = (ticket.school_checklist ?? null) as ChecklistJson
+  const initialChecked = Array.isArray(stored?.checkedIds) ? stored!.checkedIds! : []
+  const initialNotes   = typeof stored?.notes === 'string' ? stored!.notes! : ''
 
   return (
     <div className="min-h-screen">
@@ -48,9 +67,31 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           <TicketTimeline status={ticket.status} />
         </section>
 
+        {/* Checklist diagnostic */}
         <section className="card p-5">
-          <h2 className="section-title mb-4">Actions école</h2>
-          <SchoolActionBar ticketId={ticket.id} currentStatus={ticket.status} />
+          <h2 className="section-title mb-3">
+            Checklist premier diagnostic — {isBehavior ? 'comportement' : 'visuel'}
+          </h2>
+          <DiagnosisChecklist
+            ticketId={ticket.id}
+            items={checklistItems}
+            initialChecked={initialChecked}
+            initialNotes={initialNotes}
+            saveAction={saveSchoolChecklistAction}
+            variant="coral"
+            notesLabel="Observations école"
+            notesPlaceholder="Constatations factuelles, mesures prises, échange avec le client…"
+          />
+        </section>
+
+        {/* Issue / résolution */}
+        <section className="card p-5">
+          <h2 className="section-title mb-4">Décision</h2>
+          <SchoolResolutionPanel
+            ticketId={ticket.id}
+            currentResolution={ticket.school_resolution as SchoolResolution | null}
+            assignedWorkshopLabel={ticket.assigned_workshop_label}
+          />
         </section>
 
         <section className="card p-5">
@@ -101,6 +142,9 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
             showInternalBadge
             emptyText="Aucun message."
           />
+          <div className="mt-4">
+            <SchoolMessageBox ticketId={ticket.id} />
+          </div>
         </section>
       </main>
     </div>

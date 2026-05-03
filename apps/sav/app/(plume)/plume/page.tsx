@@ -9,6 +9,11 @@ export const dynamic = 'force-dynamic'
 export default async function PlumeDashboardPage() {
   const [tickets, stats] = await Promise.all([getAllTickets(), getTicketStats()])
 
+  // Tickets explicitly escalated to Plume HQ (cas exceptionnels) — show on top.
+  const escalatedToPlume = tickets.filter(
+    (t) => t.school_resolution === 'escalated_to_plume'
+  )
+
   const KPI_STATUS_GROUPS: Array<{ label: string; statuses: RequestStatus[]; tone: string }> = [
     { label: 'À traiter',   statuses: ['pending'],                tone: 'bg-amber-50 text-amber-800 ring-amber-200' },
     { label: 'En cours',    statuses: ['processing'],             tone: 'bg-sky-50 text-sky-800 ring-sky-200' },
@@ -30,6 +35,43 @@ export default async function PlumeDashboardPage() {
           <Link href="/workshop" className="btn-secondary text-xs px-4 py-2">Vue Atelier</Link>
         </div>
       </header>
+
+      {/* Escalations exceptionnelles — bandeau prioritaire */}
+      {escalatedToPlume.length > 0 && (
+        <section className="rounded-3xl border-2 border-brand-coral/40 bg-brand-coral/10 p-5">
+          <div className="flex items-start gap-3">
+            <span aria-hidden className="text-2xl">🦅</span>
+            <div className="flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-brand-coral">À traiter en priorité</p>
+              <h2 className="mt-0.5 font-display text-lg font-bold text-brand-ink">
+                {escalatedToPlume.length} cas exceptionnel{escalatedToPlume.length > 1 ? 's' : ''} escaladé{escalatedToPlume.length > 1 ? 's' : ''} à Plume HQ
+              </h2>
+              <p className="mt-1 text-xs text-brand-ink/70">
+                Une école n&apos;a pas su classer ces tickets et a demandé un triage Plume.
+              </p>
+              <ul className="mt-3 space-y-1.5">
+                {escalatedToPlume.slice(0, 5).map((t) => {
+                  const ref = t.ticket_number ?? `#${t.id.slice(0, 8).toUpperCase()}`
+                  return (
+                    <li key={t.id}>
+                      <Link
+                        href={`/workshop/ticket/${t.id}`}
+                        className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 text-sm transition-colors hover:bg-brand-cream"
+                      >
+                        <span className="truncate font-medium text-brand-ink">
+                          <span className="font-mono text-xs text-slate-500">{ref}</span>{' '}
+                          — {t.product_brand} {t.product_model}
+                        </span>
+                        <span className="shrink-0 text-xs text-brand-coral">Triage requis →</span>
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* KPI cards */}
       <section>
