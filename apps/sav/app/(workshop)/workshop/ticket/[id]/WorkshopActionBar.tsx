@@ -6,22 +6,19 @@ import {
   addRoleMessageAction,
   saveDiagnosisAction,
 } from '@/features/tickets/actions'
-import type { TicketStatus } from '@/features/tickets/types'
+import type { RequestStatus } from '@/features/tickets/types'
 
 interface WorkshopActionBarProps {
   ticketId: string
-  currentStatus: TicketStatus
+  currentStatus: RequestStatus
   diagnosisNotes: string | null
   estimatedCost: number | null
   estimatedHours: number | null
   partsNeeded: string | null
 }
 
-const STATUS_TRANSITIONS: Partial<Record<TicketStatus, Array<{ label: string; newStatus: TicketStatus }>>> = {
-  diagnosed:          [{ label: 'Démarrer la réparation', newStatus: 'repair_in_progress' }],
-  repair_in_progress: [{ label: 'Marquer réparé',         newStatus: 'repaired' }],
-  repaired:           [{ label: 'Marquer expédié',        newStatus: 'shipped' }],
-  shipped:            [{ label: 'Clôturer',               newStatus: 'closed' }],
+const STATUS_TRANSITIONS: Partial<Record<RequestStatus, Array<{ label: string; newStatus: RequestStatus }>>> = {
+  approved:   [{ label: 'Marquer comme réparé', newStatus: 'completed' }],
 }
 
 export function WorkshopActionBar({
@@ -45,7 +42,7 @@ export function WorkshopActionBar({
 
   const transitions = STATUS_TRANSITIONS[currentStatus] ?? []
 
-  function handleStatusChange(newStatus: TicketStatus) {
+  function handleStatusChange(newStatus: RequestStatus) {
     startTransition(async () => {
       const fd = new FormData()
       fd.set('ticketId', ticketId)

@@ -65,15 +65,14 @@ export const PROBLEM_CATEGORIES: Array<{
   { value: 'other',        label: 'Autre',                description: 'Autre problème non listé',                  emoji: '❓' },
 ]
 
-// STATUS_CONFIG is keyed by TicketStatus (sav_status column — ticket_status enum)
-export const STATUS_CONFIG: Record<TicketStatus, { label: string; color: string; bg: string }> = {
-  draft:              { label: 'Brouillon',         color: 'text-slate-600',  bg: 'bg-slate-100' },
-  submitted:          { label: 'Envoyé',            color: 'text-blue-700',   bg: 'bg-blue-100' },
-  in_review:          { label: 'En révision',       color: 'text-amber-700',  bg: 'bg-amber-100' },
-  diagnosed:          { label: 'Diagnostiqué',      color: 'text-purple-700', bg: 'bg-purple-100' },
-  repair_in_progress: { label: 'En réparation',     color: 'text-orange-700', bg: 'bg-orange-100' },
-  repaired:           { label: 'Réparé',            color: 'text-green-700',  bg: 'bg-green-100' },
-  shipped:            { label: 'Expédié',           color: 'text-teal-700',   bg: 'bg-teal-100' },
-  closed:             { label: 'Clôturé',           color: 'text-slate-500',  bg: 'bg-slate-100' },
-  rejected:           { label: 'Rejeté',            color: 'text-red-700',    bg: 'bg-red-100' },
+export const STATUS_CONFIG: Partial<Record<RequestStatus, { label: string; color: string; bg: string }>> = {
+  pending:    { label: 'En attente',      color: 'text-amber-700',  bg: 'bg-amber-100' },
+  PENDING:    { label: 'En attente',      color: 'text-amber-700',  bg: 'bg-amber-100' },
+  processing: { label: 'En cours',        color: 'text-blue-700',   bg: 'bg-blue-100' },
+  approved:   { label: 'Approuvé',        color: 'text-green-700',  bg: 'bg-green-100' },
+  completed:  { label: 'Terminé',         color: 'text-green-700',  bg: 'bg-green-100' },
+  rejected:   { label: 'Rejeté',          color: 'text-red-700',    bg: 'bg-red-100' },
+  cancelled:  { label: 'Annulé',          color: 'text-slate-500',  bg: 'bg-slate-100' },
+  SUCCESS:    { label: 'Réussi',          color: 'text-green-700',  bg: 'bg-green-100' },
+  ERROR:      { label: 'Erreur',          color: 'text-red-700',    bg: 'bg-red-100' },
 }

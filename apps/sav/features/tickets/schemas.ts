@@ -47,8 +47,7 @@ export const addMessageSchema = z.object({
 export const updateStatusSchema = z.object({
   ticketId: z.string().uuid(),
   newStatus: z.enum([
-    'submitted', 'in_review', 'diagnosed',
-    'repair_in_progress', 'repaired', 'shipped', 'closed', 'rejected',
+    'pending', 'processing', 'approved', 'rejected', 'completed', 'cancelled',
   ]),
   note: z.string().max(500).optional(),
 })

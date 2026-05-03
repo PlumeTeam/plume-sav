@@ -4,20 +4,19 @@ import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { formatDate } from '@/features/tickets/utils'
-import type { TicketWithPhotos, TicketStatus } from '@/features/tickets/types'
+import type { TicketWithPhotos, RequestStatus } from '@/features/tickets/types'
 
 type KanbanColumn = {
   id: string
   label: string
-  statuses: TicketStatus[]
+  statuses: RequestStatus[]
   color: string
 }
 
 const COLUMNS: KanbanColumn[] = [
-  { id: 'diagnose', label: 'À diagnostiquer', statuses: ['diagnosed'], color: 'border-purple-300 bg-purple-50' },
-  { id: 'repair',   label: 'En réparation',   statuses: ['repair_in_progress'],            color: 'border-orange-300 bg-orange-50' },
-  { id: 'repaired', label: 'Réparé',           statuses: ['repaired'],         color: 'border-green-300 bg-green-50' },
-  { id: 'shipped',  label: 'Expédié',          statuses: ['shipped'],          color: 'border-teal-300 bg-teal-50' },
+  { id: 'processing', label: 'En cours',    statuses: ['processing'], color: 'border-orange-300 bg-orange-50' },
+  { id: 'approved',   label: 'Approuvé',    statuses: ['approved'],   color: 'border-green-300 bg-green-50' },
+  { id: 'completed',  label: 'Terminé',     statuses: ['completed'],  color: 'border-teal-300 bg-teal-50' },
 ]
 
 interface WorkshopKanbanProps {
@@ -30,7 +29,7 @@ export function WorkshopKanban({ tickets }: WorkshopKanbanProps) {
   const byColumn = useMemo(
     () =>
       COLUMNS.reduce<Record<string, TicketWithPhotos[]>>((acc, col) => {
-        acc[col.id] = tickets.filter((t) => col.statuses.includes(t.sav_status))
+        acc[col.id] = tickets.filter((t) => col.statuses.includes(t.status))
         return acc
       }, {}),
     [tickets]
@@ -114,20 +113,20 @@ function WorkshopTicketCard({
     >
       <div className="flex items-start justify-between gap-2">
         <p className={`font-semibold text-slate-900 ${compact ? 'text-xs' : 'text-sm'}`}>
-          {ticket.wing_brand} {ticket.wing_model}
+          {ticket.product_brand} {ticket.product_model}
         </p>
-        {ticket.urgency === 'urgent' && (
+        {ticket.urgency_level === 2 && (
           <span className="flex-shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
             Urgent
           </span>
         )}
       </div>
       <p className={`text-slate-500 ${compact ? 'text-xs' : 'text-xs mt-0.5'}`}>
-        {ticket.ticket_number ?? '—'}
+        {ticket.id.slice(0, 8).toUpperCase()}
       </p>
       {!compact && (
         <div className="mt-2 flex items-center justify-between">
-          <StatusBadge status={ticket.sav_status} size="sm" />
+          <StatusBadge status={ticket.status} size="sm" />
           <span className="text-xs text-slate-400">{formatDate(ticket.created_at)}</span>
         </div>
       )}

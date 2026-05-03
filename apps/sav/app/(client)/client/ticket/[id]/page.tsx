@@ -4,7 +4,7 @@ import Image from 'next/image'
 import { getTicketDetail } from '@/features/tickets/queries'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { formatDate, formatDateTime, getSupabasePublicUrl, TIMELINE_STEPS, getStatusStep } from '@/features/tickets/utils'
-import { PROBLEM_CATEGORIES, STATUS_CONFIG } from '@/features/tickets/types'
+import { STATUS_CONFIG } from '@/features/tickets/types'
 import { MessageForm } from './MessageForm'
 
 interface PageProps {
@@ -15,13 +15,9 @@ export default async function TicketDetailPage({ params }: PageProps) {
   const ticket = await getTicketDetail(params.id)
   if (!ticket) notFound()
 
-  const currentStep = getStatusStep(ticket.sav_status)
-  const problemLabel = PROBLEM_CATEGORIES.find((c) => c.value === ticket.problem_category)
+  const currentStep = getStatusStep(ticket.status)
   const sortedPhotos = [...ticket.ticket_photos].sort((a, b) => a.sort_order - b.sort_order)
   const publicMessages = ticket.ticket_messages.filter((m) => m.visibility_level === 'all')
-  const sortedHistory = [...ticket.ticket_status_history].sort(
-    (a, b) => new Date(a.changed_at).getTime() - new Date(b.changed_at).getTime()
-  )
 
   return (
     <div className="min-h-screen">
@@ -37,13 +33,13 @@ export default async function TicketDetailPage({ params }: PageProps) {
           </Link>
           <div className="flex-1">
             <p className="text-sm font-semibold text-slate-900">
-              {ticket.ticket_number ?? 'Ticket SAV'}
+              {ticket.id.slice(0, 8).toUpperCase()}
             </p>
             <p className="text-xs text-slate-500">
-              {ticket.wing_brand} {ticket.wing_model} {ticket.wing_size}
+              {ticket.product_brand} {ticket.product_model}
             </p>
           </div>
-          <StatusBadge status={ticket.sav_status} size="sm" />
+          <StatusBadge status={ticket.status} size="sm" />
         </div>
       </header>
 
@@ -90,35 +86,25 @@ export default async function TicketDetailPage({ params }: PageProps) {
           </ol>
         </section>
 
-        {/* Wing info */}
+        {/* Service request info */}
         <section className="bg-white px-4 py-5">
-          <h2 className="mb-3 text-sm font-semibold text-slate-400 uppercase tracking-wide">Votre aile</h2>
+          <h2 className="mb-3 text-sm font-semibold text-slate-400 uppercase tracking-wide">Produit</h2>
           <div className="space-y-2">
-            <InfoRow label="Marque / Modèle" value={`${ticket.wing_brand ?? '—'} ${ticket.wing_model ?? ''} ${ticket.wing_size ?? ''}`} />
-            <InfoRow label="Couleur" value={ticket.wing_color ?? '—'} />
-            <InfoRow label="N° de série" value={ticket.wing_serial_number ?? '—'} />
+            <InfoRow label="Marque / Modèle" value={`${ticket.product_brand ?? '—'} ${ticket.product_model ?? '—'}`} />
+            <InfoRow label="N° de série" value={ticket.serial_number ?? '—'} />
             {ticket.purchase_date && (
               <InfoRow label="Date d'achat" value={formatDate(ticket.purchase_date)} />
-            )}
-            {ticket.flight_hours_estimate != null && (
-              <InfoRow label="Heures de vol" value={`${ticket.flight_hours_estimate} h`} />
             )}
           </div>
         </section>
 
-        {/* Problem */}
+        {/* Description */}
         <section className="bg-white px-4 py-5">
-          <h2 className="mb-3 text-sm font-semibold text-slate-400 uppercase tracking-wide">Problème déclaré</h2>
-          {problemLabel && (
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700">
-              <span aria-hidden>{problemLabel.emoji}</span>
-              {problemLabel.label}
-            </div>
+          <h2 className="mb-3 text-sm font-semibold text-slate-400 uppercase tracking-wide">Demande</h2>
+          {ticket.description && (
+            <p className="text-sm text-slate-700 leading-relaxed">{ticket.description}</p>
           )}
-          {ticket.problem_description && (
-            <p className="text-sm text-slate-700 leading-relaxed">{ticket.problem_description}</p>
-          )}
-          {ticket.urgency === 'urgent' && (
+          {ticket.urgency_level === 2 && (
             <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 font-medium">
               🚨 Signalé comme urgent
             </p>
@@ -150,29 +136,6 @@ export default async function TicketDetailPage({ params }: PageProps) {
                 </a>
               ))}
             </div>
-          </section>
-        )}
-
-        {/* Status history */}
-        {sortedHistory.length > 0 && (
-          <section className="bg-white px-4 py-5">
-            <h2 className="mb-3 text-sm font-semibold text-slate-400 uppercase tracking-wide">Historique</h2>
-            <ol className="space-y-3">
-              {sortedHistory.map((event) => {
-                const config = STATUS_CONFIG[event.new_status] ?? { label: 'Inconnu', color: 'text-slate-500', bg: 'bg-slate-100' }
-                return (
-                  <li key={event.id} className="flex items-start gap-3">
-                    <span className={`mt-0.5 rounded-full px-2 py-0.5 text-xs font-medium ${config.bg} ${config.color}`}>
-                      {config.label}
-                    </span>
-                    <div>
-                      <p className="text-xs text-slate-400">{formatDateTime(event.changed_at)}</p>
-                      {event.note && <p className="mt-0.5 text-sm text-slate-600">{event.note}</p>}
-                    </div>
-                  </li>
-                )
-              })}
-            </ol>
           </section>
         )}
 

@@ -37,13 +37,13 @@ export function TicketCard({ ticket, basePath = '/client', showUrgency = false }
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <p className="text-sm font-semibold text-slate-900 truncate">
-            {ticket.wing_brand} {ticket.wing_model} {ticket.wing_size}
+            {ticket.product_brand} {ticket.product_model}
           </p>
-          <StatusBadge status={ticket.sav_status} size="sm" />
+          <StatusBadge status={ticket.status} size="sm" />
         </div>
         <p className="mt-0.5 text-xs text-slate-500">
-          {ticket.ticket_number ?? 'N° en cours…'}
-          {showUrgency && ticket.urgency === 'urgent' && (
+          {ticket.id.slice(0, 8)}
+          {showUrgency && ticket.urgency_level === 2 && (
             <span className="ml-2 rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700">
               Urgent
             </span>

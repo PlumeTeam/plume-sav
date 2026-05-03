@@ -6,7 +6,7 @@ import { TicketTimeline } from '@/features/tickets/components/TicketTimeline'
 import { CommentThread } from '@/features/tickets/components/CommentThread'
 import { PhotoGallery } from '@/features/tickets/components/PhotoGallery'
 import { formatDate, formatDateTime } from '@/features/tickets/utils'
-import { PROBLEM_CATEGORIES, STATUS_CONFIG } from '@/features/tickets/types'
+import { STATUS_CONFIG } from '@/features/tickets/types'
 import { WorkshopActionBar } from './WorkshopActionBar'
 
 interface PageProps {
@@ -17,12 +17,8 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
   const ticket = await getWorkshopTicketDetail(params.id)
   if (!ticket) notFound()
 
-  const problemLabel = PROBLEM_CATEGORIES.find((c) => c.value === ticket.problem_category)
   const allMessages = [...ticket.ticket_messages].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  )
-  const sortedHistory = [...ticket.ticket_status_history].sort(
-    (a, b) => new Date(a.changed_at).getTime() - new Date(b.changed_at).getTime()
   )
 
   return (
@@ -38,13 +34,13 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
           </Link>
           <div className="flex-1">
             <p className="text-sm font-semibold text-slate-900">
-              {ticket.ticket_number ?? 'Ticket SAV'}
+              {ticket.id.slice(0, 8).toUpperCase()}
             </p>
             <p className="text-xs text-slate-500">
-              {ticket.wing_brand} {ticket.wing_model} {ticket.wing_size}
+              {ticket.product_brand} {ticket.product_model}
             </p>
           </div>
-          <StatusBadge status={ticket.sav_status} size="sm" />
+          <StatusBadge status={ticket.status} size="sm" />
         </div>
       </header>
 
@@ -52,7 +48,7 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
         {/* Timeline */}
         <section className="bg-white px-4 py-5">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-400">Suivi</h2>
-          <TicketTimeline status={ticket.sav_status} />
+          <TicketTimeline status={ticket.status} />
         </section>
 
         {/* Workshop actions */}
@@ -60,7 +56,7 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-400">Actions atelier</h2>
           <WorkshopActionBar
             ticketId={ticket.id}
-            currentStatus={ticket.sav_status}
+            currentStatus={ticket.status}
             diagnosisNotes={ticket.diagnosis_notes}
             estimatedCost={ticket.estimated_cost}
             estimatedHours={ticket.estimated_hours}
@@ -95,35 +91,25 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
           </section>
         )}
 
-        {/* Wing info */}
+        {/* Service request info */}
         <section className="bg-white px-4 py-5">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Aile</h2>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Produit</h2>
           <div className="space-y-2">
-            <InfoRow label="Marque / Modèle" value={`${ticket.wing_brand ?? '—'} ${ticket.wing_model ?? ''} ${ticket.wing_size ?? ''}`} />
-            <InfoRow label="Couleur" value={ticket.wing_color ?? '—'} />
-            <InfoRow label="N° de série" value={ticket.wing_serial_number ?? '—'} />
+            <InfoRow label="Marque / Modèle" value={`${ticket.product_brand ?? '—'} ${ticket.product_model ?? '—'}`} />
+            <InfoRow label="N° de série" value={ticket.serial_number ?? '—'} />
             {ticket.purchase_date && <InfoRow label="Date d'achat" value={formatDate(ticket.purchase_date)} />}
-            {ticket.flight_hours_estimate != null && (
-              <InfoRow label="Heures de vol" value={`${ticket.flight_hours_estimate} h`} />
-            )}
           </div>
         </section>
 
-        {/* Problem */}
+        {/* Description */}
         <section className="bg-white px-4 py-5">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Problème</h2>
-          {problemLabel && (
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700">
-              <span aria-hidden>{problemLabel.emoji}</span>
-              {problemLabel.label}
-            </div>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Demande</h2>
+          {ticket.description && (
+            <p className="text-sm leading-relaxed text-slate-700">{ticket.description}</p>
           )}
-          {ticket.problem_description && (
-            <p className="text-sm leading-relaxed text-slate-700">{ticket.problem_description}</p>
-          )}
-          {ticket.urgency === 'urgent' && (
-            <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
-              Urgent
+          {ticket.urgency_level === 2 && (
+            <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+              🚨 Signalé comme urgent
             </p>
           )}
         </section>
@@ -135,29 +121,6 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
               Photos ({ticket.ticket_photos.length})
             </h2>
             <PhotoGallery photos={ticket.ticket_photos} />
-          </section>
-        )}
-
-        {/* History */}
-        {sortedHistory.length > 0 && (
-          <section className="bg-white px-4 py-5">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Historique</h2>
-            <ol className="space-y-3">
-              {sortedHistory.map((event) => {
-                const config = STATUS_CONFIG[event.new_status] ?? { label: 'Inconnu', color: 'text-slate-500', bg: 'bg-slate-100' }
-                return (
-                  <li key={event.id} className="flex items-start gap-3">
-                    <span className={`mt-0.5 rounded-full px-2 py-0.5 text-xs font-medium ${config.bg} ${config.color}`}>
-                      {config.label}
-                    </span>
-                    <div>
-                      <p className="text-xs text-slate-400">{formatDateTime(event.changed_at)}</p>
-                      {event.note && <p className="mt-0.5 text-sm text-slate-600">{event.note}</p>}
-                    </div>
-                  </li>
-                )
-              })}
-            </ol>
           </section>
         )}
 

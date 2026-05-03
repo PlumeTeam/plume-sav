@@ -2,24 +2,24 @@
 
 import { useTransition, useState } from 'react'
 import { updateTicketStatusAction, addRoleMessageAction } from '@/features/tickets/actions'
-import type { TicketStatus } from '@/features/tickets/types'
+import type { RequestStatus } from '@/features/tickets/types'
 
 interface SchoolActionBarProps {
   ticketId: string
-  currentStatus: TicketStatus
+  currentStatus: RequestStatus
 }
 
-const STATUS_TRANSITIONS: Partial<Record<TicketStatus, Array<{ label: string; newStatus: TicketStatus; variant: 'primary' | 'secondary' | 'danger' }>>> = {
-  submitted: [
-    { label: 'Démarrer la révision', newStatus: 'in_review', variant: 'primary' },
+const STATUS_TRANSITIONS: Partial<Record<RequestStatus, Array<{ label: string; newStatus: RequestStatus; variant: 'primary' | 'secondary' | 'danger' }>>> = {
+  pending: [
+    { label: 'Commencer l\'inspection', newStatus: 'processing', variant: 'primary' },
     { label: 'Rejeter', newStatus: 'rejected', variant: 'danger' },
   ],
-  in_review: [
-    { label: 'Marquer diagnostiqué', newStatus: 'diagnosed', variant: 'primary' },
+  processing: [
+    { label: 'Approuver la réparation', newStatus: 'approved', variant: 'primary' },
     { label: 'Rejeter', newStatus: 'rejected', variant: 'danger' },
   ],
-  diagnosed: [
-    { label: 'Transférer à l\'atelier', newStatus: 'repair_in_progress', variant: 'primary' },
+  approved: [
+    { label: 'Marquer comme réparé', newStatus: 'completed', variant: 'primary' },
   ],
 }
 
@@ -32,7 +32,7 @@ export function SchoolActionBar({ ticketId, currentStatus }: SchoolActionBarProp
 
   const transitions = STATUS_TRANSITIONS[currentStatus] ?? []
 
-  function handleStatusChange(newStatus: TicketStatus) {
+  function handleStatusChange(newStatus: RequestStatus) {
     startTransition(async () => {
       const fd = new FormData()
       fd.set('ticketId', ticketId)

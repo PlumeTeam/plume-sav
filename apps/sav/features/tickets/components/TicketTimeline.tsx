@@ -1,8 +1,8 @@
 import { TIMELINE_STEPS, getStatusStep } from '../utils'
-import type { TicketStatus } from '../types'
+import type { RequestStatus } from '../types'
 
 interface TicketTimelineProps {
-  status: TicketStatus
+  status: RequestStatus
 }
 
 export function TicketTimeline({ status }: TicketTimelineProps) {

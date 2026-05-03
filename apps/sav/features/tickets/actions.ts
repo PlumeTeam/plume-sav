@@ -20,15 +20,17 @@ function deriveServiceType(category: ProblemCategory): ServiceType {
   return 'sav'
 }
 
-// Maps SAV workflow status (ticket_status) to shared-platform status (request_status)
-function savStatusToRequestStatus(savStatus: TicketStatus): RequestStatus {
-  switch (savStatus) {
-    case 'repaired':
-    case 'shipped':
-    case 'closed':
-      return 'completed'
-    case 'rejected':
+// Maps internal workflow transitions to request_status enum
+function workflowToRequestStatus(action: string): RequestStatus {
+  switch (action) {
+    case 'approve':
+      return 'approved'
+    case 'reject':
       return 'rejected'
+    case 'complete':
+      return 'completed'
+    case 'cancel':
+      return 'cancelled'
     default:
       return 'processing'
   }
@@ -55,31 +57,17 @@ export async function createTicketAction(input: unknown) {
   const { data: ticket, error: ticketError } = await supabase
     .from('service_requests')
     .insert({
-      // Colonnes identity — satisfait les contraintes originales et la RLS SAV
       user_id: user.id,
-      client_id: user.id,
       email: user.email ?? null,
-      // Champ requis NOT NULL de la table originale
       service_type: serviceType,
-      // Statuts : request_status (cross-app) + ticket_status (workflow SAV)
       status: 'pending',
-      sav_status: 'submitted',
-      // Colonnes originales en double pour compatibilité cross-app
+      // Standard columns
       product_brand: wingBrand,
       product_model: wingModel,
       serial_number: wingSerial,
       description: problemDescription,
-      // Colonnes SAV spécifiques
-      wing_brand: wingBrand,
-      wing_model: wingModel,
-      wing_size: wingSize,
-      wing_serial_number: wingSerial,
-      wing_color: wingColor,
+      urgency_level: urgency === 'urgent' ? 2 : 1,
       purchase_date: purchaseDate,
-      flight_hours_estimate: flightHours ?? null,
-      problem_category: problemCategory,
-      problem_description: problemDescription,
-      urgency,
     })
     .select('id')
     .single()
@@ -158,30 +146,21 @@ export async function updateTicketStatusAction(formData: FormData) {
 
   const { data: current, error: fetchError } = await supabase
     .from('service_requests')
-    .select('sav_status')
+    .select('status')
     .eq('id', ticketId)
     .single()
-    .returns<{ sav_status: TicketStatus }>()
+    .returns<{ status: RequestStatus }>()
 
   if (fetchError || !current) return { error: { _form: ['Ticket introuvable'] } }
 
   const { error: updateError } = await supabase
     .from('service_requests')
     .update({
-      sav_status: newStatus,
-      status: savStatusToRequestStatus(newStatus),
+      status: newStatus,
     })
     .eq('id', ticketId)
 
   if (updateError) return { error: { _form: ['Erreur lors de la mise à jour'] } }
-
-  await supabase.from('ticket_status_history').insert({
-    ticket_id: ticketId,
-    old_status: current.sav_status,
-    new_status: newStatus,
-    changed_by: user.id,
-    note: note ?? null,
-  })
 
   revalidatePath(`/school/ticket/${ticketId}`)
   revalidatePath(`/workshop/ticket/${ticketId}`)

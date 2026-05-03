@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import type { TicketWithPhotos, TicketDetail, TicketStatus } from './types'
+import type { TicketWithPhotos, TicketDetail, TicketStatus, RequestStatus } from './types'
 
 export type ClientWing = {
   id: string
@@ -22,7 +22,7 @@ export type TicketStats = {
   total: number
   urgent: number
   thisMonth: number
-  byStatus: Partial<Record<TicketStatus, number>>
+  byStatus: Partial<Record<RequestStatus, number>>
 }
 
 // ── Client ───────────────────────────────────────────────────────────────────
@@ -53,11 +53,10 @@ export async function getClientTickets(): Promise<TicketWithPhotos[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  // RLS (updated by migration) handles visibility : client_id OR user_id = auth.uid()
   const { data, error } = await supabase
     .from('service_requests')
     .select('*, ticket_photos ( id, storage_path, photo_type, sort_order )')
-    .neq('sav_status', 'draft')
+    .neq('status', 'pending')
     .order('created_at', { ascending: false })
     .returns<TicketWithPhotos[]>()
 
@@ -94,12 +93,11 @@ export async function getSchoolTickets(): Promise<TicketWithPhotos[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  // RLS filters to the user's school automatically
   const { data, error } = await supabase
     .from('service_requests')
     .select('*, ticket_photos ( id, storage_path, photo_type, sort_order )')
-    .in('sav_status', ['submitted', 'in_review', 'diagnosed'])
-    .order('urgency', { ascending: false })
+    .in('status', ['pending', 'processing', 'approved'])
+    .order('urgency_level', { ascending: false })
     .order('created_at', { ascending: false })
     .returns<TicketWithPhotos[]>()
 
@@ -140,8 +138,8 @@ export async function getWorkshopTickets(): Promise<TicketWithPhotos[]> {
   const { data, error } = await supabase
     .from('service_requests')
     .select('*, ticket_photos ( id, storage_path, photo_type, sort_order )')
-    .in('sav_status', ['diagnosed', 'repair_in_progress', 'repaired', 'shipped'])
-    .order('urgency', { ascending: false })
+    .in('status', ['processing', 'completed'])
+    .order('urgency_level', { ascending: false })
     .order('created_at', { ascending: false })
     .returns<TicketWithPhotos[]>()
 
@@ -181,8 +179,8 @@ export async function getAllTickets(): Promise<TicketWithPhotos[]> {
   const { data, error } = await supabase
     .from('service_requests')
     .select('*, ticket_photos ( id, storage_path, photo_type, sort_order )')
-    .neq('sav_status', 'draft')
-    .order('urgency', { ascending: false })
+    .neq('status', 'pending')
+    .order('urgency_level', { ascending: false })
     .order('created_at', { ascending: false })
     .returns<TicketWithPhotos[]>()
 
@@ -198,14 +196,14 @@ export async function getTicketStats(): Promise<TicketStats> {
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
-  const byStatus: Partial<Record<TicketStatus, number>> = {}
+  const byStatus: Partial<Record<RequestStatus, number>> = {}
   for (const t of tickets) {
-    byStatus[t.sav_status] = (byStatus[t.sav_status] ?? 0) + 1
+    byStatus[t.status] = (byStatus[t.status] ?? 0) + 1
   }
 
   return {
     total: tickets.length,
-    urgent: tickets.filter((t) => t.urgency === 'urgent').length,
+    urgent: tickets.filter((t) => t.urgency_level === 2).length,
     thisMonth: tickets.filter((t) => t.created_at >= startOfMonth).length,
     byStatus,
   }

@@ -3,18 +3,18 @@ import { getAllTickets, getTicketStats } from '@/features/tickets/queries'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { formatDate } from '@/features/tickets/utils'
 import { STATUS_CONFIG } from '@/features/tickets/types'
-import type { TicketStatus } from '@/features/tickets/types'
+import type { RequestStatus } from '@/features/tickets/types'
 
 export default async function PlumeDashboardPage() {
   const [tickets, stats] = await Promise.all([getAllTickets(), getTicketStats()])
   const recent = tickets.slice(0, 10)
 
-  const KPI_STATUS_GROUPS: Array<{ label: string; statuses: TicketStatus[]; color: string }> = [
-    { label: 'En attente',    statuses: ['submitted'],                  color: 'bg-blue-50 text-blue-700' },
-    { label: 'En révision',   statuses: ['in_review', 'diagnosed'],     color: 'bg-amber-50 text-amber-700' },
-    { label: 'En réparation', statuses: ['repair_in_progress'],         color: 'bg-orange-50 text-orange-700' },
-    { label: 'Réparés',       statuses: ['repaired', 'shipped'],        color: 'bg-green-50 text-green-700' },
-    { label: 'Clôturés',      statuses: ['closed', 'rejected'],         color: 'bg-slate-50 text-slate-500' },
+  const KPI_STATUS_GROUPS: Array<{ label: string; statuses: RequestStatus[]; color: string }> = [
+    { label: 'En attente',    statuses: ['pending'],       color: 'bg-blue-50 text-blue-700' },
+    { label: 'En cours',      statuses: ['processing'],    color: 'bg-amber-50 text-amber-700' },
+    { label: 'Approuvés',     statuses: ['approved'],      color: 'bg-orange-50 text-orange-700' },
+    { label: 'Terminés',      statuses: ['completed'],     color: 'bg-green-50 text-green-700' },
+    { label: 'Autres',        statuses: ['rejected', 'cancelled'], color: 'bg-slate-50 text-slate-500' },
   ]
 
   return (
@@ -28,11 +28,7 @@ export default async function PlumeDashboardPage() {
           <KpiCard label="Urgents" value={stats.urgent} color="bg-red-50 text-red-700" />
           <KpiCard
             label="En cours"
-            value={
-              (stats.byStatus['in_review'] ?? 0) +
-              (stats.byStatus['diagnosed'] ?? 0) +
-              (stats.byStatus['repair_in_progress'] ?? 0)
-            }
+            value={stats.byStatus.processing ?? 0}
             color="bg-orange-50 text-orange-700"
           />
         </div>
@@ -82,17 +78,17 @@ export default async function PlumeDashboardPage() {
                           href={`/workshop/ticket/${ticket.id}`}
                           className="font-mono text-xs font-medium text-slate-900 hover:underline"
                         >
-                          {ticket.ticket_number ?? ticket.id.slice(0, 8)}
+                          {ticket.id.slice(0, 8).toUpperCase()}
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-slate-700">
-                        {ticket.wing_brand} {ticket.wing_model}
+                        {ticket.product_brand} {ticket.product_model}
                       </td>
                       <td className="px-4 py-3">
-                        <StatusBadge status={ticket.sav_status} size="sm" />
+                        <StatusBadge status={ticket.status} size="sm" />
                       </td>
                       <td className="px-4 py-3">
-                        {ticket.urgency === 'urgent' && (
+                        {ticket.urgency_level === 2 && (
                           <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
                             Urgent
                           </span>
@@ -116,7 +112,7 @@ export default async function PlumeDashboardPage() {
           Détail par statut
         </h2>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-          {(Object.keys(STATUS_CONFIG) as TicketStatus[]).map((s) => {
+          {(Object.keys(STATUS_CONFIG) as RequestStatus[]).map((s) => {
             const count = stats.byStatus[s] ?? 0
             if (count === 0) return null
             const cfg = STATUS_CONFIG[s] ?? { label: s, color: 'text-slate-500', bg: 'bg-slate-100' }

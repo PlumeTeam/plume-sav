@@ -1,4 +1,4 @@
-import type { TicketStatus } from './types'
+import type { RequestStatus } from './types'
 
 export function formatDate(isoDate: string | null): string {
   if (!isoDate) return '—'
@@ -27,21 +27,17 @@ export function getSupabasePublicUrl(storagePath: string): string {
 }
 
 // Timeline steps for the Domino's-style tracker
-export const TIMELINE_STEPS: Array<{ status: TicketStatus; label: string }> = [
-  { status: 'submitted',          label: 'Ticket envoyé' },
-  { status: 'in_review',          label: "Inspection école" },
-  { status: 'diagnosed',          label: 'Diagnostiqué' },
-  { status: 'repair_in_progress', label: 'En réparation' },
-  { status: 'repaired',           label: 'Réparé' },
-  { status: 'shipped',            label: 'Expédié' },
-  { status: 'closed',             label: 'Clôturé' },
+export const TIMELINE_STEPS: Array<{ status: RequestStatus; label: string }> = [
+  { status: 'pending',    label: 'En attente' },
+  { status: 'processing', label: 'En cours' },
+  { status: 'approved',   label: 'Approuvé' },
+  { status: 'completed',  label: 'Terminé' },
 ]
 
-const STATUS_ORDER: TicketStatus[] = [
-  'draft', 'submitted', 'in_review', 'diagnosed',
-  'repair_in_progress', 'repaired', 'shipped', 'closed',
+const STATUS_ORDER: RequestStatus[] = [
+  'pending', 'processing', 'approved', 'completed',
 ]
 
-export function getStatusStep(status: TicketStatus): number {
+export function getStatusStep(status: RequestStatus): number {
   return STATUS_ORDER.indexOf(status)
 }

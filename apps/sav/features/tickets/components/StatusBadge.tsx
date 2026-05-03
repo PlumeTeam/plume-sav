@@ -1,8 +1,8 @@
-import type { TicketStatus } from '../types'
+import type { RequestStatus } from '../types'
 import { STATUS_CONFIG } from '../types'
 
 interface StatusBadgeProps {
-  status: TicketStatus
+  status: RequestStatus
   size?: 'sm' | 'md'
 }
 
