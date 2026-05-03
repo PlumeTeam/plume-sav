@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { WizardWingInfo, WizardProblem, WizardPhoto, ProblemCategory, UrgencyLevel } from './types'
+import type { WizardWingInfo, WizardProblem, WizardPhoto } from './types'
 
 interface WizardState {
   currentStep: number
@@ -38,6 +38,8 @@ const defaultProblem: WizardProblem = {
   problemCategory: '',
   problemDescription: '',
   urgency: 'normal',
+  wingBehaviors: [],
+  wingBehaviorOther: '',
 }
 
 const defaultState: WizardState = {

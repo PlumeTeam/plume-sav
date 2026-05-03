@@ -10,14 +10,23 @@ import {
   roleMessageSchema,
   diagnosisSchema,
 } from './schemas'
-import type { MessageSenderRole, TicketStatus, ServiceType, ProblemCategory } from './types'
+import type { MessageSenderRole, TicketStatus, ServiceType, ProblemCategory, WizardProblemCategory } from './types'
 import type { RequestStatus } from './types'
+import { composeWingBehaviorDescription } from './utils'
 
 // Maps SAV problem category to the shared-platform service_type enum
-function deriveServiceType(category: ProblemCategory): ServiceType {
+function deriveServiceType(category: WizardProblemCategory): ServiceType {
   if (['tear', 'line_issue', 'riser_issue', 'buckle_issue'].includes(category)) return 'repair'
   if (category === 'porosity') return 'revision'
+  // wing_behavior + other → generic SAV
   return 'sav'
+}
+
+// Normalizes the wizard category to a value accepted by the DB problem_category enum.
+// 'wing_behavior' is a wizard-only category and is folded into 'other' on save.
+function normalizeProblemCategory(category: WizardProblemCategory): ProblemCategory {
+  if (category === 'wing_behavior') return 'other'
+  return category
 }
 
 // Maps SAV workflow status (ticket_status) to shared-platform status (request_status)
@@ -47,10 +56,18 @@ export async function createTicketAction(input: unknown) {
   const {
     wingBrand, wingModel, wingSize, wingSerial, wingColor,
     purchaseDate, flightHours, problemCategory, problemDescription,
-    urgency, photoPaths,
+    urgency, photoPaths, wingBehaviors, wingBehaviorOther,
   } = parsed.data
 
   const serviceType = deriveServiceType(problemCategory)
+  const dbProblemCategory = normalizeProblemCategory(problemCategory)
+  const finalDescription = problemCategory === 'wing_behavior'
+    ? composeWingBehaviorDescription({
+        behaviors: wingBehaviors,
+        behaviorOther: wingBehaviorOther,
+        description: problemDescription,
+      })
+    : problemDescription
 
   const { data: ticket, error: ticketError } = await supabase
     .from('service_requests')
@@ -68,7 +85,7 @@ export async function createTicketAction(input: unknown) {
       product_brand: wingBrand,
       product_model: wingModel,
       serial_number: wingSerial,
-      description: problemDescription,
+      description: finalDescription,
       // Colonnes SAV spécifiques
       wing_brand: wingBrand,
       wing_model: wingModel,
@@ -77,8 +94,8 @@ export async function createTicketAction(input: unknown) {
       wing_color: wingColor,
       purchase_date: purchaseDate,
       flight_hours_estimate: flightHours ?? null,
-      problem_category: problemCategory,
-      problem_description: problemDescription,
+      problem_category: dbProblemCategory,
+      problem_description: finalDescription,
       urgency,
     })
     .select('id')

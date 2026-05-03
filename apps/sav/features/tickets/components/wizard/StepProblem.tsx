@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useWizardStore } from '../../store'
 import { problemSchema, type ProblemInput } from '../../schemas'
-import { PROBLEM_CATEGORIES } from '../../types'
+import { PROBLEM_CATEGORIES, WING_BEHAVIORS, type WingBehaviorValue } from '../../types'
 
 interface StepProblemProps {
   onNext: () => void
@@ -26,11 +26,22 @@ export function StepProblem({ onNext, onBack }: StepProblemProps) {
       problemCategory: problem.problemCategory as ProblemInput['problemCategory'] | undefined,
       problemDescription: problem.problemDescription,
       urgency: problem.urgency,
+      wingBehaviors: problem.wingBehaviors,
+      wingBehaviorOther: problem.wingBehaviorOther,
     },
   })
 
   const selectedCategory = watch('problemCategory')
   const urgency = watch('urgency')
+  const selectedBehaviors = watch('wingBehaviors') ?? []
+  const isWingBehavior = selectedCategory === 'wing_behavior'
+
+  function toggleBehavior(value: WingBehaviorValue) {
+    const next = selectedBehaviors.includes(value)
+      ? selectedBehaviors.filter((b) => b !== value)
+      : [...selectedBehaviors, value]
+    setValue('wingBehaviors', next, { shouldValidate: true })
+  }
 
   function onSubmit(data: ProblemInput) {
     setProblem(data)
@@ -81,15 +92,70 @@ export function StepProblem({ onNext, onBack }: StepProblemProps) {
         <input type="hidden" {...register('problemCategory')} />
       </div>
 
+      {/* Wing behavior diagnostic checklist — only when "Comportement de l'aile" is selected */}
+      {isWingBehavior && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <p className="mb-1 text-sm font-medium text-slate-700">
+            Quels comportements observez-vous ?
+          </p>
+          <p className="mb-3 text-xs text-slate-500">
+            Cochez tout ce qui s'applique. Plus vous donnez d'indices, mieux nous pouvons diagnostiquer.
+          </p>
+          <div className="flex flex-col gap-2">
+            {WING_BEHAVIORS.map((b) => {
+              const checked = selectedBehaviors.includes(b.value)
+              return (
+                <label
+                  key={b.value}
+                  className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 px-3 py-2.5 text-sm transition-colors active:scale-[0.99] ${
+                    checked
+                      ? 'border-slate-900 bg-slate-50 text-slate-900'
+                      : 'border-slate-200 bg-white text-slate-700'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleBehavior(b.value)}
+                    className="mt-0.5 h-4 w-4 flex-shrink-0 accent-slate-900"
+                  />
+                  <span className="leading-snug">{b.label}</span>
+                </label>
+              )
+            })}
+          </div>
+          {errors.wingBehaviors && (
+            <p className="mt-2 text-xs text-red-600">{errors.wingBehaviors.message as string}</p>
+          )}
+
+          <label className="mt-4 mb-1.5 block text-sm font-medium text-slate-700">
+            Autre comportement inhabituel
+          </label>
+          <textarea
+            {...register('wingBehaviorOther')}
+            rows={2}
+            placeholder="Précisez ici tout autre comportement observé…"
+            className="field-input resize-none"
+          />
+          {errors.wingBehaviorOther && (
+            <p className="mt-1 text-xs text-red-600">{errors.wingBehaviorOther.message}</p>
+          )}
+        </div>
+      )}
+
       {/* Description */}
       <div>
         <label className="mb-1.5 block text-sm font-medium text-slate-700">
-          Description détaillée
+          {isWingBehavior ? 'Contexte / informations complémentaires' : 'Description détaillée'}
         </label>
         <textarea
           {...register('problemDescription')}
           rows={4}
-          placeholder="Décrivez précisément le problème : où, quand, comment cela s'est produit..."
+          placeholder={
+            isWingBehavior
+              ? "Quand cela se produit-il ? Conditions de vol, ancienneté, événement déclencheur…"
+              : "Décrivez précisément le problème : où, quand, comment cela s'est produit..."
+          }
           className="field-input resize-none"
         />
         {errors.problemDescription && (

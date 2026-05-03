@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useWizardStore } from '../../store'
 import { createTicketAction } from '../../actions'
 import { PROBLEM_CATEGORIES } from '../../types'
+import { getWingBehaviorLabel } from '../../utils'
 import { createClient } from '@/lib/supabase/client'
 
 interface StepReviewProps {
@@ -77,6 +78,8 @@ export function StepReview({ onBack }: StepReviewProps) {
         problemCategory: problem.problemCategory,
         problemDescription: problem.problemDescription,
         urgency: problem.urgency,
+        wingBehaviors: problem.wingBehaviors,
+        wingBehaviorOther: problem.wingBehaviorOther,
         photoPaths: uploadedPhotos.length > 0 ? uploadedPhotos : [{
           storagePath: 'placeholder',
           photoType: 'other' as const,
@@ -122,10 +125,33 @@ export function StepReview({ onBack }: StepReviewProps) {
       {/* Problem */}
       <Section title="Problème">
         <Row label="Catégorie" value={problemLabel ? `${problemLabel.emoji} ${problemLabel.label}` : '—'} />
-        <div>
-          <p className="text-xs text-slate-500 mb-1">Description</p>
-          <p className="text-sm text-slate-800">{problem.problemDescription}</p>
-        </div>
+
+        {problem.problemCategory === 'wing_behavior' && (
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Comportements signalés</p>
+            {problem.wingBehaviors.length === 0 && !problem.wingBehaviorOther.trim() ? (
+              <p className="text-sm text-slate-400">—</p>
+            ) : (
+              <ul className="text-sm text-slate-800 space-y-1 list-disc pl-5">
+                {problem.wingBehaviors.map((b) => (
+                  <li key={b}>{getWingBehaviorLabel(b)}</li>
+                ))}
+                {problem.wingBehaviorOther.trim() && (
+                  <li>Autre : {problem.wingBehaviorOther.trim()}</li>
+                )}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {problem.problemDescription.trim() && (
+          <div>
+            <p className="text-xs text-slate-500 mb-1">
+              {problem.problemCategory === 'wing_behavior' ? 'Contexte' : 'Description'}
+            </p>
+            <p className="text-sm text-slate-800 whitespace-pre-wrap">{problem.problemDescription}</p>
+          </div>
+        )}
         <Row label="Urgence" value={problem.urgency === 'urgent' ? '🚨 Urgent' : '⏳ Normal'} />
       </Section>
 

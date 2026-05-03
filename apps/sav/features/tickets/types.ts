@@ -8,6 +8,11 @@ export type TicketStatusHistory = Database['public']['Tables']['ticket_status_hi
 
 export type { TicketStatus, RequestStatus, ServiceType, ProblemCategory, UrgencyLevel, PhotoType, MessageSenderRole }
 
+// Wizard-only category set: extends the DB enum with `wing_behavior`,
+// which is normalized to the DB `other` category at save time. The
+// selected behavior tags are serialized into problem_description.
+export type WizardProblemCategory = ProblemCategory | 'wing_behavior'
+
 export type TicketWithPhotos = Ticket & {
   ticket_photos: TicketPhoto[]
 }
@@ -34,9 +39,12 @@ export interface WizardWingInfo {
 }
 
 export interface WizardProblem {
-  problemCategory: ProblemCategory | ''
+  problemCategory: WizardProblemCategory | ''
   problemDescription: string
   urgency: UrgencyLevel
+  // Multi-select behavior tags — only relevant when problemCategory === 'wing_behavior'
+  wingBehaviors: WingBehaviorValue[]
+  wingBehaviorOther: string
 }
 
 export interface WizardPhoto {
@@ -52,17 +60,40 @@ export const WING_BRANDS = [
 ] as const
 
 export const PROBLEM_CATEGORIES: Array<{
-  value: ProblemCategory
+  value: WizardProblemCategory
   label: string
   description: string
   emoji: string
 }> = [
-  { value: 'tear',         label: 'Déchirure',            description: 'Accroc, coupure ou déchirure du tissu',     emoji: '🪡' },
-  { value: 'line_issue',   label: 'Suspente',             description: 'Suspente cassée, emmêlée ou usée',          emoji: '🧵' },
-  { value: 'riser_issue',  label: 'Élévateur',            description: "Problème d'élévateur ou poulie",           emoji: '🔗' },
-  { value: 'buckle_issue', label: 'Boucle',               description: 'Boucle défectueuse ou cassée',             emoji: '🔒' },
-  { value: 'porosity',     label: 'Porosité',             description: 'Tissu poreux, aile vieillissante',          emoji: '💨' },
-  { value: 'other',        label: 'Autre',                description: 'Autre problème non listé',                  emoji: '❓' },
+  { value: 'tear',          label: 'Déchirure',            description: 'Accroc, coupure ou déchirure du tissu',     emoji: '🪡' },
+  { value: 'line_issue',    label: 'Suspente',             description: 'Suspente cassée, emmêlée ou usée',          emoji: '🧵' },
+  { value: 'riser_issue',   label: 'Élévateur',            description: "Problème d'élévateur ou poulie",           emoji: '🔗' },
+  { value: 'buckle_issue',  label: 'Boucle',               description: 'Boucle défectueuse ou cassée',             emoji: '🔒' },
+  { value: 'porosity',      label: 'Porosité',             description: 'Tissu poreux, aile vieillissante',          emoji: '💨' },
+  { value: 'wing_behavior', label: "Comportement de l'aile", description: 'Vol, gonflage, freins, stabilité…',       emoji: '🪁' },
+  { value: 'other',         label: 'Autre',                description: 'Autre problème non listé',                  emoji: '❓' },
+]
+
+// Diagnostic checklist shown when "Comportement de l'aile" is selected.
+// `value` is a stable machine-readable id; `label` is the FR text shown to the user
+// and serialized into problem_description on save.
+export type WingBehaviorValue =
+  | 'not_straight'
+  | 'too_fragile'
+  | 'sluggish_inflation'
+  | 'collapses_easily'
+  | 'unstable_turbulence'
+  | 'brake_issue'
+  | 'abnormal_speed'
+
+export const WING_BEHAVIORS: Array<{ value: WingBehaviorValue; label: string }> = [
+  { value: 'not_straight',         label: "Aile qui ne vole pas droit" },
+  { value: 'too_fragile',          label: 'Aile trop fragile' },
+  { value: 'sluggish_inflation',   label: 'Aile trop paresseuse au gonflage' },
+  { value: 'collapses_easily',     label: 'Aile qui ferme facilement (fermetures asymétriques, frontales)' },
+  { value: 'unstable_turbulence',  label: 'Aile instable en turbulence' },
+  { value: 'brake_issue',          label: 'Problème de freins (trop durs, trop mous, course trop longue/courte)' },
+  { value: 'abnormal_speed',       label: 'Vitesse anormale (trop lente ou trop rapide)' },
 ]
 
 // STATUS_CONFIG is keyed by TicketStatus (sav_status column — ticket_status enum)

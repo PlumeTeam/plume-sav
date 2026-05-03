@@ -11,14 +11,32 @@ export const wingInfoSchema = z.object({
   flightHours: z.string().regex(/^\d*$/, 'Nombre entier requis'),
 })
 
+export const wingBehaviorValueSchema = z.enum([
+  'not_straight', 'too_fragile', 'sluggish_inflation',
+  'collapses_easily', 'unstable_turbulence', 'brake_issue', 'abnormal_speed',
+])
+
 export const problemSchema = z.object({
   problemCategory: z.enum([
-    'tear', 'line_issue', 'riser_issue', 'buckle_issue', 'porosity', 'other',
+    'tear', 'line_issue', 'riser_issue', 'buckle_issue', 'porosity',
+    'wing_behavior', 'other',
   ], { errorMap: () => ({ message: 'Catégorie requise' }) }),
   problemDescription: z.string()
     .min(10, 'Description trop courte (10 caractères minimum)')
     .max(2000, 'Description trop longue (2000 caractères max)'),
   urgency: z.enum(['normal', 'urgent']),
+  wingBehaviors: z.array(wingBehaviorValueSchema).default([]),
+  wingBehaviorOther: z.string().max(500, 'Texte trop long (500 caractères max)').default(''),
+}).superRefine((data, ctx) => {
+  if (data.problemCategory === 'wing_behavior'
+      && data.wingBehaviors.length === 0
+      && data.wingBehaviorOther.trim().length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['wingBehaviors'],
+      message: 'Sélectionnez au moins un comportement ou décrivez-en un autre',
+    })
+  }
 })
 
 export const createTicketSchema = z.object({
@@ -29,9 +47,14 @@ export const createTicketSchema = z.object({
   wingColor: z.string().min(1),
   purchaseDate: z.string().min(1),
   flightHours: z.coerce.number().int().min(0).optional(),
-  problemCategory: z.enum(['tear', 'line_issue', 'riser_issue', 'buckle_issue', 'porosity', 'other']),
+  problemCategory: z.enum([
+    'tear', 'line_issue', 'riser_issue', 'buckle_issue', 'porosity',
+    'wing_behavior', 'other',
+  ]),
   problemDescription: z.string().min(10).max(2000),
   urgency: z.enum(['normal', 'urgent']),
+  wingBehaviors: z.array(wingBehaviorValueSchema).optional().default([]),
+  wingBehaviorOther: z.string().max(500).optional().default(''),
   photoPaths: z.array(z.object({
     storagePath: z.string(),
     photoType: z.enum(['overview', 'damage_closeup', 'serial_tag', 'other']),
