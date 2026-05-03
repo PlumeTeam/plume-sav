@@ -1,9 +1,9 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
 import { getTicketDetail } from '@/features/tickets/queries'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
-import { formatDate, formatDateTime, getSupabasePublicUrl, TIMELINE_STEPS, getStatusStep } from '@/features/tickets/utils'
+import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
+import { formatDate, formatDateTime, TIMELINE_STEPS, getStatusStep } from '@/features/tickets/utils'
 import { MessageForm } from './MessageForm'
 
 interface PageProps {
@@ -119,25 +119,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
         {sortedPhotos.length > 0 && (
           <section className="card p-5">
             <h2 className="section-title mb-3">Photos ({sortedPhotos.length})</h2>
-            <div className="grid grid-cols-3 gap-2">
-              {sortedPhotos.map((photo) => (
-                <a
-                  key={photo.id}
-                  href={getSupabasePublicUrl(photo.storage_path)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="relative aspect-square overflow-hidden rounded-2xl bg-brand-cream ring-1 ring-brand-stone"
-                >
-                  <Image
-                    src={getSupabasePublicUrl(photo.storage_path)}
-                    alt={photo.caption ?? 'Photo SAV'}
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 768px) 33vw, 200px"
-                  />
-                </a>
-              ))}
-            </div>
+            <PhotoLightbox photos={sortedPhotos} />
           </section>
         )}
 

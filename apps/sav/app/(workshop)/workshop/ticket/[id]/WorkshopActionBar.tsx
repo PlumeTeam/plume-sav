@@ -17,8 +17,14 @@ interface WorkshopActionBarProps {
   partsNeeded:    string | null
 }
 
-const STATUS_TRANSITIONS: Partial<Record<RequestStatus, Array<{ label: string; newStatus: RequestStatus }>>> = {
-  approved: [{ label: 'Marquer comme réparé', newStatus: 'completed' }],
+const STATUS_TRANSITIONS: Partial<Record<RequestStatus, Array<{ label: string; newStatus: RequestStatus; help?: string }>>> = {
+  processing: [
+    { label: 'Diagnostic terminé → en réparation', newStatus: 'approved',
+      help: 'Confirme que le diagnostic est sauvegardé et que la réparation peut commencer.' },
+  ],
+  approved: [
+    { label: 'Marquer comme réparé', newStatus: 'completed' },
+  ],
 }
 
 export function WorkshopActionBar({
@@ -100,16 +106,18 @@ export function WorkshopActionBar({
       )}
 
       {transitions.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {transitions.map(({ label, newStatus }) => (
-            <button
-              key={newStatus}
-              onClick={() => handleStatusChange(newStatus)}
-              disabled={isPending}
-              className="btn-primary"
-            >
-              {label}
-            </button>
+        <div className="space-y-2">
+          {transitions.map(({ label, newStatus, help }) => (
+            <div key={newStatus}>
+              <button
+                onClick={() => handleStatusChange(newStatus)}
+                disabled={isPending}
+                className="btn-primary w-full"
+              >
+                {label}
+              </button>
+              {help && <p className="mt-1 text-xs text-slate-500">{help}</p>}
+            </div>
           ))}
         </div>
       )}

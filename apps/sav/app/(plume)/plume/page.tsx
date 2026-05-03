@@ -1,15 +1,13 @@
 import Link from 'next/link'
 import { getAllTickets, getTicketStats } from '@/features/tickets/queries'
-import { StatusBadge } from '@/features/tickets/components/StatusBadge'
-import { formatDate } from '@/features/tickets/utils'
 import { STATUS_CONFIG } from '@/features/tickets/types'
 import type { RequestStatus } from '@/features/tickets/types'
+import { AdminTicketTable } from './AdminTicketTable'
 
 export const dynamic = 'force-dynamic'
 
 export default async function PlumeDashboardPage() {
   const [tickets, stats] = await Promise.all([getAllTickets(), getTicketStats()])
-  const recent = tickets.slice(0, 12)
 
   const KPI_STATUS_GROUPS: Array<{ label: string; statuses: RequestStatus[]; tone: string }> = [
     { label: 'À traiter',   statuses: ['pending'],                tone: 'bg-amber-50 text-amber-800 ring-amber-200' },
@@ -60,67 +58,10 @@ export default async function PlumeDashboardPage() {
         </div>
       </section>
 
-      {/* Recent tickets table */}
+      {/* Tickets table with filter + search */}
       <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="section-title">Tickets récents</h2>
-          <span className="text-xs text-slate-400">12 derniers</span>
-        </div>
-        {recent.length === 0 ? (
-          <div className="card border-dashed p-8 text-center">
-            <p className="text-3xl" aria-hidden>📭</p>
-            <p className="mt-2 text-sm text-slate-500">Aucun ticket pour l’instant.</p>
-          </div>
-        ) : (
-          <div className="card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-brand-cream/60">
-                  <tr className="text-left">
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">N°</th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Aile</th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Statut</th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Urgence</th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Date</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-brand-stone/50">
-                  {recent.map((ticket) => {
-                    const ref = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
-                    return (
-                      <tr key={ticket.id} className="hover:bg-brand-cream/40">
-                        <td className="px-4 py-3">
-                          <Link
-                            href={`/workshop/ticket/${ticket.id}`}
-                            className="font-mono text-xs font-medium text-brand-ink hover:underline"
-                          >
-                            {ref}
-                          </Link>
-                        </td>
-                        <td className="px-4 py-3 text-slate-700">
-                          {ticket.product_brand} {ticket.product_model}
-                        </td>
-                        <td className="px-4 py-3">
-                          <StatusBadge status={ticket.status} size="sm" />
-                        </td>
-                        <td className="px-4 py-3">
-                          {ticket.urgency_level === 2 && (
-                            <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-red-700">
-                              Urgent
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-xs text-slate-400">
-                          {formatDate(ticket.created_at)}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        <h2 className="section-title mb-3">Tickets</h2>
+        <AdminTicketTable tickets={tickets} />
       </section>
 
       {/* By-status detail */}

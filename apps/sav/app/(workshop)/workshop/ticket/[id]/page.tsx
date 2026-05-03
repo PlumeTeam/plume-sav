@@ -4,7 +4,7 @@ import { getWorkshopTicketDetail } from '@/features/tickets/queries'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { TicketTimeline } from '@/features/tickets/components/TicketTimeline'
 import { CommentThread } from '@/features/tickets/components/CommentThread'
-import { PhotoGallery } from '@/features/tickets/components/PhotoGallery'
+import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { formatDate } from '@/features/tickets/utils'
 import { WorkshopActionBar } from './WorkshopActionBar'
 
@@ -110,7 +110,7 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
         {ticket.ticket_photos.length > 0 && (
           <section className="card p-5">
             <h2 className="section-title mb-3">Photos ({ticket.ticket_photos.length})</h2>
-            <PhotoGallery photos={ticket.ticket_photos} />
+            <PhotoLightbox photos={ticket.ticket_photos} />
           </section>
         )}
 
