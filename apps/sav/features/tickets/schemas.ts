@@ -32,11 +32,23 @@ export const createTicketSchema = z.object({
   problemCategory: z.enum(['tear', 'line_issue', 'riser_issue', 'buckle_issue', 'porosity', 'other']),
   problemDescription: z.string().min(10).max(2000),
   urgency: z.enum(['normal', 'urgent']),
+  // Behavior IDs from WING_BEHAVIOR_TYPES — present only for "comportement" tickets,
+  // and they relax the photo requirement (no visible damage to capture).
+  wingBehaviors: z.array(z.string()).optional(),
   photoPaths: z.array(z.object({
     storagePath: z.string().min(1),
     photoType: z.enum(['overview', 'damage_closeup', 'serial_tag', 'other']),
     caption: z.string().optional(),
-  })).min(1, 'Au moins une photo est requise'),
+  })),
+}).superRefine((data, ctx) => {
+  const isBehaviorOnly = (data.wingBehaviors?.length ?? 0) > 0
+  if (!isBehaviorOnly && data.photoPaths.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['photoPaths'],
+      message: 'Au moins une photo est requise',
+    })
+  }
 })
 
 export const addMessageSchema = z.object({

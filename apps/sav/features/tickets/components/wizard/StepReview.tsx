@@ -63,7 +63,11 @@ export function StepReview({ onBack }: StepReviewProps) {
         setProgress({ done: i + 1, total: photos.length })
       }
 
-      if (uploadedPhotos.length === 0) {
+      const isBehaviorOnly = (problem.wingBehaviors?.length ?? 0) > 0
+
+      // Photos are optional for behavior-only tickets; otherwise we need at least one
+      // successfully uploaded so the school/atelier can diagnose visually.
+      if (!isBehaviorOnly && uploadedPhotos.length === 0) {
         setSubmitError("Échec de l'upload des photos. Vérifiez votre connexion et réessayez.")
         setIsSubmitting(false)
         setProgress(null)
@@ -81,6 +85,7 @@ export function StepReview({ onBack }: StepReviewProps) {
         problemCategory:    problem.problemCategory,
         problemDescription: problem.problemDescription,
         urgency:            problem.urgency,
+        wingBehaviors:      problem.wingBehaviors,
         photoPaths:         uploadedPhotos,
       })
 
@@ -130,7 +135,11 @@ export function StepReview({ onBack }: StepReviewProps) {
 
       <Section title={`Photos (${photos.length})`}>
         {photos.length === 0 ? (
-          <p className="text-sm text-slate-500">Aucune photo ajoutée.</p>
+          <p className="text-sm text-slate-500">
+            {(problem.wingBehaviors?.length ?? 0) > 0
+              ? 'Aucune photo — non requis pour un problème de comportement.'
+              : 'Aucune photo ajoutée.'}
+          </p>
         ) : (
           <div className="grid grid-cols-3 gap-2">
             {photos.map((p, i) => (

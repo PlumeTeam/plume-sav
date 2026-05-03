@@ -17,10 +17,13 @@ interface StepPhotosProps {
 }
 
 export function StepPhotos({ onNext, onBack }: StepPhotosProps) {
-  const { photos, addPhoto, removePhoto } = useWizardStore()
+  const { photos, addPhoto, removePhoto, problem } = useWizardStore()
   const [activeSlot, setActiveSlot] = useState<PhotoType | 'other'>('overview')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  // Behavior-only tickets (no visible damage) don't need photos.
+  const isBehaviorOnly = (problem.wingBehaviors?.length ?? 0) > 0
 
   async function handlePhoto(file: File, dataUrl: string, photoType: PhotoType) {
     const photo: WizardPhoto = {
@@ -35,7 +38,7 @@ export function StepPhotos({ onNext, onBack }: StepPhotosProps) {
   }
 
   function handleContinue() {
-    if (photos.length === 0) {
+    if (!isBehaviorOnly && photos.length === 0) {
       setError('Ajoutez au moins une photo pour continuer.')
       return
     }
@@ -50,50 +53,66 @@ export function StepPhotos({ onNext, onBack }: StepPhotosProps) {
       <div>
         <h2 className="font-display text-xl font-bold text-brand-ink">Photos</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Plus vous fournissez de photos nettes, plus le diagnostic sera rapide.
+          {isBehaviorOnly
+            ? 'Optionnel pour un problème de comportement — ajoutez des photos uniquement si elles aident à comprendre.'
+            : 'Plus vous fournissez de photos nettes, plus le diagnostic sera rapide.'}
         </p>
       </div>
 
-      {/* Required photo types checklist */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium text-brand-ink">Photos recommandées</p>
-          {requiredDone && (
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-              ✓ Complet
-            </span>
-          )}
+      {isBehaviorOnly && (
+        <div className="rounded-2xl border border-brand-coral/30 bg-brand-coral/5 px-4 py-3 text-sm text-brand-ink">
+          <p className="font-semibold">Photos optionnelles</p>
+          <p className="mt-1 text-xs text-slate-600">
+            Pour un problème de comportement, aucune photo n’est obligatoire.
+            Vous pouvez passer directement à l’étape suivante.
+          </p>
         </div>
-        {REQUIRED_PHOTO_TYPES.map(({ type, label, hint, emoji }) => (
-          <button
-            key={type}
-            type="button"
-            onClick={() => setActiveSlot(type)}
-            className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors ${
-              hasType(type)
-                ? 'border-emerald-200 bg-emerald-50'
-                : activeSlot === type
-                ? 'border-brand-coral bg-brand-coral/5'
-                : 'border-brand-stone bg-white'
-            }`}
-          >
-            <span className="text-xl" aria-hidden>{emoji}</span>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-brand-ink">{label}</p>
-              <p className="text-xs text-slate-500">{hint}</p>
-            </div>
-            {hasType(type) ? (
-              <span className="text-emerald-600 text-lg" aria-label="Ajoutée">✓</span>
-            ) : (
-              <span className="text-slate-300 text-lg" aria-label="Manquante">○</span>
-            )}
-          </button>
-        ))}
-      </div>
+      )}
 
-      {/* Photo slot selector + capture */}
+      {/* Photo type checklist (only shown when relevant) */}
+      {!isBehaviorOnly && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-brand-ink">Photos recommandées</p>
+            {requiredDone && (
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                ✓ Complet
+              </span>
+            )}
+          </div>
+          {REQUIRED_PHOTO_TYPES.map(({ type, label, hint, emoji }) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => setActiveSlot(type)}
+              className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors ${
+                hasType(type)
+                  ? 'border-emerald-200 bg-emerald-50'
+                  : activeSlot === type
+                  ? 'border-brand-coral bg-brand-coral/5'
+                  : 'border-brand-stone bg-white'
+              }`}
+            >
+              <span className="text-xl" aria-hidden>{emoji}</span>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-brand-ink">{label}</p>
+                <p className="text-xs text-slate-500">{hint}</p>
+              </div>
+              {hasType(type) ? (
+                <span className="text-emerald-600 text-lg" aria-label="Ajoutée">✓</span>
+              ) : (
+                <span className="text-slate-300 text-lg" aria-label="Manquante">○</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Photo slot selector + capture (always available) */}
       <div>
-        <p className="mb-2 text-sm font-medium text-brand-ink">Ajouter une photo</p>
+        <p className="mb-2 text-sm font-medium text-brand-ink">
+          {isBehaviorOnly ? 'Ajouter une photo (optionnel)' : 'Ajouter une photo'}
+        </p>
         <div className="mb-3 flex gap-2 overflow-x-auto no-scrollbar pb-1">
           {[...REQUIRED_PHOTO_TYPES, { type: 'other' as PhotoType, label: 'Autre', hint: '', emoji: '📎' }].map((slot) => (
             <button
@@ -165,7 +184,7 @@ export function StepPhotos({ onNext, onBack }: StepPhotosProps) {
             ← Retour
           </button>
           <button type="button" onClick={handleContinue} disabled={busy} className="btn-primary flex-[2]">
-            Suivant
+            {isBehaviorOnly && photos.length === 0 ? 'Passer cette étape' : 'Suivant'}
           </button>
         </div>
       </div>

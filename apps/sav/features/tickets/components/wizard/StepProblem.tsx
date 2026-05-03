@@ -52,6 +52,10 @@ export function StepProblem({ onNext, onBack }: StepProblemProps) {
   }
 
   function onSubmit(data: ProblemInput) {
+    // Persist wingBehaviors so downstream steps (photos, review) can detect
+    // a behavior-only ticket and relax the photo requirement.
+    const wingBehaviors = isComportement ? selectedBehaviors : []
+
     if (isComportement && selectedBehaviors.length > 0) {
       const labels = selectedBehaviors
         .map((id) => WING_BEHAVIOR_TYPES.find((b) => b.id === id)?.label)
@@ -61,7 +65,7 @@ export function StepProblem({ onNext, onBack }: StepProblemProps) {
         data.problemDescription = prefix + (data.problemDescription || '')
       }
     }
-    setProblem(data)
+    setProblem({ ...data, wingBehaviors })
     onNext()
   }
 
