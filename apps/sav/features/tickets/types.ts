@@ -37,6 +37,7 @@ export interface WizardProblem {
   problemCategory: ProblemCategory | ''
   problemDescription: string
   urgency: UrgencyLevel
+  wingBehaviors?: string[] // IDs from WING_BEHAVIOR_TYPES, used when problemCategory is 'other'
 }
 
 export interface WizardPhoto {
@@ -64,6 +65,17 @@ export const PROBLEM_CATEGORIES: Array<{
   { value: 'porosity',     label: 'Porosité',             description: 'Tissu poreux, aile vieillissante',          emoji: '💨' },
   { value: 'other',        label: 'Autre',                description: 'Autre problème non listé',                  emoji: '❓' },
 ]
+
+export const WING_BEHAVIOR_TYPES = [
+  { id: 'not_straight',     label: 'Aile qui ne vole pas droit' },
+  { id: 'too_fragile',      label: 'Aile trop fragile' },
+  { id: 'lazy_inflation',   label: 'Aile trop paresseuse au gonflage' },
+  { id: 'closes_easily',    label: 'Aile qui ferme facilement (fermetures asymétriques, frontales)' },
+  { id: 'unstable',         label: 'Aile instable en turbulence' },
+  { id: 'brake_issue',      label: 'Problème de freins (trop durs, trop mous, course trop longue/courte)' },
+  { id: 'speed_issue',      label: 'Vitesse anormale (trop lente ou trop rapide)' },
+  { id: 'other_behavior',   label: 'Autre comportement inhabituel' },
+] as const
 
 export const STATUS_CONFIG: Partial<Record<RequestStatus, { label: string; color: string; bg: string }>> = {
   pending:    { label: 'En attente',      color: 'text-amber-700',  bg: 'bg-amber-100' },

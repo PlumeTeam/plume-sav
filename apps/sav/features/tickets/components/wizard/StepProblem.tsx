@@ -1,10 +1,11 @@
 'use client'
 
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useWizardStore } from '../../store'
 import { problemSchema, type ProblemInput } from '../../schemas'
-import { PROBLEM_CATEGORIES } from '../../types'
+import { PROBLEM_CATEGORIES, WING_BEHAVIOR_TYPES } from '../../types'
 
 interface StepProblemProps {
   onNext: () => void
@@ -13,6 +14,8 @@ interface StepProblemProps {
 
 export function StepProblem({ onNext, onBack }: StepProblemProps) {
   const { problem, setProblem } = useWizardStore()
+  const [isComportement, setIsComportement] = useState(false)
+  const [selectedBehaviors, setSelectedBehaviors] = useState<string[]>([])
 
   const {
     register,
@@ -32,7 +35,31 @@ export function StepProblem({ onNext, onBack }: StepProblemProps) {
   const selectedCategory = watch('problemCategory')
   const urgency = watch('urgency')
 
+  function toggleBehavior(behaviorId: string) {
+    setSelectedBehaviors((prev) =>
+      prev.includes(behaviorId)
+        ? prev.filter((id) => id !== behaviorId)
+        : [...prev, behaviorId]
+    )
+  }
+
+  function handleComportementSelect() {
+    setIsComportement(!isComportement)
+    setSelectedBehaviors([])
+    setValue('problemCategory', 'other', { shouldValidate: true })
+  }
+
   function onSubmit(data: ProblemInput) {
+    // If comportement is selected, prepend behaviors to description
+    if (isComportement && selectedBehaviors.length > 0) {
+      const behaviorLabels = selectedBehaviors
+        .map((id) => WING_BEHAVIOR_TYPES.find((b) => b.id === id)?.label)
+        .filter(Boolean)
+      if (behaviorLabels.length > 0) {
+        const prefix = `Comportements de l'aile:\n${behaviorLabels.map((label) => `• ${label}`).join('\n')}\n\n`
+        data.problemDescription = prefix + (data.problemDescription || '')
+      }
+    }
     setProblem(data)
     onNext()
   }
@@ -52,13 +79,36 @@ export function StepProblem({ onNext, onBack }: StepProblemProps) {
           Type de problème
         </p>
         <div className="grid grid-cols-2 gap-3">
+          {/* Special card for wing behavior */}
+          <button
+            key="comportement"
+            type="button"
+            onClick={handleComportementSelect}
+            className={`flex flex-col items-start rounded-2xl border-2 p-4 text-left transition-colors active:scale-[0.97] ${
+              isComportement
+                ? 'border-slate-900 bg-slate-900 text-white'
+                : 'border-slate-200 bg-white text-slate-700'
+            }`}
+          >
+            <span className="mb-1 text-2xl" aria-hidden>🪂</span>
+            <span className="text-sm font-semibold leading-tight">Comportement</span>
+            <span className={`mt-1 text-xs leading-tight ${isComportement ? 'text-slate-300' : 'text-slate-400'}`}>
+              Comportement anormal de l'aile
+            </span>
+          </button>
+
+          {/* Standard problem categories */}
           {PROBLEM_CATEGORIES.map((cat) => {
-            const isSelected = selectedCategory === cat.value
+            const isSelected = selectedCategory === cat.value && !isComportement
             return (
               <button
                 key={cat.value}
                 type="button"
-                onClick={() => setValue('problemCategory', cat.value, { shouldValidate: true })}
+                onClick={() => {
+                  setIsComportement(false)
+                  setSelectedBehaviors([])
+                  setValue('problemCategory', cat.value, { shouldValidate: true })
+                }}
                 className={`flex flex-col items-start rounded-2xl border-2 p-4 text-left transition-colors active:scale-[0.97] ${
                   isSelected
                     ? 'border-slate-900 bg-slate-900 text-white'
@@ -77,9 +127,30 @@ export function StepProblem({ onNext, onBack }: StepProblemProps) {
         {errors.problemCategory && (
           <p className="mt-2 text-xs text-red-600">{errors.problemCategory.message}</p>
         )}
-        {/* Hidden register for RHF */}
         <input type="hidden" {...register('problemCategory')} />
       </div>
+
+      {/* Wing behavior sub-categories */}
+      {isComportement && (
+        <div>
+          <p className="mb-3 text-sm font-medium text-slate-700">
+            Types de comportement (sélectionnez un ou plusieurs)
+          </p>
+          <div className="space-y-2">
+            {WING_BEHAVIOR_TYPES.map((behavior) => (
+              <label key={behavior.id} className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 cursor-pointer hover:bg-slate-50 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={selectedBehaviors.includes(behavior.id)}
+                  onChange={() => toggleBehavior(behavior.id)}
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900"
+                />
+                <span className="text-sm text-slate-700">{behavior.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Description */}
       <div>
