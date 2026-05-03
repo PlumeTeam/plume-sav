@@ -32,9 +32,8 @@ export async function getClientWings(): Promise<ClientWing[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  // customer_wings is a shared-platform table not in the SAV DB types — cast via any
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
+  // customer_wings is a shared-platform table not in the SAV DB types — cast via unknown
+  const db = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
   const { data, error } = await db
     .from('customer_wings')
     .select('id, serial_number, product_model, product_label, size, color_name, registered_at')
@@ -53,10 +52,12 @@ export async function getClientTickets(): Promise<TicketWithPhotos[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
+  // Show all SAV tickets the client owns (RLS scopes to client_id/user_id).
+  // Drafts are excluded since they're never persisted (wizard uses local store).
   const { data, error } = await supabase
     .from('service_requests')
     .select('*, ticket_photos ( id, storage_path, photo_type, sort_order )')
-    .neq('status', 'pending')
+    .neq('sav_status', 'draft')
     .order('created_at', { ascending: false })
     .returns<TicketWithPhotos[]>()
 
@@ -93,10 +94,12 @@ export async function getSchoolTickets(): Promise<TicketWithPhotos[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
+  // School sees everything it owns (RLS scopes via partner_schools);
+  // drafts are excluded since the wizard never persists them.
   const { data, error } = await supabase
     .from('service_requests')
     .select('*, ticket_photos ( id, storage_path, photo_type, sort_order )')
-    .in('status', ['pending', 'processing', 'approved'])
+    .neq('sav_status', 'draft')
     .order('urgency_level', { ascending: false })
     .order('created_at', { ascending: false })
     .returns<TicketWithPhotos[]>()
@@ -135,10 +138,12 @@ export async function getWorkshopTickets(): Promise<TicketWithPhotos[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
+  // Workshop sees what the school has forwarded:
+  //   processing = in diagnosis  /  approved = repair approved  /  completed = closed
   const { data, error } = await supabase
     .from('service_requests')
     .select('*, ticket_photos ( id, storage_path, photo_type, sort_order )')
-    .in('status', ['processing', 'completed'])
+    .in('status', ['processing', 'approved', 'completed'])
     .order('urgency_level', { ascending: false })
     .order('created_at', { ascending: false })
     .returns<TicketWithPhotos[]>()
@@ -179,7 +184,7 @@ export async function getAllTickets(): Promise<TicketWithPhotos[]> {
   const { data, error } = await supabase
     .from('service_requests')
     .select('*, ticket_photos ( id, storage_path, photo_type, sort_order )')
-    .neq('status', 'pending')
+    .neq('sav_status', 'draft')
     .order('urgency_level', { ascending: false })
     .order('created_at', { ascending: false })
     .returns<TicketWithPhotos[]>()

@@ -7,16 +7,16 @@ import { formatDate } from '@/features/tickets/utils'
 import type { TicketWithPhotos, RequestStatus } from '@/features/tickets/types'
 
 type KanbanColumn = {
-  id: string
-  label: string
+  id:       string
+  label:    string
   statuses: RequestStatus[]
-  color: string
+  hint:     string
 }
 
 const COLUMNS: KanbanColumn[] = [
-  { id: 'processing', label: 'En cours',    statuses: ['processing'], color: 'border-orange-300 bg-orange-50' },
-  { id: 'approved',   label: 'Approuvé',    statuses: ['approved'],   color: 'border-green-300 bg-green-50' },
-  { id: 'completed',  label: 'Terminé',     statuses: ['completed'],  color: 'border-teal-300 bg-teal-50' },
+  { id: 'processing', label: 'En diagnostic', statuses: ['processing'], hint: 'À inspecter et chiffrer' },
+  { id: 'approved',   label: 'En réparation', statuses: ['approved'],   hint: 'Devis validé, travail en cours' },
+  { id: 'completed',  label: 'Terminés',      statuses: ['completed'],  hint: 'Réparation finalisée' },
 ]
 
 interface WorkshopKanbanProps {
@@ -24,7 +24,7 @@ interface WorkshopKanbanProps {
 }
 
 export function WorkshopKanban({ tickets }: WorkshopKanbanProps) {
-  const [activeTab, setActiveTab] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<string>(COLUMNS[0]!.id)
 
   const byColumn = useMemo(
     () =>
@@ -35,29 +35,23 @@ export function WorkshopKanban({ tickets }: WorkshopKanbanProps) {
     [tickets]
   )
 
-  // Mobile: tab-based list view
-  const mobileColumns = activeTab ? COLUMNS.filter((c) => c.id === activeTab) : COLUMNS
+  const visibleColumn = COLUMNS.find((c) => c.id === activeTab) ?? COLUMNS[0]!
+  const visibleTickets = byColumn[visibleColumn.id] ?? []
 
   return (
     <div>
       {/* Mobile tab strip */}
       <div className="flex gap-1 overflow-x-auto no-scrollbar px-4 py-3 md:hidden" role="tablist">
-        <button
-          onClick={() => setActiveTab(null)}
-          className={`flex-shrink-0 rounded-full px-4 py-2 text-sm font-medium ${
-            activeTab === null ? 'bg-slate-900 text-white' : 'bg-white text-slate-500'
-          }`}
-        >
-          Tous ({tickets.length})
-        </button>
         {COLUMNS.map((col) => (
           <button
             key={col.id}
             role="tab"
             aria-selected={activeTab === col.id}
             onClick={() => setActiveTab(col.id)}
-            className={`flex-shrink-0 rounded-full px-4 py-2 text-sm font-medium ${
-              activeTab === col.id ? 'bg-slate-900 text-white' : 'bg-white text-slate-500'
+            className={`flex-shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === col.id
+                ? 'bg-brand-navy text-white'
+                : 'bg-white text-slate-500 ring-1 ring-brand-stone'
             }`}
           >
             {col.label} ({(byColumn[col.id] ?? []).length})
@@ -67,34 +61,50 @@ export function WorkshopKanban({ tickets }: WorkshopKanbanProps) {
 
       {/* Mobile: stacked list */}
       <div className="space-y-3 px-4 pb-8 md:hidden">
-        {mobileColumns.flatMap((col) =>
-          (byColumn[col.id] ?? []).map((ticket) => (
+        {visibleTickets.length === 0 ? (
+          <EmptyState hint={visibleColumn.hint} />
+        ) : (
+          visibleTickets.map((ticket) => (
             <WorkshopTicketCard key={ticket.id} ticket={ticket} />
           ))
-        )}
-        {mobileColumns.every((col) => (byColumn[col.id] ?? []).length === 0) && (
-          <p className="py-12 text-center text-sm text-slate-400">Aucun ticket dans cette colonne.</p>
         )}
       </div>
 
       {/* Desktop: kanban columns */}
-      <div className="hidden md:grid md:grid-cols-4 md:gap-4 md:p-6">
+      <div className="hidden md:grid md:grid-cols-3 md:gap-4 md:p-6">
         {COLUMNS.map((col) => (
-          <div key={col.id} className={`rounded-2xl border-2 ${col.color} p-3`}>
-            <h3 className="mb-3 text-sm font-semibold text-slate-700">
-              {col.label}
-              <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs text-slate-500">
+          <div key={col.id} className="rounded-3xl border border-brand-stone/60 bg-white p-4">
+            <div className="mb-3 flex items-baseline justify-between">
+              <h3 className="text-sm font-semibold text-brand-ink">{col.label}</h3>
+              <span className="rounded-full bg-brand-cream px-2 py-0.5 text-xs font-semibold text-brand-navy">
                 {(byColumn[col.id] ?? []).length}
               </span>
-            </h3>
+            </div>
+            <p className="mb-3 text-xs text-slate-500">{col.hint}</p>
             <div className="space-y-2">
-              {(byColumn[col.id] ?? []).map((ticket) => (
-                <WorkshopTicketCard key={ticket.id} ticket={ticket} compact />
-              ))}
+              {(byColumn[col.id] ?? []).length === 0 ? (
+                <p className="rounded-xl border border-dashed border-brand-stone bg-brand-cream/50 p-4 text-center text-xs text-slate-400">
+                  Aucun ticket
+                </p>
+              ) : (
+                (byColumn[col.id] ?? []).map((ticket) => (
+                  <WorkshopTicketCard key={ticket.id} ticket={ticket} compact />
+                ))
+              )}
             </div>
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+function EmptyState({ hint }: { hint: string }) {
+  return (
+    <div className="rounded-3xl border border-dashed border-brand-stone bg-white px-4 py-10 text-center">
+      <p className="text-3xl" aria-hidden>🔧</p>
+      <p className="mt-2 text-sm font-medium text-brand-ink">Aucun ticket dans cet onglet</p>
+      <p className="mt-1 text-xs text-slate-500">{hint}</p>
     </div>
   )
 }
@@ -106,23 +116,24 @@ function WorkshopTicketCard({
   ticket: TicketWithPhotos
   compact?: boolean
 }) {
+  const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
   return (
     <Link
       href={`/workshop/ticket/${ticket.id}`}
-      className="block rounded-xl bg-white p-3 shadow-sm transition-transform active:scale-[0.98]"
+      className="block rounded-2xl border border-brand-stone bg-white p-3 transition-all hover:-translate-y-0.5 hover:shadow-soft active:scale-[0.99]"
     >
       <div className="flex items-start justify-between gap-2">
-        <p className={`font-semibold text-slate-900 ${compact ? 'text-xs' : 'text-sm'}`}>
+        <p className={`font-semibold text-brand-ink ${compact ? 'text-xs' : 'text-sm'}`}>
           {ticket.product_brand} {ticket.product_model}
         </p>
         {ticket.urgency_level === 2 && (
-          <span className="flex-shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+          <span className="flex-shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-red-700">
             Urgent
           </span>
         )}
       </div>
-      <p className={`text-slate-500 ${compact ? 'text-xs' : 'text-xs mt-0.5'}`}>
-        {ticket.id.slice(0, 8).toUpperCase()}
+      <p className={`text-slate-500 ${compact ? 'mt-0.5 font-mono text-[11px]' : 'mt-1 font-mono text-xs'}`}>
+        {ticketRef}
       </p>
       {!compact && (
         <div className="mt-2 flex items-center justify-between">

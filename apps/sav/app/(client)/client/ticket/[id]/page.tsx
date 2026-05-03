@@ -4,38 +4,41 @@ import Image from 'next/image'
 import { getTicketDetail } from '@/features/tickets/queries'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { formatDate, formatDateTime, getSupabasePublicUrl, TIMELINE_STEPS, getStatusStep } from '@/features/tickets/utils'
-import { STATUS_CONFIG } from '@/features/tickets/types'
 import { MessageForm } from './MessageForm'
 
 interface PageProps {
   params: { id: string }
 }
 
+export const dynamic = 'force-dynamic'
+
 export default async function TicketDetailPage({ params }: PageProps) {
   const ticket = await getTicketDetail(params.id)
   if (!ticket) notFound()
 
-  const currentStep = getStatusStep(ticket.status)
-  const sortedPhotos = [...ticket.ticket_photos].sort((a, b) => a.sort_order - b.sort_order)
-  const publicMessages = ticket.ticket_messages.filter((m) => m.visibility_level === 'all')
+  const currentStep   = getStatusStep(ticket.status)
+  const sortedPhotos  = [...ticket.ticket_photos].sort((a, b) => a.sort_order - b.sort_order)
+  const publicMessages = ticket.ticket_messages
+    .filter((m) => m.visibility_level === 'all')
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
+  const isRejected = ticket.status === 'rejected' || ticket.status === 'cancelled'
 
   return (
     <div className="min-h-screen">
-      {/* Header */}
-      <header className="sticky top-0 z-10 border-b border-slate-100 bg-white">
-        <div className="flex items-center gap-3 px-4 py-3">
+      {/* Page header */}
+      <header className="border-b border-brand-stone/60 bg-white">
+        <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3">
           <Link
             href="/client"
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 active:bg-slate-100"
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-brand-ink active:bg-brand-cream"
             aria-label="Retour"
           >
             ←
           </Link>
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-slate-900">
-              {ticket.id.slice(0, 8).toUpperCase()}
-            </p>
-            <p className="text-xs text-slate-500">
+          <div className="flex-1 min-w-0">
+            <p className="font-mono text-xs text-slate-500">{ticketRef}</p>
+            <p className="truncate text-sm font-semibold text-brand-ink">
               {ticket.product_brand} {ticket.product_model}
             </p>
           </div>
@@ -43,69 +46,70 @@ export default async function TicketDetailPage({ params }: PageProps) {
         </div>
       </header>
 
-      <main className="divide-y divide-slate-100 pb-8">
-
+      <main className="mx-auto max-w-2xl space-y-3 p-4 pb-12">
         {/* Timeline — Domino's style */}
-        <section className="bg-white px-4 py-5">
-          <h2 className="mb-4 text-sm font-semibold text-slate-400 uppercase tracking-wide">
-            Suivi en temps réel
-          </h2>
-          <ol className="space-y-3">
-            {TIMELINE_STEPS.map((step, idx) => {
-              const stepIdx = idx + 1
-              const isDone = currentStep >= stepIdx + 1
-              const isCurrent = currentStep === stepIdx
-              return (
-                <li key={step.status} className="flex items-center gap-3">
-                  <div
-                    className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                      isDone
-                        ? 'bg-green-500 text-white'
-                        : isCurrent
-                        ? 'bg-slate-900 text-white ring-4 ring-slate-200'
-                        : 'bg-slate-100 text-slate-400'
-                    }`}
-                  >
-                    {isDone ? '✓' : stepIdx}
-                  </div>
-                  <span
-                    className={`text-sm ${
-                      isDone ? 'text-slate-500 line-through' :
-                      isCurrent ? 'font-semibold text-slate-900' :
-                      'text-slate-400'
-                    }`}
-                  >
-                    {step.label}
-                  </span>
-                  {isCurrent && (
-                    <span className="ml-auto flex h-2 w-2 rounded-full bg-slate-900 animate-pulse" />
-                  )}
-                </li>
-              )
-            })}
-          </ol>
+        <section className="card p-5">
+          <h2 className="section-title mb-4">Suivi en temps réel</h2>
+          {isRejected ? (
+            <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              {ticket.status === 'rejected' ? 'Ticket rejeté' : 'Ticket annulé'}
+            </div>
+          ) : (
+            <ol className="space-y-3">
+              {TIMELINE_STEPS.map((step, idx) => {
+                const stepIdx = idx + 1
+                const isDone    = currentStep >= stepIdx + 1
+                const isCurrent = currentStep === stepIdx
+                return (
+                  <li key={step.status} className="flex items-center gap-3">
+                    <div
+                      className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                        isDone
+                          ? 'bg-emerald-500 text-white'
+                          : isCurrent
+                          ? 'bg-brand-coral text-white ring-4 ring-brand-coral/20'
+                          : 'bg-brand-stone text-slate-400'
+                      }`}
+                    >
+                      {isDone ? '✓' : stepIdx}
+                    </div>
+                    <span
+                      className={`text-sm ${
+                        isDone    ? 'text-slate-500' :
+                        isCurrent ? 'font-semibold text-brand-ink' :
+                        'text-slate-400'
+                      }`}
+                    >
+                      {step.label}
+                    </span>
+                    {isCurrent && (
+                      <span className="ml-auto h-2 w-2 rounded-full bg-brand-coral animate-pulse-dot" aria-hidden />
+                    )}
+                  </li>
+                )
+              })}
+            </ol>
+          )}
         </section>
 
-        {/* Service request info */}
-        <section className="bg-white px-4 py-5">
-          <h2 className="mb-3 text-sm font-semibold text-slate-400 uppercase tracking-wide">Produit</h2>
+        {/* Product info */}
+        <section className="card p-5">
+          <h2 className="section-title mb-3">Produit</h2>
           <div className="space-y-2">
             <InfoRow label="Marque / Modèle" value={`${ticket.product_brand ?? '—'} ${ticket.product_model ?? '—'}`} />
-            <InfoRow label="N° de série" value={ticket.serial_number ?? '—'} />
-            {ticket.purchase_date && (
-              <InfoRow label="Date d'achat" value={formatDate(ticket.purchase_date)} />
-            )}
+            <InfoRow label="N° de série" value={ticket.serial_number ?? '—'} mono />
+            {ticket.purchase_date && <InfoRow label="Date d'achat" value={formatDate(ticket.purchase_date)} />}
           </div>
         </section>
 
         {/* Description */}
-        <section className="bg-white px-4 py-5">
-          <h2 className="mb-3 text-sm font-semibold text-slate-400 uppercase tracking-wide">Demande</h2>
+        <section className="card p-5">
+          <h2 className="section-title mb-3">Demande</h2>
           {ticket.description && (
-            <p className="text-sm text-slate-700 leading-relaxed">{ticket.description}</p>
+            <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">{ticket.description}</p>
           )}
           {ticket.urgency_level === 2 && (
-            <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 font-medium">
+            <p className="mt-3 rounded-2xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
               🚨 Signalé comme urgent
             </p>
           )}
@@ -113,10 +117,8 @@ export default async function TicketDetailPage({ params }: PageProps) {
 
         {/* Photos */}
         {sortedPhotos.length > 0 && (
-          <section className="bg-white px-4 py-5">
-            <h2 className="mb-3 text-sm font-semibold text-slate-400 uppercase tracking-wide">
-              Photos ({sortedPhotos.length})
-            </h2>
+          <section className="card p-5">
+            <h2 className="section-title mb-3">Photos ({sortedPhotos.length})</h2>
             <div className="grid grid-cols-3 gap-2">
               {sortedPhotos.map((photo) => (
                 <a
@@ -124,7 +126,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
                   href={getSupabasePublicUrl(photo.storage_path)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="relative aspect-square overflow-hidden rounded-xl"
+                  className="relative aspect-square overflow-hidden rounded-2xl bg-brand-cream ring-1 ring-brand-stone"
                 >
                   <Image
                     src={getSupabasePublicUrl(photo.storage_path)}
@@ -140,15 +142,15 @@ export default async function TicketDetailPage({ params }: PageProps) {
         )}
 
         {/* Messages */}
-        <section className="bg-white px-4 py-5">
-          <h2 className="mb-4 text-sm font-semibold text-slate-400 uppercase tracking-wide">Messages</h2>
+        <section className="card p-5">
+          <h2 className="section-title mb-4">Messages</h2>
 
           {publicMessages.length === 0 ? (
-            <p className="text-sm text-slate-400">
-              Aucun message pour l&apos;instant. Votre école vous contactera ici.
+            <p className="rounded-xl bg-brand-cream/60 p-3 text-sm text-slate-500">
+              Aucun message pour l&apos;instant. Votre école vous répondra ici.
             </p>
           ) : (
-            <div className="space-y-3 mb-4">
+            <div className="mb-4 space-y-3">
               {publicMessages.map((msg) => {
                 const isClient = msg.sender_role === 'client'
                 return (
@@ -156,19 +158,17 @@ export default async function TicketDetailPage({ params }: PageProps) {
                     <div
                       className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
                         isClient
-                          ? 'bg-slate-900 text-white rounded-br-sm'
-                          : 'bg-slate-100 text-slate-800 rounded-bl-sm'
+                          ? 'bg-brand-coral text-white rounded-br-sm'
+                          : 'bg-brand-cream text-brand-ink ring-1 ring-brand-stone rounded-bl-sm'
                       }`}
                     >
                       {!isClient && (
-                        <p className="mb-1 text-xs font-medium text-slate-500 capitalize">
-                          {msg.sender_role}
+                        <p className="mb-1 text-xs font-semibold uppercase tracking-wider opacity-70">
+                          {msg.sender_role === 'school' ? 'École' : msg.sender_role === 'workshop' ? 'Atelier' : msg.sender_role === 'plume_admin' ? 'Plume' : msg.sender_role}
                         </p>
                       )}
-                      <p className="text-sm leading-relaxed">{msg.content}</p>
-                      <p className={`mt-1 text-right text-xs ${isClient ? 'text-slate-400' : 'text-slate-400'}`}>
-                        {formatDateTime(msg.created_at)}
-                      </p>
+                      <p className="whitespace-pre-line text-sm leading-relaxed">{msg.content}</p>
+                      <p className="mt-1 text-right text-[11px] opacity-60">{formatDateTime(msg.created_at)}</p>
                     </div>
                   </div>
                 )
@@ -183,11 +183,11 @@ export default async function TicketDetailPage({ params }: PageProps) {
   )
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex items-start justify-between gap-4">
-      <p className="text-xs text-slate-500 flex-shrink-0">{label}</p>
-      <p className="text-sm text-slate-800 text-right">{value.trim() || '—'}</p>
+      <p className="flex-shrink-0 text-xs text-slate-500">{label}</p>
+      <p className={`text-right text-sm text-brand-ink ${mono ? 'font-mono' : ''}`}>{value.trim() || '—'}</p>
     </div>
   )
 }

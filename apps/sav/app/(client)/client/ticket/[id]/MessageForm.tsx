@@ -24,19 +24,24 @@ export function MessageForm({ ticketId }: MessageFormProps) {
   const [state, formAction] = useFormState(action, initialState)
 
   return (
-    <form ref={formRef} action={formAction} className="flex items-end gap-2 mt-2">
+    <form ref={formRef} action={formAction} className="space-y-2">
       <input type="hidden" name="ticketId" value={ticketId} />
-      <textarea
-        name="content"
-        rows={2}
-        placeholder="Envoyer un message…"
-        className="field-input flex-1 resize-none"
-        required
-        maxLength={5000}
-      />
-      <SendButton />
+      <div className="flex items-end gap-2">
+        <textarea
+          name="content"
+          rows={2}
+          placeholder="Écrire un message à l’équipe…"
+          className="field-input flex-1 resize-none"
+          required
+          maxLength={5000}
+        />
+        <SendButton />
+      </div>
       {state.error?._form?.[0] && (
         <p className="text-xs text-red-600">{state.error._form[0]}</p>
+      )}
+      {state.error?.content?.[0] && (
+        <p className="text-xs text-red-600">{state.error.content[0]}</p>
       )}
     </form>
   )
@@ -48,7 +53,7 @@ function SendButton() {
     <button
       type="submit"
       disabled={pending}
-      className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white disabled:opacity-50"
+      className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-brand-coral text-white shadow-plume disabled:opacity-50 hover:bg-brand-coral/90 transition-colors"
       aria-label="Envoyer"
     >
       {pending ? '…' : '↑'}

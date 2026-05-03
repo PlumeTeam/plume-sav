@@ -12,39 +12,39 @@ interface TicketCardProps {
 
 export function TicketCard({ ticket, basePath = '/client', showUrgency = false }: TicketCardProps) {
   const firstPhoto = [...ticket.ticket_photos].sort((a, b) => a.sort_order - b.sort_order)[0]
+  const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
+  const productLine = [ticket.product_brand, ticket.product_model].filter(Boolean).join(' ') || 'Aile'
 
   return (
     <Link
       href={`${basePath}/ticket/${ticket.id}`}
-      className="flex items-center gap-4 rounded-2xl bg-white p-4 shadow-sm active:scale-[0.98] transition-transform"
+      className="card group flex items-center gap-4 p-4 transition-all hover:-translate-y-0.5 active:scale-[0.99]"
     >
       {/* Thumbnail */}
-      <div className="relative h-16 w-16 flex-shrink-0 rounded-xl bg-slate-100 overflow-hidden">
+      <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-2xl bg-brand-cream ring-1 ring-brand-stone">
         {firstPhoto ? (
           <Image
             src={getSupabasePublicUrl(firstPhoto.storage_path)}
-            alt={`Photo ${ticket.ticket_number ?? ''}`}
+            alt={`Photo ${ticketRef}`}
             fill
             className="object-cover"
             sizes="64px"
           />
         ) : (
-          <div className="h-full w-full flex items-center justify-center text-2xl" aria-hidden>🪂</div>
+          <div className="flex h-full w-full items-center justify-center text-2xl" aria-hidden>🪂</div>
         )}
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
-          <p className="text-sm font-semibold text-slate-900 truncate">
-            {ticket.product_brand} {ticket.product_model}
-          </p>
+          <p className="truncate text-sm font-semibold text-brand-ink">{productLine}</p>
           <StatusBadge status={ticket.status} size="sm" />
         </div>
-        <p className="mt-0.5 text-xs text-slate-500">
-          {ticket.id.slice(0, 8)}
+        <p className="mt-0.5 truncate font-mono text-xs text-slate-500">
+          {ticketRef}
           {showUrgency && ticket.urgency_level === 2 && (
-            <span className="ml-2 rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700">
+            <span className="ml-2 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-red-700">
               Urgent
             </span>
           )}
@@ -52,7 +52,7 @@ export function TicketCard({ ticket, basePath = '/client', showUrgency = false }
         <p className="mt-1 text-xs text-slate-400">{formatDate(ticket.created_at)}</p>
       </div>
 
-      <span className="text-slate-300 text-lg flex-shrink-0" aria-hidden>›</span>
+      <span className="shrink-0 text-lg text-slate-300 group-hover:text-brand-coral transition-colors" aria-hidden>›</span>
     </Link>
   )
 }

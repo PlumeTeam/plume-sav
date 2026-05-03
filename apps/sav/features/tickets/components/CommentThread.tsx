@@ -11,9 +11,9 @@ interface CommentThreadProps {
 }
 
 const ROLE_LABELS: Record<string, string> = {
-  client: 'Client',
-  school: 'École',
-  workshop: 'Atelier',
+  client:      'Client',
+  school:      'École',
+  workshop:    'Atelier',
   plume_admin: 'Plume',
 }
 
@@ -24,7 +24,9 @@ export function CommentThread({
   emptyText = "Aucun message pour l'instant.",
 }: CommentThreadProps) {
   if (messages.length === 0) {
-    return <p className="text-sm text-slate-400">{emptyText}</p>
+    return (
+      <p className="rounded-xl bg-brand-cream/60 p-3 text-sm text-slate-500">{emptyText}</p>
+    )
   }
 
   return (
@@ -36,27 +38,25 @@ export function CommentThread({
             <div
               className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
                 isOwn
-                  ? 'bg-slate-900 text-white rounded-br-sm'
-                  : 'bg-slate-100 text-slate-800 rounded-bl-sm'
+                  ? 'bg-brand-coral text-white rounded-br-sm'
+                  : 'bg-brand-cream text-brand-ink ring-1 ring-brand-stone rounded-bl-sm'
               }`}
             >
               {!isOwn && (
-                <p className="mb-1 text-xs font-medium text-slate-500">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
                   {ROLE_LABELS[msg.sender_role] ?? msg.sender_role}
                   {showInternalBadge && msg.is_internal && (
-                    <span className="ml-2 rounded bg-amber-100 px-1 py-0.5 text-amber-700">
+                    <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-amber-800 normal-case tracking-normal">
                       Interne
                     </span>
                   )}
                 </p>
               )}
               {isOwn && showInternalBadge && msg.is_internal && (
-                <p className="mb-1 text-xs text-slate-400">Commentaire interne</p>
+                <p className="mb-1 text-[11px] uppercase tracking-wider opacity-70">Note interne</p>
               )}
-              <p className="text-sm leading-relaxed">{msg.content}</p>
-              <p className={`mt-1 text-right text-xs ${isOwn ? 'text-slate-400' : 'text-slate-400'}`}>
-                {formatDateTime(msg.created_at)}
-              </p>
+              <p className="whitespace-pre-line text-sm leading-relaxed">{msg.content}</p>
+              <p className="mt-1 text-right text-[11px] opacity-60">{formatDateTime(msg.created_at)}</p>
             </div>
           </div>
         )

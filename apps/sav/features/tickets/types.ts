@@ -78,13 +78,13 @@ export const WING_BEHAVIOR_TYPES = [
 ] as const
 
 export const STATUS_CONFIG: Partial<Record<RequestStatus, { label: string; color: string; bg: string }>> = {
-  pending:    { label: 'En attente',      color: 'text-amber-700',  bg: 'bg-amber-100' },
-  PENDING:    { label: 'En attente',      color: 'text-amber-700',  bg: 'bg-amber-100' },
-  processing: { label: 'En cours',        color: 'text-blue-700',   bg: 'bg-blue-100' },
-  approved:   { label: 'Approuvé',        color: 'text-green-700',  bg: 'bg-green-100' },
-  completed:  { label: 'Terminé',         color: 'text-green-700',  bg: 'bg-green-100' },
-  rejected:   { label: 'Rejeté',          color: 'text-red-700',    bg: 'bg-red-100' },
-  cancelled:  { label: 'Annulé',          color: 'text-slate-500',  bg: 'bg-slate-100' },
-  SUCCESS:    { label: 'Réussi',          color: 'text-green-700',  bg: 'bg-green-100' },
-  ERROR:      { label: 'Erreur',          color: 'text-red-700',    bg: 'bg-red-100' },
+  pending:    { label: 'À traiter',  color: 'text-amber-800',   bg: 'bg-amber-100' },
+  PENDING:    { label: 'À traiter',  color: 'text-amber-800',   bg: 'bg-amber-100' },
+  processing: { label: 'En cours',   color: 'text-sky-800',     bg: 'bg-sky-100' },
+  approved:   { label: 'Approuvé',   color: 'text-violet-800',  bg: 'bg-violet-100' },
+  completed:  { label: 'Terminé',    color: 'text-emerald-800', bg: 'bg-emerald-100' },
+  rejected:   { label: 'Rejeté',     color: 'text-red-800',     bg: 'bg-red-100' },
+  cancelled:  { label: 'Annulé',     color: 'text-slate-600',   bg: 'bg-slate-100' },
+  SUCCESS:    { label: 'Réussi',     color: 'text-emerald-800', bg: 'bg-emerald-100' },
+  ERROR:      { label: 'Erreur',     color: 'text-red-800',     bg: 'bg-red-100' },
 }

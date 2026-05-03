@@ -29,7 +29,7 @@ export function LoginForm() {
       <input type="hidden" name="captchaToken" value={captchaToken} readOnly />
 
       <div>
-        <label htmlFor="email" className="block text-sm font-medium">
+        <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-brand-ink">
           Email
         </label>
         <input
@@ -38,15 +38,17 @@ export function LoginForm() {
           type="email"
           required
           autoComplete="email"
-          className="mt-1 block w-full rounded-md border px-3 py-2 text-sm"
+          inputMode="email"
+          placeholder="vous@domaine.com"
+          className="field-input"
         />
         {state.error?.email?.[0] && (
-          <p className="mt-1 text-sm text-red-600">{state.error.email[0]}</p>
+          <p className="mt-1 text-xs text-red-600">{state.error.email[0]}</p>
         )}
       </div>
 
       <div>
-        <label htmlFor="password" className="block text-sm font-medium">
+        <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-brand-ink">
           Mot de passe
         </label>
         <input
@@ -55,14 +57,15 @@ export function LoginForm() {
           type="password"
           required
           autoComplete="current-password"
-          className="mt-1 block w-full rounded-md border px-3 py-2 text-sm"
+          placeholder="••••••••"
+          className="field-input"
         />
         {state.error?.password?.[0] && (
-          <p className="mt-1 text-sm text-red-600">{state.error.password[0]}</p>
+          <p className="mt-1 text-xs text-red-600">{state.error.password[0]}</p>
         )}
       </div>
 
-      <div className="flex justify-center py-1">
+      <div className="flex justify-center pt-1">
         <Turnstile
           ref={turnstileRef}
           siteKey={TURNSTILE_SITE_KEY}
@@ -74,19 +77,26 @@ export function LoginForm() {
       </div>
 
       {turnstileError && (
-        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700" role="alert">
+        <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700" role="alert">
           Le widget de sécurité ne peut pas se charger sur ce domaine. Contactez
           l&apos;administrateur pour ajouter ce domaine à Cloudflare Turnstile.
         </p>
       )}
 
       {state.error?._form?.[0] && (
-        <p className="text-sm text-red-600" role="alert">
+        <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
           {state.error._form[0]}
         </p>
       )}
 
       <SubmitButton captchaReady={!!captchaToken} />
+
+      <p className="text-center text-xs text-slate-500">
+        Pas encore de compte ? Contactez votre école partenaire ou{' '}
+        <a href="mailto:sav@plumeparagliders.com" className="font-medium text-brand-coral hover:underline">
+          sav@plumeparagliders.com
+        </a>
+      </p>
     </form>
   )
 }
@@ -94,11 +104,7 @@ export function LoginForm() {
 function SubmitButton({ captchaReady }: { captchaReady: boolean }) {
   const { pending } = useFormStatus()
   return (
-    <button
-      type="submit"
-      disabled={pending || !captchaReady}
-      className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50"
-    >
+    <button type="submit" disabled={pending || !captchaReady} className="btn-primary w-full">
       {pending ? 'Connexion…' : 'Se connecter'}
     </button>
   )

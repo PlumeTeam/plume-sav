@@ -33,7 +33,7 @@ export const createTicketSchema = z.object({
   problemDescription: z.string().min(10).max(2000),
   urgency: z.enum(['normal', 'urgent']),
   photoPaths: z.array(z.object({
-    storagePath: z.string(),
+    storagePath: z.string().min(1),
     photoType: z.enum(['overview', 'damage_closeup', 'serial_tag', 'other']),
     caption: z.string().optional(),
   })).min(1, 'Au moins une photo est requise'),

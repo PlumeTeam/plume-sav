@@ -8,10 +8,10 @@ interface TicketTimelineProps {
 export function TicketTimeline({ status }: TicketTimelineProps) {
   const currentStep = getStatusStep(status)
 
-  if (status === 'rejected') {
+  if (status === 'rejected' || status === 'cancelled') {
     return (
-      <div className="rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-        Ticket rejeté
+      <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+        {status === 'rejected' ? 'Ticket rejeté' : 'Ticket annulé'}
       </div>
     )
   }
@@ -20,17 +20,17 @@ export function TicketTimeline({ status }: TicketTimelineProps) {
     <ol className="space-y-3">
       {TIMELINE_STEPS.map((step, idx) => {
         const stepIdx = idx + 1
-        const isDone = currentStep >= stepIdx + 1
+        const isDone    = currentStep >= stepIdx + 1
         const isCurrent = currentStep === stepIdx
         return (
           <li key={step.status} className="flex items-center gap-3">
             <div
-              className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+              className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                 isDone
-                  ? 'bg-green-500 text-white'
+                  ? 'bg-emerald-500 text-white'
                   : isCurrent
-                  ? 'bg-slate-900 text-white ring-4 ring-slate-200'
-                  : 'bg-slate-100 text-slate-400'
+                  ? 'bg-brand-coral text-white ring-4 ring-brand-coral/20'
+                  : 'bg-brand-stone text-slate-400'
               }`}
               aria-hidden
             >
@@ -38,17 +38,15 @@ export function TicketTimeline({ status }: TicketTimelineProps) {
             </div>
             <span
               className={`text-sm ${
-                isDone
-                  ? 'text-slate-400 line-through'
-                  : isCurrent
-                  ? 'font-semibold text-slate-900'
-                  : 'text-slate-400'
+                isDone    ? 'text-slate-500' :
+                isCurrent ? 'font-semibold text-brand-ink' :
+                'text-slate-400'
               }`}
             >
               {step.label}
             </span>
             {isCurrent && (
-              <span className="ml-auto flex h-2 w-2 rounded-full bg-slate-900 animate-pulse" aria-hidden />
+              <span className="ml-auto h-2 w-2 rounded-full bg-brand-coral animate-pulse-dot" aria-hidden />
             )}
           </li>
         )

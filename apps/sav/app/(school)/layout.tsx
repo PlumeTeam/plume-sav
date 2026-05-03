@@ -1,37 +1,18 @@
-import Link from 'next/link'
-import { logoutAction } from '@/features/auth/actions'
+import { RoleHeader } from '@/app/_components/RoleHeader'
+import { getCurrentUser, getCurrentUserRoles } from '@/features/auth/queries'
 
-export default function SchoolLayout({ children }: { children: React.ReactNode }) {
+export default async function SchoolLayout({ children }: { children: React.ReactNode }) {
+  const [user, roles] = await Promise.all([getCurrentUser(), getCurrentUserRoles()])
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
-      <header className="sticky top-0 z-10 border-b border-slate-100 bg-white">
-        <div className="flex items-center gap-3 px-4 py-3">
-          <div
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white"
-            aria-hidden
-          >
-            E
-          </div>
-          <span className="flex-1 text-sm font-semibold text-slate-900">Espace École</span>
-          <nav className="flex items-center gap-1">
-            <Link
-              href="/school"
-              className="rounded-lg px-3 py-1.5 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-            >
-              Tickets
-            </Link>
-            <form action={logoutAction}>
-              <button
-                type="submit"
-                className="rounded-lg px-3 py-1.5 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-              >
-                Déconnexion
-              </button>
-            </form>
-          </nav>
-        </div>
-      </header>
-      <div className="flex-1">{children}</div>
+    <div className="flex min-h-screen flex-col bg-brand-cream">
+      <RoleHeader
+        spaceLabel="Espace École"
+        spaceColor="green"
+        links={[{ href: '/school', label: 'Tickets' }]}
+        userEmail={user?.email}
+        multiRole={roles.length > 1 || roles.includes('plume_admin')}
+      />
+      <div className="mx-auto w-full max-w-4xl flex-1">{children}</div>
     </div>
   )
 }
