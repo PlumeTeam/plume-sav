@@ -95,6 +95,7 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
         referentSchoolId:       problem.referentSchoolId,
         schoolChangeReasonCode: problem.schoolChangeReasonCode,
         schoolChangeReasonNote: problem.schoolChangeReasonNote,
+        deliveryMethod:         problem.deliveryMethod,
         photoPaths:             uploadedPhotos,
       })
 
@@ -190,6 +191,34 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
             </div>
           ) : (
             <p className="text-sm text-amber-700">Aucune école sélectionnée — revenez en arrière.</p>
+          )}
+        </Section>
+
+        <Section title="Remise de l&apos;aile">
+          {problem.deliveryMethod === 'in_person' && (
+            <div className="flex items-start gap-3">
+              <span aria-hidden className="text-2xl">🤝</span>
+              <div>
+                <p className="text-sm font-semibold text-brand-ink">Remise en main propre</p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Vous prendrez rendez-vous avec l&apos;école pour déposer votre aile.
+                </p>
+              </div>
+            </div>
+          )}
+          {problem.deliveryMethod === 'postal' && (
+            <div className="flex items-start gap-3">
+              <span aria-hidden className="text-2xl">📦</span>
+              <div>
+                <p className="text-sm font-semibold text-brand-ink">Envoi postal</p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Emballez soigneusement votre aile et conservez le numéro de suivi.
+                </p>
+              </div>
+            </div>
+          )}
+          {!problem.deliveryMethod && (
+            <p className="text-sm text-amber-700">Méthode de remise non choisie — revenez en arrière.</p>
           )}
         </Section>
 

@@ -62,6 +62,35 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
       </header>
 
       <main className="mx-auto max-w-4xl space-y-3 p-4 pb-12">
+        {/* Delivery method banner — surfaces "is a parcel coming?" vs "client booking RDV" */}
+        {ticket.delivery_method && (
+          <section className={`card flex items-start gap-3 p-4 border-2 ${
+            ticket.delivery_method === 'postal'
+              ? 'border-amber-200 bg-amber-50'
+              : 'border-emerald-200 bg-emerald-50'
+          }`}>
+            <span aria-hidden className="text-2xl">
+              {ticket.delivery_method === 'postal' ? '📦' : '🤝'}
+            </span>
+            <div className="flex-1">
+              <p className={`text-sm font-semibold ${
+                ticket.delivery_method === 'postal' ? 'text-amber-900' : 'text-emerald-900'
+              }`}>
+                {ticket.delivery_method === 'postal'
+                  ? 'Le client envoie son aile par la poste'
+                  : 'Le client va déposer son aile en main propre'}
+              </p>
+              <p className={`mt-0.5 text-xs ${
+                ticket.delivery_method === 'postal' ? 'text-amber-800/80' : 'text-emerald-800/80'
+              }`}>
+                {ticket.delivery_method === 'postal'
+                  ? 'Vous devriez recevoir un colis prochainement. Le numéro de suivi vous sera communiqué via la messagerie.'
+                  : 'Le client vous contactera pour prendre rendez-vous.'}
+              </p>
+            </div>
+          </section>
+        )}
+
         <section className="card p-5">
           <h2 className="section-title mb-4">Suivi</h2>
           <TicketTimeline status={ticket.status} />

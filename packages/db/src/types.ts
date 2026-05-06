@@ -89,6 +89,8 @@ export interface Database {
           school_change_reason_code: string | null
           school_change_reason_note: string | null
           referent_school_id: string | null
+          // Delivery method (migration 20260507100000)
+          delivery_method: 'in_person' | 'postal' | null
           created_at: string
           updated_at: string
         }
@@ -142,6 +144,7 @@ export interface Database {
           school_change_reason_code?: string | null
           school_change_reason_note?: string | null
           referent_school_id?: string | null
+          delivery_method?: 'in_person' | 'postal' | null
           created_at?: string
           updated_at?: string
         }
@@ -195,6 +198,7 @@ export interface Database {
           school_change_reason_code?: string | null
           school_change_reason_note?: string | null
           referent_school_id?: string | null
+          delivery_method?: 'in_person' | 'postal' | null
           created_at?: string
           updated_at?: string
         }

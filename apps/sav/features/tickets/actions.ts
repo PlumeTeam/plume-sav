@@ -66,7 +66,7 @@ export async function createTicketAction(input: unknown) {
     wingBrand, wingModel, wingSize, wingSerial, wingColor,
     purchaseDate, flightHours, problemCategory, problemDescription,
     urgency, photoPaths, schoolId, referentSchoolId,
-    schoolChangeReasonCode, schoolChangeReasonNote,
+    schoolChangeReasonCode, schoolChangeReasonNote, deliveryMethod,
   } = parsed.data
 
   const serviceType = deriveServiceType(problemCategory)
@@ -108,6 +108,7 @@ export async function createTicketAction(input: unknown) {
       referent_school_id: persistedReferentSchoolId,
       school_change_reason_code: schoolChangeReasonCode ?? null,
       school_change_reason_note: schoolChangeReasonNote ?? null,
+      delivery_method: deliveryMethod,
     })
     .select('id')
     .single()

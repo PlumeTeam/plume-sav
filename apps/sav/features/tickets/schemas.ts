@@ -42,6 +42,10 @@ export const createTicketSchema = z.object({
   // Filled only when the client picks a school different from the referent one.
   schoolChangeReasonCode: z.enum(['school_closed', 'moved_region', 'relationship', 'other']).optional(),
   schoolChangeReasonNote: z.string().max(2000).optional(),
+  // How the client gets the wing to the school (in person vs. postal shipment)
+  deliveryMethod: z.enum(['in_person', 'postal'], {
+    errorMap: () => ({ message: 'Choisissez la méthode de remise de l\'aile' }),
+  }),
   photoPaths: z.array(z.object({
     storagePath: z.string().min(1),
     photoType: z.enum(['overview', 'damage_closeup', 'serial_tag', 'other']),

@@ -40,6 +40,8 @@ export type SchoolChangeReasonCode =
   | 'relationship'
   | 'other'
 
+export type DeliveryMethod = 'in_person' | 'postal'
+
 export interface WizardProblem {
   problemCategory: ProblemCategory | ''
   problemDescription: string
@@ -49,6 +51,7 @@ export interface WizardProblem {
   referentSchoolId?: string | null               // School linked to the wing's purchase (default destination)
   schoolChangeReasonCode?: SchoolChangeReasonCode // Set only when partnerSchoolId !== referentSchoolId
   schoolChangeReasonNote?: string                // Free text, required when reason code is 'other'
+  deliveryMethod?: DeliveryMethod                // How the client gets the wing to the school
 }
 
 export interface WizardPhoto {
