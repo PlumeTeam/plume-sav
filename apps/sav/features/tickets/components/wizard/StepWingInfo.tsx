@@ -19,7 +19,7 @@ function formatModelName(slug: string): string {
 }
 
 export function StepWingInfo({ wings, onNext }: StepWingInfoProps) {
-  const { wingInfo, setWingInfo } = useWizardStore()
+  const { wingInfo, setWingInfo, setProblem } = useWizardStore()
 
   // Re-derive the previously selected wing on remount so back-navigation keeps the choice.
   const initialId = wings.find((w) => w.serial_number === wingInfo.wingSerial)?.id ?? null
@@ -39,6 +39,14 @@ export function StepWingInfo({ wings, onNext }: StepWingInfoProps) {
       wingSerial:   wing.serial_number,
       purchaseDate,
       flightHours:  wingInfo.flightHours, // user can fill this later if relevant
+    })
+    // Seed the referent school for the school step. Reset any prior pick so the
+    // user starts fresh if they re-pick a wing mid-flow.
+    setProblem({
+      referentSchoolId: wing.partner_school_id ?? null,
+      partnerSchoolId:  undefined,
+      schoolChangeReasonCode: undefined,
+      schoolChangeReasonNote: undefined,
     })
   }
 

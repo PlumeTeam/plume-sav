@@ -9,6 +9,7 @@ export type ClientWing = {
   size: string | null
   color_name: string | null
   registered_at: string
+  partner_school_id: string | null  // École référente liée à l'achat
 }
 
 export type PartnerSchool = {
@@ -16,30 +17,72 @@ export type PartnerSchool = {
   name:    string
   city?:   string | null
   region?: string | null
+  /** Latitude in WGS84. May be missing for DB-sourced schools without coords. */
+  lat?:    number | null
+  /** Longitude in WGS84. */
+  lng?:    number | null
+}
+
+// Hardcoded coord overlay: when a school comes from the DB without lat/lng,
+// match it by id or name and patch coords. Coords approximate the city centre.
+const SCHOOL_COORDS_BY_ID: Record<string, { lat: number; lng: number }> = {
+  'plume-default-annecy':    { lat: 45.8992, lng: 6.1294 },
+  'plume-default-stHilaire': { lat: 45.3000, lng: 5.8833 },
+  'plume-default-chamonix':  { lat: 45.9237, lng: 6.8694 },
+}
+
+const SCHOOL_COORDS_BY_NAME: Record<string, { lat: number; lng: number }> = {
+  'École Plume Annecy':            { lat: 45.8992, lng: 6.1294 },
+  'Saint-Hilaire Parapente':       { lat: 45.3000, lng: 5.8833 },
+  'Chamonix Parapente':            { lat: 45.9237, lng: 6.8694 },
+  'Plume Saint-Hilaire':           { lat: 45.3000, lng: 5.8833 },
+  'Plume Annecy':                  { lat: 45.8992, lng: 6.1294 },
 }
 
 // Hardcoded fallback used when partner_schools is empty/unavailable.
-// Real schools should land in the partner_schools table.
 const FALLBACK_PARTNER_SCHOOLS: PartnerSchool[] = [
-  { id: 'plume-default-annecy',   name: 'École Plume Annecy',     region: 'Haute-Savoie' },
-  { id: 'plume-default-stHilaire',name: 'Saint-Hilaire Parapente', region: 'Isère' },
-  { id: 'plume-default-chamonix', name: 'Chamonix Parapente',      region: 'Haute-Savoie' },
+  { id: 'plume-default-annecy',    name: 'École Plume Annecy',      region: 'Haute-Savoie', city: 'Annecy',         lat: 45.8992, lng: 6.1294 },
+  { id: 'plume-default-stHilaire', name: 'Saint-Hilaire Parapente', region: 'Isère',        city: 'Saint-Hilaire',  lat: 45.3000, lng: 5.8833 },
+  { id: 'plume-default-chamonix',  name: 'Chamonix Parapente',      region: 'Haute-Savoie', city: 'Chamonix',       lat: 45.9237, lng: 6.8694 },
 ]
+
+function enrichWithCoords(s: PartnerSchool): PartnerSchool {
+  if (s.lat != null && s.lng != null) return s
+  const fromId   = SCHOOL_COORDS_BY_ID[s.id]
+  const fromName = SCHOOL_COORDS_BY_NAME[s.name]
+  const coords   = fromId ?? fromName
+  return coords ? { ...s, lat: coords.lat, lng: coords.lng } : s
+}
 
 export async function getPartnerSchools(): Promise<PartnerSchool[]> {
   const supabase = await createClient()
   // partner_schools is a shared-platform table not in the SAV DB types.
   const db = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
-  const { data, error } = await db
-    .from('partner_schools')
-    .select('id, name, city, region')
-    .order('name', { ascending: true })
 
-  if (error || !data || data.length === 0) {
-    if (error) console.warn('getPartnerSchools fallback (table query failed):', error.message)
-    return FALLBACK_PARTNER_SCHOOLS
+  // Try the optimistic select with coords; if columns don't exist, retry without.
+  let data: PartnerSchool[] | null = null
+  try {
+    const r = await db
+      .from('partner_schools')
+      .select('id, name, city, region, lat, lng')
+      .order('name', { ascending: true })
+    if (!r.error) data = r.data as PartnerSchool[] | null
+  } catch { /* will retry below */ }
+
+  if (!data) {
+    const r = await db
+      .from('partner_schools')
+      .select('id, name, city, region')
+      .order('name', { ascending: true })
+    if (r.error || !r.data || r.data.length === 0) {
+      if (r.error) console.warn('getPartnerSchools fallback:', r.error.message)
+      return FALLBACK_PARTNER_SCHOOLS.map(enrichWithCoords)
+    }
+    data = r.data as PartnerSchool[]
   }
-  return data as PartnerSchool[]
+
+  if (data.length === 0) return FALLBACK_PARTNER_SCHOOLS.map(enrichWithCoords)
+  return data.map(enrichWithCoords)
 }
 
 const DETAIL_SELECT = `
@@ -65,17 +108,34 @@ export async function getClientWings(): Promise<ClientWing[]> {
 
   // customer_wings is a shared-platform table not in the SAV DB types — cast via unknown
   const db = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
-  const { data, error } = await db
-    .from('customer_wings')
-    .select('id, serial_number, product_model, product_label, size, color_name, registered_at')
-    .eq('owner_user_id', user.id)
-    .order('registered_at', { ascending: false })
 
-  if (error) {
-    console.error('getClientWings error:', error.message)
-    return []
+  // Try the optimistic select with partner_school_id; if column is missing, retry without.
+  let rows: ClientWing[] | null = null
+  try {
+    const r = await db
+      .from('customer_wings')
+      .select('id, serial_number, product_model, product_label, size, color_name, registered_at, partner_school_id')
+      .eq('owner_user_id', user.id)
+      .order('registered_at', { ascending: false })
+    if (!r.error) rows = (r.data ?? []) as ClientWing[]
+  } catch { /* fall through */ }
+
+  if (!rows) {
+    const r = await db
+      .from('customer_wings')
+      .select('id, serial_number, product_model, product_label, size, color_name, registered_at')
+      .eq('owner_user_id', user.id)
+      .order('registered_at', { ascending: false })
+    if (r.error) {
+      console.error('getClientWings error:', r.error.message)
+      return []
+    }
+    rows = (r.data ?? []).map((w: Omit<ClientWing, 'partner_school_id'>) => ({
+      ...w,
+      partner_school_id: null,
+    }))
   }
-  return (data ?? []) as ClientWing[]
+  return rows ?? []
 }
 
 export async function getClientTickets(): Promise<TicketWithPhotos[]> {

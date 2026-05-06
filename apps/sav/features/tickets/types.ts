@@ -34,12 +34,21 @@ export interface WizardWingInfo {
   flightHours: string
 }
 
+export type SchoolChangeReasonCode =
+  | 'school_closed'
+  | 'moved_region'
+  | 'relationship'
+  | 'other'
+
 export interface WizardProblem {
   problemCategory: ProblemCategory | ''
   problemDescription: string
   urgency: UrgencyLevel
-  wingBehaviors?: string[]    // IDs from WING_BEHAVIOR_TYPES, used when problemCategory is 'other'
-  partnerSchoolId?: string    // School the wizard sends the ticket to
+  wingBehaviors?: string[]                       // IDs from WING_BEHAVIOR_TYPES, used when problemCategory is 'other'
+  partnerSchoolId?: string                       // School the wizard sends the ticket to
+  referentSchoolId?: string | null               // School linked to the wing's purchase (default destination)
+  schoolChangeReasonCode?: SchoolChangeReasonCode // Set only when partnerSchoolId !== referentSchoolId
+  schoolChangeReasonNote?: string                // Free text, required when reason code is 'other'
 }
 
 export interface WizardPhoto {

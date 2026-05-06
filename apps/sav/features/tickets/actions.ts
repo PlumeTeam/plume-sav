@@ -65,7 +65,8 @@ export async function createTicketAction(input: unknown) {
   const {
     wingBrand, wingModel, wingSize, wingSerial, wingColor,
     purchaseDate, flightHours, problemCategory, problemDescription,
-    urgency, photoPaths, schoolId,
+    urgency, photoPaths, schoolId, referentSchoolId,
+    schoolChangeReasonCode, schoolChangeReasonNote,
   } = parsed.data
 
   const serviceType = deriveServiceType(problemCategory)
@@ -73,6 +74,9 @@ export async function createTicketAction(input: unknown) {
   // school_id references partner_schools(id); when the wizard sends a fallback
   // hardcoded id (no real partner_schools row), set null so we don't break FK.
   const persistedSchoolId = schoolId.startsWith('plume-default-') ? null : schoolId
+  const persistedReferentSchoolId = referentSchoolId && !referentSchoolId.startsWith('plume-default-')
+    ? referentSchoolId
+    : null
 
   const { data: ticket, error: ticketError } = await supabase
     .from('service_requests')
@@ -101,6 +105,9 @@ export async function createTicketAction(input: unknown) {
       problem_description: problemDescription,
       urgency,
       school_id: persistedSchoolId,
+      referent_school_id: persistedReferentSchoolId,
+      school_change_reason_code: schoolChangeReasonCode ?? null,
+      school_change_reason_note: schoolChangeReasonNote ?? null,
     })
     .select('id')
     .single()

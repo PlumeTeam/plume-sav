@@ -80,19 +80,22 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
       }
 
       const result = await createTicketAction({
-        wingBrand:          wingInfo.wingBrand,
-        wingModel:          wingInfo.wingModel,
-        wingSize:           wingInfo.wingSize,
-        wingSerial:         wingInfo.wingSerial,
-        wingColor:          wingInfo.wingColor,
-        purchaseDate:       wingInfo.purchaseDate,
-        flightHours:        wingInfo.flightHours ? parseInt(wingInfo.flightHours, 10) : undefined,
-        problemCategory:    problem.problemCategory,
-        problemDescription: problem.problemDescription,
-        urgency:            problem.urgency,
-        wingBehaviors:      problem.wingBehaviors,
-        schoolId:           problem.partnerSchoolId,
-        photoPaths:         uploadedPhotos,
+        wingBrand:              wingInfo.wingBrand,
+        wingModel:              wingInfo.wingModel,
+        wingSize:               wingInfo.wingSize,
+        wingSerial:             wingInfo.wingSerial,
+        wingColor:              wingInfo.wingColor,
+        purchaseDate:           wingInfo.purchaseDate,
+        flightHours:            wingInfo.flightHours ? parseInt(wingInfo.flightHours, 10) : undefined,
+        problemCategory:        problem.problemCategory,
+        problemDescription:     problem.problemDescription,
+        urgency:                problem.urgency,
+        wingBehaviors:          problem.wingBehaviors,
+        schoolId:               problem.partnerSchoolId,
+        referentSchoolId:       problem.referentSchoolId,
+        schoolChangeReasonCode: problem.schoolChangeReasonCode,
+        schoolChangeReasonNote: problem.schoolChangeReasonNote,
+        photoPaths:             uploadedPhotos,
       })
 
       if (result?.error) {

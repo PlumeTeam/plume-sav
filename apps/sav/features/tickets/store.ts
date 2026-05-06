@@ -70,6 +70,10 @@ const defaultProblem: WizardProblem = {
   problemDescription: '',
   urgency: 'normal',
   wingBehaviors: [],
+  partnerSchoolId: undefined,
+  referentSchoolId: null,
+  schoolChangeReasonCode: undefined,
+  schoolChangeReasonNote: undefined,
 }
 
 const defaultState: WizardState = {

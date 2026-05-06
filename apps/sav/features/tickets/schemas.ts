@@ -36,6 +36,12 @@ export const createTicketSchema = z.object({
   wingBehaviors: z.array(z.string()).optional(),
   // Partner school the wizard sends the ticket to. Required for the new flow.
   schoolId: z.string().min(1, 'Choisissez une école pour traiter votre demande'),
+  // Original referent school (linked to the wing's purchase). Captured so Plume HQ
+  // can correlate "school avoidance" patterns later.
+  referentSchoolId: z.string().nullable().optional(),
+  // Filled only when the client picks a school different from the referent one.
+  schoolChangeReasonCode: z.enum(['school_closed', 'moved_region', 'relationship', 'other']).optional(),
+  schoolChangeReasonNote: z.string().max(2000).optional(),
   photoPaths: z.array(z.object({
     storagePath: z.string().min(1),
     photoType: z.enum(['overview', 'damage_closeup', 'serial_tag', 'other']),
@@ -48,6 +54,22 @@ export const createTicketSchema = z.object({
       code: z.ZodIssueCode.custom,
       path: ['photoPaths'],
       message: 'Au moins une photo est requise',
+    })
+  }
+  // If the client picked a different school than the referent, we need a reason.
+  const changedSchool = data.referentSchoolId && data.referentSchoolId !== data.schoolId
+  if (changedSchool && !data.schoolChangeReasonCode) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['schoolChangeReasonCode'],
+      message: 'Indiquez pourquoi vous changez d\'école',
+    })
+  }
+  if (data.schoolChangeReasonCode === 'other' && !data.schoolChangeReasonNote?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['schoolChangeReasonNote'],
+      message: 'Précisez la raison',
     })
   }
 })

@@ -85,6 +85,10 @@ export interface Database {
           assigned_workshop_label: string | null
           workshop_assigned_at: string | null
           workshop_assigned_by: string | null
+          // School-change capture (migration 20260507000000)
+          school_change_reason_code: string | null
+          school_change_reason_note: string | null
+          referent_school_id: string | null
           created_at: string
           updated_at: string
         }
@@ -135,6 +139,9 @@ export interface Database {
           assigned_workshop_label?: string | null
           workshop_assigned_at?: string | null
           workshop_assigned_by?: string | null
+          school_change_reason_code?: string | null
+          school_change_reason_note?: string | null
+          referent_school_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -185,6 +192,9 @@ export interface Database {
           assigned_workshop_label?: string | null
           workshop_assigned_at?: string | null
           workshop_assigned_by?: string | null
+          school_change_reason_code?: string | null
+          school_change_reason_note?: string | null
+          referent_school_id?: string | null
           created_at?: string
           updated_at?: string
         }
