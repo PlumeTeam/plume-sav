@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { getClientTickets, getClientWings } from '@/features/tickets/queries'
 import { TicketCard } from '@/features/tickets/components/TicketCard'
 import { WingCard } from '@/features/tickets/components/WingCard'
@@ -8,7 +7,9 @@ export const dynamic = 'force-dynamic'
 export default async function ClientPage() {
   const [tickets, wings] = await Promise.all([getClientTickets(), getClientWings()])
 
-  const activeCount = tickets.filter(t => t.status !== 'completed' && t.status !== 'cancelled' && t.status !== 'rejected').length
+  const activeCount = tickets.filter(
+    (t) => t.status !== 'completed' && t.status !== 'cancelled' && t.status !== 'rejected'
+  ).length
 
   return (
     <main className="space-y-8 px-4 py-6">
@@ -21,12 +22,6 @@ export default async function ClientPage() {
             ? 'Aucune demande en cours pour le moment.'
             : `${activeCount} demande${activeCount > 1 ? 's' : ''} en cours.`}
         </p>
-        <Link
-          href="/client/new-ticket"
-          className="mt-4 inline-flex items-center gap-2 rounded-full bg-brand-coral px-5 py-2.5 text-sm font-semibold text-white shadow-plume transition-transform active:scale-[0.98]"
-        >
-          ＋ Créer un nouveau ticket
-        </Link>
       </section>
 
       {/* ── Mes ailes ───────────────────────────────────────────── */}
@@ -69,14 +64,8 @@ export default async function ClientPage() {
             <p className="text-3xl" aria-hidden>🎫</p>
             <p className="mt-2 text-sm font-medium text-brand-ink">Aucun ticket pour l’instant</p>
             <p className="mt-1 text-xs text-slate-500">
-              Créez un ticket depuis une aile, ou directement ci-dessous.
+              Pour créer un ticket SAV, sélectionnez une de vos ailes ci-dessus.
             </p>
-            <Link
-              href="/client/new-ticket"
-              className="btn-primary mt-5 inline-flex"
-            >
-              ＋ Créer un ticket
-            </Link>
           </div>
         ) : (
           <div className="space-y-3">
