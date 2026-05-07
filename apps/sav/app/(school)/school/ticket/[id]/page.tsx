@@ -31,9 +31,12 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
   const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
 
-  // Pick the relevant checklist based on the wizard's category.
-  // problem_category === 'other' is the wizard's "Comportement" path.
-  const isBehavior = ticket.problem_category === 'other'
+  // The DB doesn't have a dedicated problem_category column — the wizard folds
+  // it into description with a "[Comportements] …" line for behavior tickets.
+  // service_type also encodes the bucket ('sav' = comportement, 'repair' = visuel).
+  const isBehavior =
+    ticket.service_type === 'sav' ||
+    /^\s*\[Comportements\]/m.test(ticket.description ?? '')
   const checklistItems = isBehavior ? SCHOOL_BEHAVIOR_CHECKLIST : SCHOOL_VISUAL_CHECKLIST
 
   const stored: ChecklistJson = (ticket.school_checklist ?? null) as ChecklistJson
@@ -138,9 +141,6 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
             <InfoRow label="Marque / Modèle" value={`${ticket.product_brand ?? '—'} ${ticket.product_model ?? '—'}`} />
             <InfoRow label="N° de série" value={ticket.serial_number ?? '—'} mono />
             {ticket.purchase_date && <InfoRow label="Date d'achat" value={formatDate(ticket.purchase_date)} />}
-            {ticket.flight_hours_estimate != null && (
-              <InfoRow label="Heures de vol" value={`${ticket.flight_hours_estimate} h`} />
-            )}
           </div>
         </section>
 

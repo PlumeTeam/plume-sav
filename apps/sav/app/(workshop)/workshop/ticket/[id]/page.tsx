@@ -133,9 +133,6 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
             <InfoRow label="Marque / Modèle" value={`${ticket.product_brand ?? '—'} ${ticket.product_model ?? '—'}`} />
             <InfoRow label="N° de série" value={ticket.serial_number ?? '—'} mono />
             {ticket.purchase_date && <InfoRow label="Date d'achat" value={formatDate(ticket.purchase_date)} />}
-            {ticket.flight_hours_estimate != null && (
-              <InfoRow label="Heures de vol" value={`${ticket.flight_hours_estimate} h`} />
-            )}
           </div>
         </section>
 

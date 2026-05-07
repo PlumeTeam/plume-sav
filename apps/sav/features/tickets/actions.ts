@@ -52,6 +52,63 @@ function requestStatusToSavStatus(status: RequestStatus): TicketStatus {
   }
 }
 
+const PROBLEM_CATEGORY_LABELS: Record<ProblemCategory, string> = {
+  tear:         'Déchirure',
+  line_issue:   'Suspente',
+  riser_issue:  'Élévateur',
+  buckle_issue: 'Boucle',
+  porosity:     'Porosité',
+  other:        'Comportement',
+}
+
+const BEHAVIOR_LABELS_BY_ID: Record<string, string> = {
+  not_straight:    'Aile qui ne vole pas droit',
+  too_fragile:     'Aile trop fragile',
+  lazy_inflation:  'Aile trop paresseuse au gonflage',
+  closes_easily:   'Aile qui ferme facilement',
+  unstable:        'Aile instable en turbulence',
+  brake_issue:     'Problème de freins',
+  speed_issue:     'Vitesse anormale',
+  other_behavior:  'Autre comportement inhabituel',
+}
+
+// The DB only has a single `description` TEXT column for narrative — no dedicated
+// problem_category, wing_size, wing_color, flight_hours, etc. We fold all the
+// wizard metadata into a structured prefix the school can read, then append the
+// client's free text.
+function buildRichDescription(input: {
+  problemCategory: ProblemCategory
+  urgency:         'normal' | 'urgent'
+  freeText:        string
+  wingBrand?:      string
+  wingModel?:      string
+  wingSize?:       string
+  wingColor?:      string
+  flightHours?:    number | null
+  wingBehaviors?:  string[]
+}): string {
+  const lines: string[] = []
+  lines.push(`[Catégorie] ${PROBLEM_CATEGORY_LABELS[input.problemCategory] ?? input.problemCategory}`)
+  lines.push(`[Urgence] ${input.urgency === 'urgent' ? 'Urgent' : 'Normal'}`)
+
+  const aile = [input.wingBrand, input.wingModel, input.wingSize && `Taille ${input.wingSize}`, input.wingColor]
+    .filter(Boolean).join(' — ')
+  if (aile) lines.push(`[Aile] ${aile}`)
+
+  if (input.flightHours != null) {
+    lines.push(`[Heures de vol] ${input.flightHours} h`)
+  }
+
+  if (input.wingBehaviors && input.wingBehaviors.length > 0) {
+    const labels = input.wingBehaviors
+      .map((id) => BEHAVIOR_LABELS_BY_ID[id] ?? id)
+      .join(', ')
+    lines.push(`[Comportements] ${labels}`)
+  }
+
+  return `${lines.join('\n')}\n\n---\n\n${input.freeText}`
+}
+
 export async function createTicketAction(input: unknown) {
   const parsed = createTicketSchema.safeParse(input)
   if (!parsed.success) {
@@ -65,117 +122,89 @@ export async function createTicketAction(input: unknown) {
   const {
     wingBrand, wingModel, wingSize, wingSerial, wingColor,
     purchaseDate, flightHours, problemCategory, problemDescription,
-    urgency, photoPaths, schoolId, referentSchoolId,
+    urgency, photoPaths, schoolId, referentSchoolId: _ignoredReferentId,
     schoolChangeReasonCode, schoolChangeReasonNote, deliveryMethod,
+    wingBehaviors,
   } = parsed.data
 
   const serviceType = deriveServiceType(problemCategory)
 
-  // school_id references partner_schools(id); when the wizard sends a fallback
-  // hardcoded id (no real partner_schools row), set null so we don't break FK.
+  // The DB has a single `referent_school_id` column (no separate `school_id`).
+  // We use it for the school that actually handles the ticket — i.e. the one
+  // chosen by the client (`schoolId`). When that's a fallback hardcoded id
+  // (no row in partner_schools), persist null so the FK isn't violated.
   const persistedSchoolId = schoolId.startsWith('plume-default-') ? null : schoolId
-  const persistedReferentSchoolId = referentSchoolId && !referentSchoolId.startsWith('plume-default-')
-    ? referentSchoolId
-    : null
 
-  // Base payload: columns that exist since migration 20260429 / 20260503.
-  // These are guaranteed in any deployed environment.
-  const basePayload = {
-    user_id: user.id,
-    client_id: user.id,
-    email: user.email ?? null,
-    service_type: serviceType,
-    status: 'pending' as RequestStatus,
-    sav_status: 'submitted' as TicketStatus,
-    product_brand: wingBrand,
-    product_model: wingModel,
-    serial_number: wingSerial,
-    description: problemDescription,
-    urgency_level: urgency === 'urgent' ? 2 : 1,
-    purchase_date: purchaseDate,
-    wing_brand: wingBrand,
-    wing_model: wingModel,
-    wing_size: wingSize,
-    wing_color: wingColor,
-    wing_serial_number: wingSerial,
-    flight_hours_estimate: flightHours ?? null,
-    problem_category: problemCategory,
-    problem_description: problemDescription,
+  // Build the rich description that folds all wizard metadata (category,
+  // urgency, wing size/colour, flight hours, behaviors) into the single
+  // narrative column the DB actually has.
+  const richDescription = buildRichDescription({
+    problemCategory,
     urgency,
-    school_id: persistedSchoolId,
-  }
+    freeText:    problemDescription,
+    wingBrand,
+    wingModel,
+    wingSize,
+    wingColor,
+    flightHours: flightHours ?? null,
+    wingBehaviors,
+  })
 
-  // Recent-migration columns: 20260507000000 (school_change_*) + 20260507100000 (delivery_method).
-  // If those migrations aren't applied yet on the target env, the first insert fails
-  // with "column does not exist" — we then retry with basePayload only.
-  const recentColumns = {
-    referent_school_id:        persistedReferentSchoolId,
+  // Insert payload — restricted to columns that actually exist in
+  // public.service_requests on the live DB.
+  const insertPayload = {
+    user_id:        user.id,
+    email:          user.email ?? null,
+    service_type:   serviceType,
+    status:         'pending' as RequestStatus,
+    product_brand:  wingBrand,
+    product_model:  wingModel,
+    serial_number:  wingSerial,
+    description:    richDescription,
+    urgency_level:  urgency === 'urgent' ? 2 : 1,
+    purchase_date:  purchaseDate,
+    // Recent migrations
+    referent_school_id:        persistedSchoolId,
     school_change_reason_code: schoolChangeReasonCode ?? null,
     school_change_reason_note: schoolChangeReasonNote ?? null,
     delivery_method:           deliveryMethod,
   }
 
-  let ticket: { id: string } | null = null
-  let ticketError: { message: string; code?: string } | null = null
-
-  // Tier 1: full payload (all migrations applied)
-  {
-    const r = await supabase
-      .from('service_requests')
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .insert({ ...basePayload, ...recentColumns } as any)
-      .select('id')
-      .single()
-    ticket = r.data
-    ticketError = r.error
-  }
-
-  // Tier 2: retry without recent columns if the failure looks like a missing column
-  if (ticketError) {
-    const msg = ticketError.message ?? ''
-    const looksLikeMissingColumn =
-      ticketError.code === '42703'   ||
-      ticketError.code === 'PGRST204' ||
-      /column .* does not exist/i.test(msg) ||
-      /could not find the .* column/i.test(msg)
-
-    if (looksLikeMissingColumn) {
-      console.warn('createTicketAction: retrying without recent columns —', msg)
-      const r = await supabase
-        .from('service_requests')
-        .insert(basePayload)
-        .select('id')
-        .single()
-      ticket = r.data
-      ticketError = r.error
-    }
-  }
+  const { data: ticket, error: ticketError } = await supabase
+    .from('service_requests')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .insert(insertPayload as any)
+    .select('id')
+    .single<{ id: string }>()
 
   if (ticketError || !ticket) {
     console.error('createTicketAction error:', ticketError)
-    // Surface the underlying DB message so the client can report it.
     const detail = ticketError?.message ? ` (${ticketError.message})` : ''
     return { error: { _form: [`Erreur lors de la création du ticket${detail}`] } }
   }
 
+  // Photos: separate ticket_photos table (best-effort — failure shouldn't
+  // block the ticket since it's already created)
   if (photoPaths.length > 0) {
     const photoRows = photoPaths.map((p, idx) => ({
-      ticket_id: ticket.id,
+      ticket_id:    ticket.id,
       storage_path: p.storagePath,
-      photo_type: p.photoType,
-      caption: p.caption ?? null,
-      sort_order: idx,
+      photo_type:   p.photoType,
+      caption:      p.caption ?? null,
+      sort_order:   idx,
     }))
     const { error: photoError } = await supabase.from('ticket_photos').insert(photoRows)
-    if (photoError) console.error('Photo insert failed:', photoError.message)
+    if (photoError) console.warn('Photo insert failed:', photoError.message)
   }
 
-  await supabase.from('ticket_status_history').insert({
-    ticket_id: ticket.id,
+  // Audit trail (best-effort — table may not exist on legacy envs)
+  const { error: histError } = await supabase.from('ticket_status_history').insert({
+    ticket_id:  ticket.id,
     old_status: null,
     new_status: 'submitted',
     changed_by: user.id,
   })
+  if (histError) console.warn('ticket_status_history insert failed:', histError.message)
 
   revalidatePath('/client')
   redirect(`/client/ticket/${ticket.id}`)
@@ -227,10 +256,10 @@ export async function updateTicketStatusAction(formData: FormData) {
 
   const { data: current, error: fetchError } = await supabase
     .from('service_requests')
-    .select('status, sav_status')
+    .select('status')
     .eq('id', ticketId)
     .single()
-    .returns<{ status: RequestStatus; sav_status: TicketStatus }>()
+    .returns<{ status: RequestStatus }>()
 
   if (fetchError || !current) return { error: { _form: ['Ticket introuvable'] } }
 
@@ -240,20 +269,20 @@ export async function updateTicketStatusAction(formData: FormData) {
     .from('service_requests')
     .update({
       status: newStatus,
-      sav_status: newSavStatus,
     })
     .eq('id', ticketId)
 
-  if (updateError) return { error: { _form: ['Erreur lors de la mise à jour'] } }
+  if (updateError) return { error: { _form: [`Erreur lors de la mise à jour (${updateError.message})`] } }
 
-  // Best-effort audit trail; non-blocking if RLS denies (handled at policy level).
-  await supabase.from('ticket_status_history').insert({
-    ticket_id: ticketId,
-    old_status: current.sav_status,
+  // Best-effort audit trail (table may not exist on legacy envs)
+  const { error: histError } = await supabase.from('ticket_status_history').insert({
+    ticket_id:  ticketId,
+    old_status: requestStatusToSavStatus(current.status),
     new_status: newSavStatus,
     changed_by: user.id,
-    note: note ?? null,
+    note:       note ?? null,
   })
+  if (histError) console.warn('ticket_status_history insert failed:', histError.message)
 
   revalidatePath(`/client/ticket/${ticketId}`)
   revalidatePath(`/school/ticket/${ticketId}`)
@@ -397,7 +426,6 @@ export async function applySchoolResolutionAction(formData: FormData) {
     school_resolved_at:     now,
     school_resolved_by:     user.id,
     status:                 newStatus,
-    sav_status:             newSavStatus,
   }
   if (resolution === 'escalated_to_workshop') {
     update.assigned_workshop_id    = workshopId ?? null
@@ -411,15 +439,17 @@ export async function applySchoolResolutionAction(formData: FormData) {
     .update(update)
     .eq('id', ticketId)
 
-  if (error) return { error: { _form: ['Erreur lors de la résolution'] } }
+  if (error) return { error: { _form: [`Erreur lors de la résolution (${error.message})`] } }
 
-  await supabase.from('ticket_status_history').insert({
+  // Best-effort audit trail
+  const { error: histError } = await supabase.from('ticket_status_history').insert({
     ticket_id:  ticketId,
     old_status: null,
     new_status: newSavStatus,
     changed_by: user.id,
     note:       note ? `[${resolution}] ${note}` : `[${resolution}]`,
   })
+  if (histError) console.warn('ticket_status_history insert failed:', histError.message)
 
   revalidatePath(`/school/ticket/${ticketId}`)
   revalidatePath(`/workshop/ticket/${ticketId}`)

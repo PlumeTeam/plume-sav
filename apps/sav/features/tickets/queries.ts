@@ -148,7 +148,6 @@ export async function getClientTickets(): Promise<TicketWithPhotos[]> {
   const { data, error } = await supabase
     .from('service_requests')
     .select('*, ticket_photos ( id, storage_path, photo_type, sort_order )')
-    .neq('sav_status', 'draft')
     .order('created_at', { ascending: false })
     .returns<TicketWithPhotos[]>()
 
@@ -190,7 +189,6 @@ export async function getSchoolTickets(): Promise<TicketWithPhotos[]> {
   const { data, error } = await supabase
     .from('service_requests')
     .select('*, ticket_photos ( id, storage_path, photo_type, sort_order )')
-    .neq('sav_status', 'draft')
     .order('urgency_level', { ascending: false })
     .order('created_at', { ascending: false })
     .returns<TicketWithPhotos[]>()
@@ -275,7 +273,6 @@ export async function getAllTickets(): Promise<TicketWithPhotos[]> {
   const { data, error } = await supabase
     .from('service_requests')
     .select('*, ticket_photos ( id, storage_path, photo_type, sort_order )')
-    .neq('sav_status', 'draft')
     .order('urgency_level', { ascending: false })
     .order('created_at', { ascending: false })
     .returns<TicketWithPhotos[]>()
