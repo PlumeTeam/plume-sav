@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { logoutAction } from '@/features/auth/actions'
 import { PlumeLogo } from '@/app/_components/PlumeLogo'
-import { ClientBottomNav } from '@/app/_components/ClientBottomNav'
 import { getCurrentUser, getCurrentUserRoles } from '@/features/auth/queries'
 
 export default async function ClientLayout({ children }: { children: React.ReactNode }) {
@@ -37,9 +36,8 @@ export default async function ClientLayout({ children }: { children: React.React
         </div>
       </header>
 
-      <div className="mx-auto w-full max-w-2xl flex-1 pb-24">{children}</div>
+      <div className="mx-auto w-full max-w-2xl flex-1 pb-12">{children}</div>
 
-      <ClientBottomNav />
       {user?.email && <span className="sr-only">{user.email}</span>}
     </div>
   )
