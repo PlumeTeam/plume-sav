@@ -52,14 +52,9 @@ export const createTicketSchema = z.object({
     caption: z.string().optional(),
   })),
 }).superRefine((data, ctx) => {
-  const isBehaviorOnly = (data.wingBehaviors?.length ?? 0) > 0
-  if (!isBehaviorOnly && data.photoPaths.length === 0) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['photoPaths'],
-      message: 'Au moins une photo est requise',
-    })
-  }
+  // Photos are always optional — the client can submit without any photo
+  // even for visual problems (sometimes there's nothing to show).
+
   // If the client picked a different school than the referent, we need a reason.
   const changedSchool = data.referentSchoolId && data.referentSchoolId !== data.schoolId
   if (changedSchool && !data.schoolChangeReasonCode) {

@@ -72,7 +72,9 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
         setProgress({ done: i + 1, total: photos.length })
       }
 
-      if (!isBehavior && uploadedPhotos.length === 0) {
+      // Photos are optional — but if the user added some and they all failed
+      // to upload, surface the network error rather than silently dropping them.
+      if (photos.length > 0 && uploadedPhotos.length === 0) {
         setSubmitError("Échec de l'upload des photos. Vérifiez votre connexion et réessayez.")
         setIsSubmitting(false)
         setProgress(null)
@@ -161,11 +163,7 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
 
         <Section title={`Photos (${photos.length})`}>
           {photos.length === 0 ? (
-            <p className="text-sm text-slate-500">
-              {isBehavior
-                ? 'Aucune photo — non requis pour un problème de comportement.'
-                : 'Aucune photo ajoutée.'}
-            </p>
+            <p className="text-sm text-slate-500">Aucune photo ajoutée — pas obligatoire.</p>
           ) : (
             <div className="grid grid-cols-3 gap-2">
               {photos.map((p, i) => (

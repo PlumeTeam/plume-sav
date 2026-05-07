@@ -12,47 +12,24 @@ interface StepPhotosProps {
 }
 
 export function StepPhotos({ onNext, onBack }: StepPhotosProps) {
-  const { photos, addPhoto, removePhoto, problem } = useWizardStore()
-  const [error, setError] = useState<string | null>(null)
-  const [busy,  setBusy]  = useState(false)
-
-  const isBehaviorOnly = (problem.wingBehaviors?.length ?? 0) > 0
+  const { photos, addPhoto, removePhoto } = useWizardStore()
+  const [busy, setBusy] = useState(false)
 
   async function handlePhoto(file: File, dataUrl: string, photoType: PhotoType) {
     addPhoto({ dataUrl, photoType, caption: '', fileName: file.name }, file)
-    setError(null)
     setBusy(false)
   }
 
-  function handleNext() {
-    if (!isBehaviorOnly && photos.length === 0) {
-      setError('Ajoutez au moins une photo pour continuer.')
-      return
-    }
-    onNext()
-  }
-
-  const nextLabel =
-    isBehaviorOnly && photos.length === 0
-      ? 'Passer cette étape'
-      : photos.length === 0
-        ? 'Ajoutez une photo'
-        : 'Continuer'
-
   return (
     <StepLayout
-      title={isBehaviorOnly ? 'Une photo à partager ?' : 'Ajoutez une photo'}
-      subtitle={
-        isBehaviorOnly
-          ? 'Optionnel pour un problème de comportement.'
-          : 'Vous pouvez envoyer une photo de ce qui vous semble problématique.'
-      }
+      title="Ajoutez une photo"
+      subtitle="Vous pouvez envoyer une photo de ce qui vous semble problématique."
       footer={
         <StepNav
           onBack={onBack}
-          onNext={handleNext}
-          nextLabel={nextLabel}
-          nextDisabled={busy || (!isBehaviorOnly && photos.length === 0)}
+          onNext={onNext}
+          nextLabel={photos.length === 0 ? 'Passer cette étape' : 'Continuer'}
+          nextDisabled={busy}
         />
       }
     >
@@ -90,10 +67,6 @@ export function StepPhotos({ onNext, onBack }: StepPhotosProps) {
               ))}
             </div>
           </div>
-        )}
-
-        {error && (
-          <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
         )}
       </div>
     </StepLayout>
