@@ -78,44 +78,84 @@ export async function createTicketAction(input: unknown) {
     ? referentSchoolId
     : null
 
-  const { data: ticket, error: ticketError } = await supabase
-    .from('service_requests')
-    .insert({
-      user_id: user.id,
-      client_id: user.id,
-      email: user.email ?? null,
-      service_type: serviceType,
-      status: 'pending',
-      sav_status: 'submitted',
-      // Standard columns (request_status side)
-      product_brand: wingBrand,
-      product_model: wingModel,
-      serial_number: wingSerial,
-      description: problemDescription,
-      urgency_level: urgency === 'urgent' ? 2 : 1,
-      purchase_date: purchaseDate,
-      // SAV-specific columns (used by school/workshop dashboards + filters)
-      wing_brand: wingBrand,
-      wing_model: wingModel,
-      wing_size: wingSize,
-      wing_color: wingColor,
-      wing_serial_number: wingSerial,
-      flight_hours_estimate: flightHours,
-      problem_category: problemCategory,
-      problem_description: problemDescription,
-      urgency,
-      school_id: persistedSchoolId,
-      referent_school_id: persistedReferentSchoolId,
-      school_change_reason_code: schoolChangeReasonCode ?? null,
-      school_change_reason_note: schoolChangeReasonNote ?? null,
-      delivery_method: deliveryMethod,
-    })
-    .select('id')
-    .single()
+  // Base payload: columns that exist since migration 20260429 / 20260503.
+  // These are guaranteed in any deployed environment.
+  const basePayload = {
+    user_id: user.id,
+    client_id: user.id,
+    email: user.email ?? null,
+    service_type: serviceType,
+    status: 'pending' as RequestStatus,
+    sav_status: 'submitted' as TicketStatus,
+    product_brand: wingBrand,
+    product_model: wingModel,
+    serial_number: wingSerial,
+    description: problemDescription,
+    urgency_level: urgency === 'urgent' ? 2 : 1,
+    purchase_date: purchaseDate,
+    wing_brand: wingBrand,
+    wing_model: wingModel,
+    wing_size: wingSize,
+    wing_color: wingColor,
+    wing_serial_number: wingSerial,
+    flight_hours_estimate: flightHours ?? null,
+    problem_category: problemCategory,
+    problem_description: problemDescription,
+    urgency,
+    school_id: persistedSchoolId,
+  }
+
+  // Recent-migration columns: 20260507000000 (school_change_*) + 20260507100000 (delivery_method).
+  // If those migrations aren't applied yet on the target env, the first insert fails
+  // with "column does not exist" — we then retry with basePayload only.
+  const recentColumns = {
+    referent_school_id:        persistedReferentSchoolId,
+    school_change_reason_code: schoolChangeReasonCode ?? null,
+    school_change_reason_note: schoolChangeReasonNote ?? null,
+    delivery_method:           deliveryMethod,
+  }
+
+  let ticket: { id: string } | null = null
+  let ticketError: { message: string; code?: string } | null = null
+
+  // Tier 1: full payload (all migrations applied)
+  {
+    const r = await supabase
+      .from('service_requests')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .insert({ ...basePayload, ...recentColumns } as any)
+      .select('id')
+      .single()
+    ticket = r.data
+    ticketError = r.error
+  }
+
+  // Tier 2: retry without recent columns if the failure looks like a missing column
+  if (ticketError) {
+    const msg = ticketError.message ?? ''
+    const looksLikeMissingColumn =
+      ticketError.code === '42703'   ||
+      ticketError.code === 'PGRST204' ||
+      /column .* does not exist/i.test(msg) ||
+      /could not find the .* column/i.test(msg)
+
+    if (looksLikeMissingColumn) {
+      console.warn('createTicketAction: retrying without recent columns —', msg)
+      const r = await supabase
+        .from('service_requests')
+        .insert(basePayload)
+        .select('id')
+        .single()
+      ticket = r.data
+      ticketError = r.error
+    }
+  }
 
   if (ticketError || !ticket) {
-    console.error('createTicketAction error:', ticketError?.message)
-    return { error: { _form: ['Erreur lors de la création du ticket'] } }
+    console.error('createTicketAction error:', ticketError)
+    // Surface the underlying DB message so the client can report it.
+    const detail = ticketError?.message ? ` (${ticketError.message})` : ''
+    return { error: { _form: [`Erreur lors de la création du ticket${detail}`] } }
   }
 
   if (photoPaths.length > 0) {
