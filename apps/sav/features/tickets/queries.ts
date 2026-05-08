@@ -136,6 +136,56 @@ export async function getPartnerSchools(): Promise<PartnerSchool[]> {
   return rows.map(normaliseSchool).map(enrichWithCoords)
 }
 
+export type PartnerSchoolDetail = PartnerSchool & {
+  email?:   string | null
+  phone?:   string | null
+  address?: string | null
+}
+
+/**
+ * Best-effort lookup of one partner_schools row with contact fields.
+ * Used by the post-creation confirmation page to tell the client who
+ * to call / where to ship their wing.
+ */
+export async function getPartnerSchoolById(id: string): Promise<PartnerSchoolDetail | null> {
+  const supabase = await createClient()
+  const db = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
+
+  type Row = Record<string, unknown>
+  type AttemptResult = { data: Row | null; error: { message: string; code?: string } | null }
+
+  // Try the richest select first; fall back as columns prove missing.
+  const attempts: Array<{ label: string; run: () => Promise<AttemptResult> }> = [
+    { label: 'rich',     run: () => db.from('partner_schools').select('id, name, city, region, lat, lng, email, phone, address').eq('id', id).maybeSingle() },
+    { label: 'noaddr',   run: () => db.from('partner_schools').select('id, name, city, region, lat, lng, email, phone').eq('id', id).maybeSingle() },
+    { label: 'noemail',  run: () => db.from('partner_schools').select('id, name, city, region, lat, lng').eq('id', id).maybeSingle() },
+    { label: 'noregion', run: () => db.from('partner_schools').select('id, name, city, lat, lng').eq('id', id).maybeSingle() },
+    { label: 'minimal',  run: () => db.from('partner_schools').select('id, name').eq('id', id).maybeSingle() },
+  ]
+
+  for (const { label, run } of attempts) {
+    try {
+      const r = await run()
+      if (!r.error && r.data) {
+        const base = normaliseSchool(r.data)
+        const enriched = enrichWithCoords(base)
+        return {
+          ...enriched,
+          email:   typeof r.data.email   === 'string' ? r.data.email   : null,
+          phone:   typeof r.data.phone   === 'string' ? r.data.phone   : null,
+          address: typeof r.data.address === 'string' ? r.data.address : null,
+        }
+      }
+      if (r.error) {
+        console.warn(`[getPartnerSchoolById] "${label}" errored:`, r.error.code ?? '?', r.error.message)
+      }
+    } catch (e) {
+      console.warn(`[getPartnerSchoolById] "${label}" threw:`, e)
+    }
+  }
+  return null
+}
+
 // Hydrates a ticket row with its related collections via 3 separate queries
 // instead of a single PostgREST join. Reason: the joined tables (ticket_photos,
 // ticket_status_history, ticket_messages) may not all exist on the live DB

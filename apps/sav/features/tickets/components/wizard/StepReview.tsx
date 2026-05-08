@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useWizardStore } from '../../store'
 import { createTicketAction } from '../../actions'
 import { PROBLEM_CATEGORIES } from '../../types'
@@ -14,6 +15,7 @@ interface StepReviewProps {
 }
 
 export function StepReview({ schools, onBack }: StepReviewProps) {
+  const router = useRouter()
   const { wingInfo, problem, photos, _photoFiles, reset } = useWizardStore()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError]   = useState<string | null>(null)
@@ -109,8 +111,15 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
         return
       }
 
+      // Reset wizard state BEFORE navigating so that going Back doesn't
+      // resurrect the just-submitted draft. Then route to the confirmation page.
+      const ticketId = (result as { ticketId?: string } | null)?.ticketId
       reset()
-      // redirect() is called inside createTicketAction on success
+      if (ticketId) {
+        router.push(`/client/ticket-created/${ticketId}`)
+      } else {
+        router.push('/client')
+      }
     } catch (err) {
       console.error('Submit error:', err)
       setSubmitError('Une erreur inattendue est survenue. Réessayez.')

@@ -1,7 +1,6 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import {
   createTicketSchema,
@@ -217,7 +216,10 @@ export async function createTicketAction(input: unknown) {
   if (histError) console.warn('ticket_status_history insert failed:', histError.message)
 
   revalidatePath('/client')
-  redirect(`/client/ticket/${ticket.id}`)
+  // The client navigates to the confirmation page itself after this call so
+  // it can reset() the wizard store before the URL change. Returning a typed
+  // success here is more flexible than throwing redirect() from the server.
+  return { ok: true as const, ticketId: ticket.id }
 }
 
 export async function addMessageAction(formData: FormData) {
