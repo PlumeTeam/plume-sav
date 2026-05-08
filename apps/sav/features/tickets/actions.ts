@@ -255,6 +255,7 @@ export async function createTicketAction(input: unknown) {
   // user_id, service_type, first_name, last_name, email, phone, description.
   const insertPayload = {
     user_id:        user.id,
+    client_id:      user.id,
     first_name:     identity.firstName,
     last_name:      identity.lastName,
     email:          identity.email,
@@ -269,6 +270,11 @@ export async function createTicketAction(input: unknown) {
     purchase_date:  purchaseDate,
     // Recent migrations
     referent_school_id:        persistedSchoolId,
+    // school_id mirrors referent_school_id — c'est la colonne utilisée par
+    // la RLS pour scoper les tickets par école. Doit rester en sync (cf.
+    // applySchoolResolutionAction qui ne touche pas à school_id quand
+    // l'école escalade vers un atelier).
+    school_id:                 persistedSchoolId,
     school_change_reason_code: schoolChangeReasonCode ?? null,
     school_change_reason_note: schoolChangeReasonNote ?? null,
     delivery_method:           deliveryMethod,
