@@ -86,17 +86,30 @@ export async function getPartnerSchools(): Promise<PartnerSchool[]> {
   type Row = Record<string, unknown>
   type AttemptResult = { data: Row[] | null; error: { message: string; code?: string } | null }
 
-  // Attempts in decreasing column specificity. Each level tries the active filter
-  // first, then drops it. We never keep a 0-row result — empty success is treated
-  // the same as an error so we can fall through to the next attempt (might have
-  // failed because of column absence, RLS quirk, or weird active values).
+  // Attempts in decreasing specificity. We try affiliated-only variants first
+  // (the preferred set), then fall back to "active only" if the
+  // is_affiliated column is missing or no school is currently flagged. Within
+  // each tier we drop columns progressively so a missing `region` or unknown
+  // schema doesn't kill the lookup. We never keep a 0-row success — empty
+  // is treated like an error so the next attempt gets a chance.
   const attempts: Array<{ label: string; run: () => Promise<AttemptResult> }> = [
-    { label: 'rich+active',  run: () => db.from('partner_schools').select('id, name, city, region, lat, lng').eq('active', true).order('name', { ascending: true }) },
-    { label: 'rich',         run: () => db.from('partner_schools').select('id, name, city, region, lat, lng').order('name', { ascending: true }) },
-    { label: 'noregion+active', run: () => db.from('partner_schools').select('id, name, city, lat, lng').eq('active', true).order('name', { ascending: true }) },
-    { label: 'noregion',     run: () => db.from('partner_schools').select('id, name, city, lat, lng').order('name', { ascending: true }) },
-    { label: 'minimal+active', run: () => db.from('partner_schools').select('id, name').eq('active', true).order('name', { ascending: true }) },
-    { label: 'minimal',      run: () => db.from('partner_schools').select('id, name').order('name', { ascending: true }) },
+    // ── Tier 1: only schools the team has explicitly affiliated ──────────
+    { label: 'rich+active+affiliated',     run: () => db.from('partner_schools').select('id, name, city, region, lat, lng').eq('is_affiliated', true).eq('active', true).order('name', { ascending: true }) },
+    { label: 'rich+affiliated',            run: () => db.from('partner_schools').select('id, name, city, region, lat, lng').eq('is_affiliated', true).order('name', { ascending: true }) },
+    { label: 'noregion+active+affiliated', run: () => db.from('partner_schools').select('id, name, city, lat, lng').eq('is_affiliated', true).eq('active', true).order('name', { ascending: true }) },
+    { label: 'noregion+affiliated',        run: () => db.from('partner_schools').select('id, name, city, lat, lng').eq('is_affiliated', true).order('name', { ascending: true }) },
+    { label: 'minimal+active+affiliated',  run: () => db.from('partner_schools').select('id, name').eq('is_affiliated', true).eq('active', true).order('name', { ascending: true }) },
+    { label: 'minimal+affiliated',         run: () => db.from('partner_schools').select('id, name').eq('is_affiliated', true).order('name', { ascending: true }) },
+
+    // ── Tier 2: active-only fallback ─────────────────────────────────────
+    // Used when the is_affiliated column doesn't exist yet, or when no
+    // school is flagged is_affiliated=true (so we don't strand the wizard).
+    { label: 'rich+active',                run: () => db.from('partner_schools').select('id, name, city, region, lat, lng').eq('active', true).order('name', { ascending: true }) },
+    { label: 'rich',                       run: () => db.from('partner_schools').select('id, name, city, region, lat, lng').order('name', { ascending: true }) },
+    { label: 'noregion+active',            run: () => db.from('partner_schools').select('id, name, city, lat, lng').eq('active', true).order('name', { ascending: true }) },
+    { label: 'noregion',                   run: () => db.from('partner_schools').select('id, name, city, lat, lng').order('name', { ascending: true }) },
+    { label: 'minimal+active',             run: () => db.from('partner_schools').select('id, name').eq('active', true).order('name', { ascending: true }) },
+    { label: 'minimal',                    run: () => db.from('partner_schools').select('id, name').order('name', { ascending: true }) },
   ]
 
   let rows: Row[] | null = null
