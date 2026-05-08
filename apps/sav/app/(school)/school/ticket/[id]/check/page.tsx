@@ -1,24 +1,41 @@
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getSchoolTicketDetail } from '@/features/tickets/queries'
-import { DiagnosisChecklist } from '@/features/tickets/components/DiagnosisChecklist'
-import { SCHOOL_VISUAL_CHECKLIST, SCHOOL_BEHAVIOR_CHECKLIST } from '@/features/tickets/constants'
-import { saveSchoolChecklistAction } from '@/features/tickets/actions'
 import { PlumeLogo } from '@/app/_components/PlumeLogo'
+import { CheckWizard } from '@/features/tickets/inspection/CheckWizard'
+import {
+  VISUAL_INSPECTION_STEPS,
+  BEHAVIOR_INSPECTION_STEPS,
+  type InspectionPayload,
+} from '@/features/tickets/inspection/steps'
 
 interface PageProps { params: { id: string } }
 
 export const dynamic = 'force-dynamic'
 
-type ChecklistJson = { checkedIds?: string[]; notes?: string | null } | null
+// The school_checklist column stores either:
+// (a) the new wizard payload, JSON-encoded inside the `notes` field with a
+//     __wizard__ marker so we can recover it, or
+// (b) the legacy { checkedIds, notes } shape.
+function readWizardPayload(raw: unknown): InspectionPayload | null {
+  if (!raw || typeof raw !== 'object') return null
+  const obj = raw as Record<string, unknown>
+  const notes = obj.notes
+  if (typeof notes !== 'string') return null
+  try {
+    const parsed = JSON.parse(notes)
+    if (parsed && typeof parsed === 'object' && parsed.__wizard__ === true) {
+      return parsed as InspectionPayload
+    }
+  } catch { /* not JSON, treat as plain note */ }
+  return null
+}
 
-// Placeholder check page — uses the existing flat DiagnosisChecklist for now.
-// Will be replaced in batch 3 with a one-question-per-page wizard.
 export default async function SchoolTicketCheckPage({ params }: PageProps) {
   const ticket = await getSchoolTicketDetail(params.id)
   if (!ticket) notFound()
 
-  // Refuse to render the check on a closed ticket — redirect back to detail.
+  // No point checking a closed ticket — bounce back.
   if (ticket.status === 'completed' || ticket.status === 'cancelled' || ticket.status === 'rejected') {
     redirect(`/school/ticket/${params.id}`)
   }
@@ -26,11 +43,10 @@ export default async function SchoolTicketCheckPage({ params }: PageProps) {
   const isBehavior =
     ticket.service_type === 'sav' ||
     /^\s*\[Comportements\]/m.test(ticket.description ?? '')
-  const checklistItems = isBehavior ? SCHOOL_BEHAVIOR_CHECKLIST : SCHOOL_VISUAL_CHECKLIST
+  const flowKind = isBehavior ? 'behavior' : 'visual'
+  const steps = isBehavior ? BEHAVIOR_INSPECTION_STEPS : VISUAL_INSPECTION_STEPS
 
-  const stored: ChecklistJson = (ticket.school_checklist ?? null) as ChecklistJson
-  const initialChecked = Array.isArray(stored?.checkedIds) ? stored!.checkedIds! : []
-  const initialNotes   = typeof stored?.notes === 'string' ? stored!.notes! : ''
+  const initial = readWizardPayload(ticket.school_checklist)
 
   const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
 
@@ -48,7 +64,7 @@ export default async function SchoolTicketCheckPage({ params }: PageProps) {
           <div className="min-w-0 flex-1 text-center">
             <p className="font-mono text-xs text-slate-500">{ticketRef}</p>
             <p className="truncate text-sm font-semibold text-brand-ink">
-              🔍 Check de l&apos;aile — {isBehavior ? 'comportement' : 'visuel'}
+              🔍 Check de l&apos;aile — {flowKind === 'visual' ? 'visuel' : 'comportement'}
             </p>
           </div>
           <span aria-hidden className="flex h-10 w-10 items-center justify-center">
@@ -57,24 +73,14 @@ export default async function SchoolTicketCheckPage({ params }: PageProps) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl space-y-4 p-4 pb-12">
-        <div className="card p-5">
-          <DiagnosisChecklist
-            ticketId={ticket.id}
-            items={checklistItems}
-            initialChecked={initialChecked}
-            initialNotes={initialNotes}
-            saveAction={saveSchoolChecklistAction}
-            variant="coral"
-            notesLabel="Observations école"
-            notesPlaceholder="Constatations factuelles, mesures prises, échange avec le client…"
-          />
-        </div>
-
-        <div className="rounded-2xl bg-brand-cream p-3 text-xs text-slate-500">
-          Une fois sauvegardé, le check apparaîtra comme « ✓ Check validé » sur la fiche du ticket.
-          Vous pourrez ensuite prendre une décision (résolution, escalade vers un atelier…).
-        </div>
+      <main className="mx-auto max-w-3xl space-y-3 p-4 pb-12">
+        <CheckWizard
+          ticketId={ticket.id}
+          ticketHref={`/school/ticket/${ticket.id}`}
+          flowKind={flowKind}
+          steps={steps}
+          initial={initial}
+        />
       </main>
     </div>
   )
