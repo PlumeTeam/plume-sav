@@ -273,13 +273,25 @@ export function SchoolResolutionPanel({
                   className={`flex w-full items-start gap-3 rounded-xl border-2 p-3 text-left transition-all active:scale-[0.99] ${
                     isSelected
                       ? 'border-brand-coral bg-brand-coral/10 shadow-plume'
-                      : 'border-brand-stone bg-white hover:border-brand-coral/40'
+                      : w.affiliated
+                        ? 'border-brand-stone bg-white hover:border-brand-coral/40'
+                        : 'border-slate-200 bg-slate-50 hover:border-slate-300'
                   }`}
                 >
                   <span aria-hidden className="text-2xl">🛠️</span>
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-brand-ink">{w.label}</p>
+                    <p className="text-sm font-semibold text-brand-ink">
+                      {w.label}
+                      {w.affiliated && (
+                        <span className="ml-2 rounded-full bg-brand-coral/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-coral">
+                          Affilié
+                        </span>
+                      )}
+                    </p>
                     <p className="mt-0.5 text-xs text-slate-500">{w.city} · {w.region}</p>
+                    {!w.affiliated && (
+                      <p className="mt-0.5 text-[11px] text-amber-700">Hors réseau Plume</p>
+                    )}
                   </div>
                   {isSelected && <span className="text-brand-coral text-lg" aria-hidden>✓</span>}
                 </button>

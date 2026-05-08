@@ -77,25 +77,72 @@ export const SCHOOL_RESOLUTIONS = [
 // ── Réseau d'ateliers partenaires ─────────────────────────────────────────
 // TODO: migrer vers une table partner_workshops quand le réseau grandit.
 export type PartnerWorkshop = {
-  id:       string
-  label:    string
-  city:     string
-  region:   string
-  address?: string
+  id:         string
+  label:      string
+  city:       string
+  region:     string
+  address:    string
   /** Latitude WGS84 — used by WorkshopMapPicker to drop a marker. */
-  lat:      number
+  lat:        number
   /** Longitude WGS84. */
-  lng:      number
+  lng:        number
+  /** True for ateliers in the Plume network. Renders coral on the map; non-
+   *  affiliated workshops render gray and carry no Plume guarantee. */
+  affiliated: boolean
 }
 
+// Real French paragliding repair shops + the Plume test atelier. Affiliated
+// workshops are part of the Plume network; non-affiliated ones are shown on
+// the map for context (and reachable if a school chooses) but visually muted.
 export const PARTNER_WORKSHOPS: PartnerWorkshop[] = [
-  { id: 'plume-embrun',      label: 'Atelier Plume Embrun',       city: 'Embrun',    region: 'Hautes-Alpes',
-    address: "Résidence le Val d'Embrun, 05200 Embrun",
-    lat: 44.5633, lng: 6.4957 },
-  { id: 'plume-annecy',      label: 'Atelier Plume Annecy',       city: 'Annecy',    region: 'Haute-Savoie',
-    lat: 45.8992, lng: 6.1294 },
-  { id: 'air-repair',        label: 'Atelier Air Repair',         city: 'Grenoble',  region: 'Isère',
-    lat: 45.1885, lng: 5.7245 },
-  { id: 'vol-libre-service', label: 'Atelier Vol Libre Service',  city: 'Chambéry',  region: 'Savoie',
-    lat: 45.5646, lng: 5.9178 },
+  {
+    id:         'plume-embrun',
+    label:      'Atelier Plume Embrun',
+    city:       'Embrun',
+    region:     'Hautes-Alpes',
+    address:    "Résidence le Val d'Embrun, 05200 Embrun",
+    lat:        44.5633,
+    lng:        6.4957,
+    affiliated: true,
+  },
+  {
+    id:         'ripair-talloires',
+    label:      "Rip'Air",
+    city:       'Talloires',
+    region:     'Haute-Savoie',
+    address:    '109 chemin de pré Monteux, 74290 Talloires',
+    lat:        45.8415,
+    lng:        6.2170,
+    affiliated: false,
+  },
+  {
+    id:         'rue-de-lair-vizille',
+    label:      "Rue de l'Air",
+    city:       'Vizille',
+    region:     'Isère',
+    address:    '33 Rue Général de Gaulle, 38220 Vizille',
+    lat:        45.0769,
+    lng:        5.7725,
+    affiliated: false,
+  },
+  {
+    id:         'cap360-contamine',
+    label:      'CAP360',
+    city:       'Contamine-sur-Arve',
+    region:     'Haute-Savoie',
+    address:    '337 Route des Granges, 74130 Contamine-sur-Arve',
+    lat:        46.1261,
+    lng:        6.3433,
+    affiliated: false,
+  },
+  {
+    id:         'freedom-parapente',
+    label:      'Freedom Parapente',
+    city:       'Lumbin',
+    region:     'Isère',
+    address:    'Lumbin, 38660',
+    lat:        45.2853,
+    lng:        5.9087,
+    affiliated: false,
+  },
 ]
