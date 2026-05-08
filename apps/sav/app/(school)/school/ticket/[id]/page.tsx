@@ -6,10 +6,11 @@ import { TicketTimeline } from '@/features/tickets/components/TicketTimeline'
 import { CommentThread } from '@/features/tickets/components/CommentThread'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { formatDate } from '@/features/tickets/utils'
+import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
 import { SchoolActions } from './SchoolActions'
 import { SchoolStepPanel } from './SchoolStepPanel'
 import { SchoolResolutionPanel } from './SchoolResolutionPanel'
-import type { SchoolResolution } from '@/features/tickets/types'
+import type { SchoolResolution, RequestStatus } from '@/features/tickets/types'
 
 interface PageProps { params: { id: string } }
 
@@ -32,6 +33,24 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
   const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
+
+  // Le bon de transport école → atelier n'a de sens qu'une fois l'escalade
+  // décidée et tant que l'aile n'a pas été réceptionnée par l'atelier. On
+  // le laisse aussi visible (lien de téléchargement) après réception, pour
+  // qu'on puisse re-télécharger l'étiquette si besoin.
+  const escalatedToWorkshopStatuses: RequestStatus[] = [
+    'escalated_to_workshop',
+    'wing_received_workshop',
+    'workshop_diagnosing',
+    'workshop_repairing',
+    'workshop_done',
+    'wing_returned',
+    'completed',
+  ]
+  const shouldOfferSchoolShipping =
+    ticket.school_resolution === 'escalated_to_workshop' &&
+    !!ticket.assigned_workshop_id &&
+    escalatedToWorkshopStatuses.includes(ticket.status)
 
   // The checklist is "validated" once it's saved at least once (any structure).
   const stored: ChecklistJson = (ticket.school_checklist ?? null) as ChecklistJson
@@ -110,6 +129,24 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           assignedWorkshopId={ticket.assigned_workshop_id}
           assignedWorkshopLabel={ticket.assigned_workshop_label}
         />
+
+        {/* Bon de transport école → atelier */}
+        {shouldOfferSchoolShipping && (
+          <section className="card p-5">
+            <h2 className="section-title mb-3">Bon de transport école → atelier</h2>
+            <p className="mb-4 text-sm text-slate-600">
+              {ticket.school_workshop_label_url
+                ? "Étiquette GLS prête — collez-la sur le colis avant expédition."
+                : `Générez l'étiquette GLS pour expédier l'aile à ${ticket.assigned_workshop_label ?? 'l\'atelier'}.`}
+            </p>
+            <ShippingLabelButton
+              ticketId={ticket.id}
+              leg="school_to_workshop"
+              initialTracking={ticket.school_workshop_tracking}
+              initialLabelUrl={ticket.school_workshop_label_url}
+            />
+          </section>
+        )}
 
         {/* Suivi */}
         <section className="card p-5">

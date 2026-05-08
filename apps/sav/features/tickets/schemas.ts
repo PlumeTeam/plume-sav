@@ -172,6 +172,38 @@ export const roleMessageSchema = z.object({
   visibilityLevel: z.enum(['all', 'school_plume', 'workshop_plume', 'plume_only']).optional(),
 })
 
+// ============================================================
+// Bons de transport GLS (migration 20260510000000)
+// ============================================================
+
+// Adresse client postale — utilisée pour le leg client → école quand
+// l'adresse n'a pas encore été capturée sur le ticket.
+export const clientShippingAddressSchema = z.object({
+  street:     z.string().trim().min(3,  'Adresse trop courte').max(200, 'Adresse trop longue'),
+  postalCode: z.string().trim().min(2,  'Code postal requis').max(15,   'Code postal trop long'),
+  city:       z.string().trim().min(1,  'Ville requise').max(100, 'Ville trop longue'),
+  country:    z.string().trim().length(2, 'Code pays ISO-2 requis (ex: FR, BE)').toUpperCase().default('FR'),
+})
+
+// Génération d'une étiquette GLS pour un leg donné. L'`address` n'est requise
+// que pour `client_to_school` à la 1ère génération — sinon la Server Action
+// la lit depuis la colonne client_shipping_address du ticket.
+export const generateShippingLabelSchema = z.object({
+  ticketId: z.string().uuid(),
+  leg:      z.enum(['client_to_school', 'school_to_workshop', 'workshop_to_return']),
+  address:  clientShippingAddressSchema.optional(),
+  // Requis pour le leg workshop_to_return — destination du renvoi.
+  returnDestination: z.enum(['school', 'client']).optional(),
+}).superRefine((data, ctx) => {
+  if (data.leg === 'workshop_to_return' && !data.returnDestination) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['returnDestination'],
+      message: 'Précisez la destination du renvoi (école ou client)',
+    })
+  }
+})
+
 export const diagnosisSchema = z.object({
   ticketId: z.string().uuid(),
   diagnosisNotes: z.string().max(5000).optional(),
@@ -197,6 +229,8 @@ export type SchoolChecklistInput   = z.infer<typeof schoolChecklistSchema>
 export type SchoolResolutionInput  = z.infer<typeof schoolResolutionSchema>
 export type WorkshopChecklistInput = z.infer<typeof workshopChecklistSchema>
 export type AssignWorkshopInput    = z.infer<typeof assignWorkshopSchema>
+export type ClientShippingAddressInput   = z.infer<typeof clientShippingAddressSchema>
+export type GenerateShippingLabelInput   = z.infer<typeof generateShippingLabelSchema>
 
 // Re-export for convenience
 export { WING_BRANDS }

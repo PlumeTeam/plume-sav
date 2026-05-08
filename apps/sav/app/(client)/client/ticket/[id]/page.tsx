@@ -4,8 +4,23 @@ import { getTicketDetail, getPartnerSchoolById } from '@/features/tickets/querie
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { ClientJourneyTimeline } from '@/features/tickets/components/ClientJourneyTimeline'
+import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
 import { formatDate, formatDateTime } from '@/features/tickets/utils'
+import type { ClientShippingAddress } from '@/features/tickets/types'
 import { MessageForm } from './MessageForm'
+
+function readClientShippingAddress(raw: unknown): ClientShippingAddress | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  if (typeof r.street !== 'string' || typeof r.postalCode !== 'string') return null
+  if (typeof r.city !== 'string' || typeof r.country !== 'string') return null
+  return {
+    street:     r.street,
+    postalCode: r.postalCode,
+    city:       r.city,
+    country:    r.country,
+  }
+}
 
 interface PageProps {
   params: { id: string }
@@ -30,6 +45,22 @@ export default async function TicketDetailPage({ params }: PageProps) {
 
   const cityRegion = [school?.city, school?.region].filter(Boolean).join(' · ')
 
+  // L'aile est-elle déjà entre les mains de l'école/atelier ? Auquel cas pas
+  // besoin d'afficher le bon de transport client → école.
+  const wingHandedOver =
+    ticket.status !== 'pending' &&
+    ticket.status !== 'school_acknowledged'
+
+  const shouldOfferClientShipping =
+    ticket.delivery_method === 'postal' && !isRejected && (
+      // soit on a déjà une étiquette → on l'affiche pour télécharger
+      !!ticket.client_school_label_url ||
+      // soit l'aile n'est pas encore arrivée → on permet de générer
+      !wingHandedOver
+    )
+
+  const initialClientAddress = readClientShippingAddress(ticket.client_shipping_address)
+
   return (
     <div className="min-h-screen">
       {/* Contextual sub-header — sits on the cream background, no double bar */}
@@ -53,6 +84,26 @@ export default async function TicketDetailPage({ params }: PageProps) {
       </header>
 
       <main className="mx-auto max-w-2xl space-y-3 p-4 pb-12">
+        {/* Bon de transport (envoi postal uniquement) */}
+        {shouldOfferClientShipping && (
+          <section className="card p-5">
+            <h2 className="section-title mb-3">Envoi postal vers l&apos;école</h2>
+            <p className="mb-4 text-sm text-slate-600">
+              {ticket.client_school_label_url
+                ? "Votre bon de transport GLS est prêt — téléchargez-le et collez-le sur votre colis."
+                : "Cliquez ici pour générer votre bon de transport GLS prépayé. Le coût est pris en charge par Plume."}
+            </p>
+            <ShippingLabelButton
+              ticketId={ticket.id}
+              leg="client_to_school"
+              initialTracking={ticket.client_school_tracking}
+              initialLabelUrl={ticket.client_school_label_url}
+              initialAddress={initialClientAddress}
+              autoApproved={ticket.auto_approved_shipping !== false}
+            />
+          </section>
+        )}
+
         {/* Timeline verticale — toutes les étapes du parcours SAV */}
         <section className="card p-5">
           <h2 className="section-title mb-4">Suivi de votre demande</h2>

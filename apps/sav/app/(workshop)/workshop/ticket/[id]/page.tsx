@@ -9,8 +9,10 @@ import { DiagnosisChecklist } from '@/features/tickets/components/DiagnosisCheck
 import { WORKSHOP_TECHNICAL_CHECKLIST } from '@/features/tickets/constants'
 import { saveWorkshopChecklistAction } from '@/features/tickets/actions'
 import { formatDate } from '@/features/tickets/utils'
+import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
 import { WorkshopActionBar } from './WorkshopActionBar'
 import { WorkshopStepPanel } from './WorkshopStepPanel'
+import type { WorkshopReturnDestination } from '@/features/tickets/types'
 
 interface PageProps { params: { id: string } }
 
@@ -30,6 +32,17 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
   const stored: ChecklistJson = (ticket.workshop_checklist ?? null) as ChecklistJson
   const initialChecked = Array.isArray(stored?.checkedIds) ? stored!.checkedIds! : []
   const initialNotes   = typeof stored?.notes === 'string' ? stored!.notes! : ''
+
+  // Le bon de transport retour est utile à partir du moment où la réparation
+  // est terminée (workshop_done) et tant que l'aile n'a pas encore été
+  // marquée comme renvoyée. On le laisse aussi visible après "wing_returned"
+  // pour pouvoir re-télécharger l'étiquette si besoin.
+  const shouldOfferReturnShipping =
+    ticket.status === 'workshop_done' ||
+    ticket.status === 'wing_returned' ||
+    ticket.status === 'completed'
+
+  const returnDest = (ticket.workshop_return_destination ?? null) as WorkshopReturnDestination | null
 
   return (
     <div className="min-h-screen">
@@ -92,6 +105,25 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
             notesPlaceholder="Mesures, interventions effectuées, pièces remplacées, anomalies constatées…"
           />
         </section>
+
+        {/* Bon de transport retour atelier → école/client */}
+        {shouldOfferReturnShipping && (
+          <section className="card p-5">
+            <h2 className="section-title mb-3">Bon de transport retour</h2>
+            <p className="mb-4 text-sm text-slate-600">
+              {ticket.workshop_return_label_url
+                ? "Étiquette GLS retour prête — collez-la sur le colis avant expédition."
+                : "Générez l'étiquette pour renvoyer l'aile à l'école partenaire ou directement au client."}
+            </p>
+            <ShippingLabelButton
+              ticketId={ticket.id}
+              leg="workshop_to_return"
+              initialTracking={ticket.workshop_return_tracking}
+              initialLabelUrl={ticket.workshop_return_label_url}
+              defaultReturnDestination={returnDest}
+            />
+          </section>
+        )}
 
         <section className="card p-5">
           <h2 className="section-title mb-4">Actions atelier</h2>

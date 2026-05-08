@@ -61,6 +61,24 @@ export type SchoolChangeReasonCode =
 
 export type DeliveryMethod = 'in_person' | 'postal'
 
+// Bons de transport SAV — trois trajets possibles dans le parcours.
+// Chacun mappe sur sa propre paire de colonnes {leg}_tracking / {leg}_label_url.
+export type ShipmentLeg =
+  | 'client_to_school'    // Client → École  (envoi postal initial)
+  | 'school_to_workshop'  // École → Atelier (escalade)
+  | 'workshop_to_return'  // Atelier → École ou Client (renvoi)
+
+export type WorkshopReturnDestination = 'school' | 'client'
+
+// Adresse postale du client — capturée à la volée la 1ère fois qu'il
+// génère un bon de transport. Stockée en JSONB sur le ticket.
+export interface ClientShippingAddress {
+  street:      string
+  postalCode:  string
+  city:        string
+  country:     string  // ISO-2 par défaut "FR"
+}
+
 export interface WizardProblem {
   problemCategory: ProblemCategory | ''
   problemDescription: string

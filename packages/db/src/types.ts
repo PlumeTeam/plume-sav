@@ -116,6 +116,18 @@ export interface Database {
           workshop_diagnosis_at:     string | null
           workshop_repair_done_at:   string | null
           wing_returned_at:          string | null
+          // Shipping legs (migration 20260510000000)
+          client_school_tracking:      string | null
+          client_school_label_url:     string | null
+          client_school_carrier:       string | null
+          school_workshop_tracking:    string | null
+          school_workshop_label_url:   string | null
+          workshop_return_tracking:    string | null
+          workshop_return_label_url:   string | null
+          workshop_return_destination: 'school' | 'client' | null
+          auto_approved_shipping:      boolean
+          // Lazy-captured client shipping address (added with shipping migration)
+          client_shipping_address:     Json | null
           created_at: string
           updated_at: string
         }
@@ -178,6 +190,16 @@ export interface Database {
           workshop_diagnosis_at?:     string | null
           workshop_repair_done_at?:   string | null
           wing_returned_at?:          string | null
+          client_school_tracking?:      string | null
+          client_school_label_url?:     string | null
+          client_school_carrier?:       string | null
+          school_workshop_tracking?:    string | null
+          school_workshop_label_url?:   string | null
+          workshop_return_tracking?:    string | null
+          workshop_return_label_url?:   string | null
+          workshop_return_destination?: 'school' | 'client' | null
+          auto_approved_shipping?:      boolean
+          client_shipping_address?:     Json | null
           created_at?: string
           updated_at?: string
         }
@@ -240,6 +262,16 @@ export interface Database {
           workshop_diagnosis_at?:     string | null
           workshop_repair_done_at?:   string | null
           wing_returned_at?:          string | null
+          client_school_tracking?:      string | null
+          client_school_label_url?:     string | null
+          client_school_carrier?:       string | null
+          school_workshop_tracking?:    string | null
+          school_workshop_label_url?:   string | null
+          workshop_return_tracking?:    string | null
+          workshop_return_label_url?:   string | null
+          workshop_return_destination?: 'school' | 'client' | null
+          auto_approved_shipping?:      boolean
+          client_shipping_address?:     Json | null
           created_at?: string
           updated_at?: string
         }
