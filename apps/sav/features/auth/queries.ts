@@ -87,3 +87,61 @@ export async function getCurrentUserSchool(): Promise<CurrentSchool | null> {
 
   return null
 }
+
+export type CurrentWorkshop = {
+  id:      string
+  label:   string
+  city?:   string
+  region?: string
+}
+
+/**
+ * Best-effort resolution of the workshop the current authenticated user
+ * represents. Workshops aren't in DB yet — they live in the hardcoded
+ * PARTNER_WORKSHOPS list in features/tickets/constants.ts. We try a few
+ * matching strategies in order:
+ *  1. user.user_metadata.workshop_id matches a PARTNER_WORKSHOPS entry
+ *  2. user.user_metadata.full_name / .name matches a workshop label
+ *     (case-insensitive)
+ *  3. fallback: synthesize a record from user_metadata.full_name (or
+ *     first_name + last_name) so the dashboard at least has a name.
+ *
+ * Imported lazily to avoid pulling tickets-feature constants at the top
+ * of the auth module.
+ */
+export async function getCurrentUserWorkshop(): Promise<CurrentWorkshop | null> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const meta  = (user.user_metadata ?? {}) as Record<string, unknown>
+  const wsId  = typeof meta.workshop_id === 'string' ? meta.workshop_id.trim() : null
+  const name  = typeof meta.full_name   === 'string' ? meta.full_name.trim()
+              : typeof meta.name        === 'string' ? meta.name.trim()
+              : null
+  const first = typeof meta.first_name  === 'string' ? meta.first_name.trim() : null
+  const last  = typeof meta.last_name   === 'string' ? meta.last_name.trim()  : null
+
+  // Lazy import so the auth feature doesn't depend on the tickets feature
+  // unless this code path actually fires.
+  const { PARTNER_WORKSHOPS } = await import('@/features/tickets/constants')
+
+  // Strategy 1: explicit workshop_id in metadata
+  if (wsId) {
+    const w = PARTNER_WORKSHOPS.find((x) => x.id === wsId)
+    if (w) return { id: w.id, label: w.label, city: w.city, region: w.region }
+  }
+
+  // Strategy 2: full_name matches a workshop label (case-insensitive)
+  if (name) {
+    const lc = name.toLowerCase()
+    const w  = PARTNER_WORKSHOPS.find((x) => x.label.toLowerCase() === lc)
+    if (w) return { id: w.id, label: w.label, city: w.city, region: w.region }
+  }
+
+  // Strategy 3: synthesize from metadata (no DB row, no PARTNER_WORKSHOPS hit)
+  const synthLabel = name ?? ([first, last].filter(Boolean).join(' ') || null)
+  if (synthLabel) return { id: `auth-${user.id}`, label: synthLabel }
+
+  return null
+}

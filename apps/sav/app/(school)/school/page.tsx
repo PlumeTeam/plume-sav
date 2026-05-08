@@ -10,37 +10,37 @@ export default async function SchoolPage() {
     getCurrentUserSchool(),
   ])
   const pending = tickets.filter(t => t.status === 'pending').length
-  const urgent  = tickets.filter(t => t.urgency_level === 2 && (t.status === 'pending' || t.status === 'processing')).length
+  const urgent  = tickets.filter(
+    t => t.urgency_level === 2 && (t.status === 'pending' || t.status === 'processing')
+  ).length
+
+  const greetingName = school?.name ?? 'École'
 
   return (
-    <main>
-      <div className="border-b border-brand-stone/60 bg-white px-4 py-5 sm:px-6">
-        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3">
-          <div>
-            {school?.name && (
-              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
-                🏫 {school.name}
-                {(school.city || school.region) && (
-                  <span className="ml-1 font-normal text-slate-400">
-                    · {[school.city, school.region].filter(Boolean).join(', ')}
-                  </span>
-                )}
-              </p>
-            )}
-            <h1 className="mt-0.5 font-display text-xl font-bold text-brand-ink">
-              File de tickets
-            </h1>
-            <p className="mt-0.5 text-sm text-slate-500">
-              {tickets.length} ticket{tickets.length !== 1 ? 's' : ''} au total
-              {pending > 0 && ` · ${pending} à traiter`}
-              {urgent > 0 && ` · ${urgent} urgent${urgent > 1 ? 's' : ''}`}
-            </p>
-          </div>
-        </div>
-      </div>
-      <div className="mx-auto max-w-4xl">
+    <main className="space-y-6 px-4 py-6 sm:px-6">
+      {/* ── Hero / Greeting ─────────────────────────────────────── */}
+      <section className="rounded-3xl bg-gradient-to-br from-emerald-700 via-emerald-800 to-brand-ink px-5 py-6 text-white shadow-soft">
+        <p className="text-xs font-semibold uppercase tracking-wider text-emerald-200">
+          🏫 Espace École
+        </p>
+        <h1 className="mt-1 font-display text-2xl font-bold">Bonjour {greetingName}</h1>
+        <p className="mt-1 text-sm text-white/70">
+          {tickets.length} ticket{tickets.length !== 1 ? 's' : ''} au total
+          {pending > 0 && ` · ${pending} à traiter`}
+          {urgent > 0 && ` · ${urgent} urgent${urgent > 1 ? 's' : ''}`}
+        </p>
+        {school && (school.city || school.region) && (
+          <p className="mt-1 text-xs text-white/50">
+            {[school.city, school.region].filter(Boolean).join(' · ')}
+          </p>
+        )}
+      </section>
+
+      {/* ── File de tickets ─────────────────────────────────────── */}
+      <section>
+        <h2 className="section-title mb-3 px-1">File de tickets</h2>
         <SchoolTicketQueue tickets={tickets} />
-      </div>
+      </section>
     </main>
   )
 }
