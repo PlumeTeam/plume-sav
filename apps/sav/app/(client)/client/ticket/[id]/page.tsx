@@ -3,7 +3,8 @@ import Link from 'next/link'
 import { getTicketDetail, getPartnerSchoolById } from '@/features/tickets/queries'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
-import { formatDate, formatDateTime, TIMELINE_STEPS, getStatusStep } from '@/features/tickets/utils'
+import { ClientJourneyTimeline } from '@/features/tickets/components/ClientJourneyTimeline'
+import { formatDate, formatDateTime } from '@/features/tickets/utils'
 import { MessageForm } from './MessageForm'
 
 interface PageProps {
@@ -20,7 +21,6 @@ export default async function TicketDetailPage({ params }: PageProps) {
     ? await getPartnerSchoolById(ticket.referent_school_id)
     : null
 
-  const currentStep   = getStatusStep(ticket.status)
   const sortedPhotos  = [...ticket.ticket_photos].sort((a, b) => a.sort_order - b.sort_order)
   const publicMessages = ticket.ticket_messages
     .filter((m) => m.visibility_level === 'all')
@@ -53,48 +53,15 @@ export default async function TicketDetailPage({ params }: PageProps) {
       </header>
 
       <main className="mx-auto max-w-2xl space-y-3 p-4 pb-12">
-        {/* Timeline — Domino's style */}
+        {/* Timeline verticale — toutes les étapes du parcours SAV */}
         <section className="card p-5">
-          <h2 className="section-title mb-4">Suivi en temps réel</h2>
+          <h2 className="section-title mb-4">Suivi de votre demande</h2>
           {isRejected ? (
             <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
               {ticket.status === 'rejected' ? 'Demande rejetée' : 'Demande annulée'}
             </div>
           ) : (
-            <ol className="space-y-3">
-              {TIMELINE_STEPS.map((step, idx) => {
-                const stepIdx = idx + 1
-                const isDone    = currentStep >= stepIdx + 1
-                const isCurrent = currentStep === stepIdx
-                return (
-                  <li key={step.status} className="flex items-center gap-3">
-                    <div
-                      className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                        isDone
-                          ? 'bg-emerald-500 text-white'
-                          : isCurrent
-                          ? 'bg-brand-gold text-white ring-4 ring-brand-gold/20'
-                          : 'bg-brand-stone text-slate-400'
-                      }`}
-                    >
-                      {isDone ? '✓' : stepIdx}
-                    </div>
-                    <span
-                      className={`text-sm ${
-                        isDone    ? 'text-slate-500' :
-                        isCurrent ? 'font-semibold text-brand-ink' :
-                        'text-slate-400'
-                      }`}
-                    >
-                      {step.label}
-                    </span>
-                    {isCurrent && (
-                      <span className="ml-auto h-2 w-2 rounded-full bg-brand-gold animate-pulse-dot" aria-hidden />
-                    )}
-                  </li>
-                )
-              })}
-            </ol>
+            <ClientJourneyTimeline ticket={ticket} />
           )}
         </section>
 
