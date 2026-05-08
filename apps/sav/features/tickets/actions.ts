@@ -16,6 +16,12 @@ import {
 import type { MessageSenderRole, TicketStatus, ServiceType, ProblemCategory, TicketUpdate } from './types'
 import type { RequestStatus, SchoolResolution } from './types'
 import { resolveClientIdentity } from '@/features/auth/identity'
+import {
+  sendClientConfirmationEmail,
+  sendSchoolNotificationEmail,
+  type TicketEmailContext,
+} from './email'
+import { getPartnerSchoolById } from './queries'
 
 // Maps school resolution outcome → request_status the ticket transitions into.
 function resolutionToRequestStatus(r: SchoolResolution): RequestStatus {
@@ -214,6 +220,58 @@ export async function createTicketAction(input: unknown) {
     changed_by: user.id,
   })
   if (histError) console.warn('ticket_status_history insert failed:', histError.message)
+
+  // Email notifications (best-effort) — never block ticket creation.
+  // Both dispatches run in parallel; failures are logged but swallowed.
+  try {
+    const schoolDetail = persistedSchoolId
+      ? await getPartnerSchoolById(persistedSchoolId)
+      : null
+
+    const emailCtx: TicketEmailContext = {
+      ticketId:       ticket.id,
+      ticketRef:      `#${ticket.id.slice(0, 8).toUpperCase()}`,
+      client: {
+        firstName:  identity.firstName,
+        lastName:   identity.lastName,
+        email:      identity.email,
+      },
+      school: {
+        name:       schoolDetail?.name ?? 'Votre école partenaire',
+        email:      schoolDetail?.email ?? null,
+        city:       schoolDetail?.city ?? null,
+      },
+      wing: {
+        brand:      wingBrand,
+        model:      wingModel,
+        size:       wingSize,
+        color:      wingColor,
+        serial:     wingSerial,
+      },
+      problemLabel:   PROBLEM_CATEGORY_LABELS[problemCategory] ?? problemCategory,
+      description:    richDescription,
+      urgency,
+      deliveryMethod,
+    }
+
+    const [clientRes, schoolRes] = await Promise.allSettled([
+      sendClientConfirmationEmail(supabase, emailCtx),
+      sendSchoolNotificationEmail(supabase, emailCtx),
+    ])
+
+    if (clientRes.status === 'rejected') {
+      console.warn('[createTicketAction] client email threw:', clientRes.reason)
+    } else if (!clientRes.value.ok) {
+      console.warn('[createTicketAction] client email skipped/failed:', clientRes.value.error)
+    }
+    if (schoolRes.status === 'rejected') {
+      console.warn('[createTicketAction] school email threw:', schoolRes.reason)
+    } else if (!schoolRes.value.ok) {
+      console.warn('[createTicketAction] school email skipped/failed:', schoolRes.value.error)
+    }
+  } catch (e) {
+    console.warn('[createTicketAction] email dispatch threw:', e)
+  }
 
   revalidatePath('/client')
   // The client navigates to the confirmation page itself after this call so
