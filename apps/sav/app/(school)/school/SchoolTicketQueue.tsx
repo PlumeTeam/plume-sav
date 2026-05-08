@@ -6,9 +6,29 @@ import type { TicketWithPhotos, RequestStatus } from '@/features/tickets/types'
 
 type FilterTab = 'all' | 'pending' | 'active' | 'done'
 
+// "À traiter" — l'école doit accuser réception ou récupérer l'aile.
 const PENDING: RequestStatus[] = ['pending']
-const ACTIVE: RequestStatus[]  = ['processing', 'approved']
-const DONE: RequestStatus[]    = ['completed', 'rejected', 'cancelled']
+
+// "En cours" — toutes les étapes intermédiaires côté école ET côté atelier
+// (l'école garde la visibilité tant que le ticket n'est pas clôturé).
+// Inclut les statuts hérités (processing/approved) pour les tickets antérieurs
+// au pipeline d'étapes (migration 20260509000000).
+const ACTIVE: RequestStatus[]  = [
+  'school_acknowledged',
+  'wing_received_school',
+  'school_checking',
+  'processing',
+  'approved',
+  'escalated_to_workshop',
+  'wing_received_workshop',
+  'workshop_diagnosing',
+  'workshop_repairing',
+  'workshop_done',
+  'wing_returned',
+]
+
+// "Terminés" — école-résolu compte comme terminé (parcours école-only).
+const DONE: RequestStatus[]    = ['school_resolved', 'completed', 'rejected', 'cancelled']
 
 const TAB_LABELS: Record<FilterTab, string> = {
   all:     'Tous',

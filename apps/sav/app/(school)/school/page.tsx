@@ -10,8 +10,15 @@ export default async function SchoolPage() {
     getCurrentUserSchool(),
   ])
   const pending = tickets.filter(t => t.status === 'pending').length
+  // Les tickets actifs (pipeline d'étapes ou hérité) qui sont marqués urgents
+  // remontent dans le hero pour rappel — on exclut ce qui est définitivement clos.
   const urgent  = tickets.filter(
-    t => t.urgency_level === 2 && (t.status === 'pending' || t.status === 'processing')
+    t =>
+      t.urgency_level === 2 &&
+      t.status !== 'completed' &&
+      t.status !== 'school_resolved' &&
+      t.status !== 'cancelled' &&
+      t.status !== 'rejected'
   ).length
 
   const greetingName = school?.name ?? 'École'

@@ -13,10 +13,28 @@ type KanbanColumn = {
   hint:     string
 }
 
+// Colonnes Kanban — chaque colonne couvre à la fois les statuts hérités
+// (processing/approved/completed) et les nouveaux statuts du pipeline d'étapes
+// (migration 20260509000000) pour qu'aucun ticket ne soit invisible.
 const COLUMNS: KanbanColumn[] = [
-  { id: 'processing', label: 'En diagnostic', statuses: ['processing'], hint: 'À inspecter et chiffrer' },
-  { id: 'approved',   label: 'En réparation', statuses: ['approved'],   hint: 'Devis validé, travail en cours' },
-  { id: 'completed',  label: 'Terminés',      statuses: ['completed'],  hint: 'Réparation finalisée' },
+  {
+    id:       'processing',
+    label:    'En diagnostic',
+    statuses: ['processing', 'escalated_to_workshop', 'wing_received_workshop', 'workshop_diagnosing'],
+    hint:     'À réceptionner, inspecter et chiffrer',
+  },
+  {
+    id:       'approved',
+    label:    'En réparation',
+    statuses: ['approved', 'workshop_repairing'],
+    hint:     'Devis validé, travail en cours',
+  },
+  {
+    id:       'completed',
+    label:    'Terminés',
+    statuses: ['workshop_done', 'wing_returned', 'completed'],
+    hint:     'Réparation finalisée',
+  },
 ]
 
 interface WorkshopKanbanProps {

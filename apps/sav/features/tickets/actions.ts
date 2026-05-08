@@ -666,6 +666,50 @@ export async function applySchoolResolutionAction(formData: FormData) {
   })
   if (histError) console.warn('ticket_status_history insert failed:', histError.message)
 
+  // Notification client (best-effort) — seules les décisions « définitives »
+  // (école résout, ou ticket part vers l'atelier) déclenchent un email. Les
+  // états transitoires (advice/reflection) restent silencieux côté client.
+  const stepEmail: ClientStepEmail | null =
+    resolution === 'resolved_by_school' || resolution === 'normal_behavior_explained'
+      ? 'school_resolved'
+      : resolution === 'escalated_to_workshop'
+        ? 'escalated_to_workshop'
+        : null
+
+  if (stepEmail) {
+    try {
+      const { data: ticketRow } = await supabase
+        .from('service_requests')
+        .select('id, ticket_number, first_name, email, referent_school_id')
+        .eq('id', ticketId)
+        .single()
+        .returns<{
+          id:                 string
+          ticket_number:      string | null
+          first_name:         string | null
+          email:              string | null
+          referent_school_id: string | null
+        }>()
+
+      if (ticketRow?.email) {
+        const schoolDetail = ticketRow.referent_school_id
+          ? await getPartnerSchoolById(ticketRow.referent_school_id)
+          : null
+        const ref = ticketRow.ticket_number ?? `#${ticketRow.id.slice(0, 8).toUpperCase()}`
+        const r = await sendClientStepUpdateEmail(supabase, stepEmail, {
+          ticketId:    ticketRow.id,
+          ticketRef:   ref,
+          clientFirst: ticketRow.first_name ?? 'Pilote',
+          clientEmail: ticketRow.email,
+          schoolName:  schoolDetail?.name ?? null,
+        })
+        if (!r.ok) console.warn(`[applySchoolResolutionAction] step email "${stepEmail}" skipped:`, r.error)
+      }
+    } catch (e) {
+      console.warn(`[applySchoolResolutionAction] step email "${stepEmail}" threw:`, e)
+    }
+  }
+
   revalidatePath(`/school/ticket/${ticketId}`)
   revalidatePath(`/workshop/ticket/${ticketId}`)
   revalidatePath(`/client/ticket/${ticketId}`)

@@ -9,9 +9,26 @@ export default async function WorkshopPage() {
     getWorkshopTickets(),
     getCurrentUserWorkshop(),
   ])
-  const inDiagnosis = tickets.filter(t => t.status === 'processing').length
-  const inRepair    = tickets.filter(t => t.status === 'approved').length
-  const urgent      = tickets.filter(t => t.urgency_level === 2 && t.status !== 'completed').length
+  // Compteurs cohérents avec le pipeline d'étapes (migration 20260509000000) :
+  // les anciens statuts (processing/approved) restent comptabilisés pour les
+  // tickets antérieurs.
+  const inDiagnosis = tickets.filter((t) =>
+    t.status === 'processing' ||
+    t.status === 'escalated_to_workshop' ||
+    t.status === 'wing_received_workshop' ||
+    t.status === 'workshop_diagnosing'
+  ).length
+  const inRepair = tickets.filter((t) =>
+    t.status === 'approved' ||
+    t.status === 'workshop_repairing'
+  ).length
+  const urgent = tickets.filter(
+    (t) =>
+      t.urgency_level === 2 &&
+      t.status !== 'completed' &&
+      t.status !== 'wing_returned' &&
+      t.status !== 'workshop_done'
+  ).length
   const adviceCount = tickets.filter(
     (t) => (t as { school_resolution?: string | null }).school_resolution === 'workshop_advice_requested'
   ).length
