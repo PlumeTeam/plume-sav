@@ -139,7 +139,7 @@ export function StepSchool({ schools, onNext, onBack }: StepSchoolProps) {
             onClick={() => setSub('reason')}
             className="block w-full text-center text-xs text-slate-500 underline underline-offset-4 hover:text-brand-gold"
           >
-            Je ne souhaite pas interagir avec mon école référente
+            Choisir une autre école
           </button>
         </div>
       </StepLayout>

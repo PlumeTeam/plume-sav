@@ -43,7 +43,7 @@ function resolutionToRequestStatus(r: SchoolResolution): RequestStatus {
 // 'porosity' is excluded from the client wizard (staff-only diagnosis), so
 // the wizard never reaches this function with that value.
 function deriveServiceType(category: ProblemCategory): ServiceType {
-  if (['tear', 'line_issue', 'riser_issue', 'buckle_issue'].includes(category)) return 'repair'
+  if (['tear', 'line_issue', 'riser_issue'].includes(category)) return 'repair'
   return 'sav'
 }
 
