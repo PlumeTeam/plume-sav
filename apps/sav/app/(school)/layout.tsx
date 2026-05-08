@@ -1,12 +1,25 @@
 import { RoleHeader } from '@/app/_components/RoleHeader'
-import { getCurrentUser, getCurrentUserRoles } from '@/features/auth/queries'
+import {
+  getCurrentUser,
+  getCurrentUserRoles,
+  getCurrentUserSchool,
+} from '@/features/auth/queries'
 
 export default async function SchoolLayout({ children }: { children: React.ReactNode }) {
-  const [user, roles] = await Promise.all([getCurrentUser(), getCurrentUserRoles()])
+  const [user, roles, school] = await Promise.all([
+    getCurrentUser(),
+    getCurrentUserRoles(),
+    getCurrentUserSchool(),
+  ])
+
+  // The space label switches to the actual school name when we know it,
+  // so the user always knows which school's tickets they're looking at.
+  const spaceLabel = school?.name ? `École ${school.name}` : 'Espace École'
+
   return (
     <div className="flex min-h-screen flex-col bg-brand-cream">
       <RoleHeader
-        spaceLabel="Espace École"
+        spaceLabel={spaceLabel}
         spaceColor="green"
         links={[{ href: '/school', label: 'Tickets' }]}
         userEmail={user?.email}

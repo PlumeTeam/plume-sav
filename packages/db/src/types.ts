@@ -30,6 +30,8 @@ export type SchoolResolution =
   | 'normal_behavior_explained'
   | 'escalated_to_workshop'
   | 'escalated_to_plume'
+  | 'workshop_advice_requested'  // école demande un avis distance, sans envoyer l'aile
+  | 'reflection'                 // école n'a pas encore décidé
 
 export interface Database {
   public: {
@@ -91,6 +93,8 @@ export interface Database {
           referent_school_id: string | null
           // Delivery method (migration 20260507100000)
           delivery_method: 'in_person' | 'postal' | null
+          // Plume HQ severity flag (migration 20260508000000)
+          is_plume_urgent: boolean
           created_at: string
           updated_at: string
         }
@@ -145,6 +149,7 @@ export interface Database {
           school_change_reason_note?: string | null
           referent_school_id?: string | null
           delivery_method?: 'in_person' | 'postal' | null
+          is_plume_urgent?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -199,6 +204,7 @@ export interface Database {
           school_change_reason_note?: string | null
           referent_school_id?: string | null
           delivery_method?: 'in_person' | 'postal' | null
+          is_plume_urgent?: boolean
           created_at?: string
           updated_at?: string
         }

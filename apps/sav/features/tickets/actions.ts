@@ -21,8 +21,10 @@ function resolutionToRequestStatus(r: SchoolResolution): RequestStatus {
   switch (r) {
     case 'resolved_by_school':         return 'completed'
     case 'normal_behavior_explained':  return 'completed'
-    case 'escalated_to_workshop':      return 'approved'   // visible by workshop queue
-    case 'escalated_to_plume':         return 'processing' // stays open, plume picks up
+    case 'escalated_to_workshop':      return 'approved'    // visible by workshop queue
+    case 'escalated_to_plume':         return 'processing'  // stays open, plume picks up
+    case 'workshop_advice_requested':  return 'processing'  // school keeps the wing, just asks for input
+    case 'reflection':                 return 'processing'  // école n'a pas encore décidé
     default: {
       const _exhaustive: never = r
       return 'processing'

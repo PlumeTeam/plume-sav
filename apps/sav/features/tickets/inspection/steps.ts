@@ -63,6 +63,8 @@ export type InspectionAnswer = {
 export type InspectionPayload = {
   /** Map keyed by step id. */
   answers:    Record<string, InspectionAnswer>
+  /** Name of the school staff who performed the check (asked at step 0). */
+  inspectorName?: string
   /** ISO timestamp of the last save. */
   completedAt?: string
   /** Free-form global note. */

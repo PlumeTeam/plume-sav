@@ -18,7 +18,7 @@ interface CheckWizardProps {
   initial:     InspectionPayload | null
 }
 
-type WizardScreen = 'step' | 'review'
+type WizardScreen = 'inspector' | 'step' | 'review'
 
 export function CheckWizard({
   ticketId,
@@ -30,16 +30,23 @@ export function CheckWizard({
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
+  const [inspectorName, setInspectorName] = useState<string>(initial?.inspectorName ?? '')
   const [answers, setAnswers] = useState<Record<string, InspectionAnswer>>(() => initial?.answers ?? {})
   const [stepIdx, setStepIdx] = useState<number>(0)
-  const [screen, setScreen] = useState<WizardScreen>('step')
+  // Skip the inspector screen if the school already filled it on a previous visit.
+  const [screen, setScreen] = useState<WizardScreen>(() =>
+    initial?.inspectorName?.trim() ? 'step' : 'inspector'
+  )
   const [globalNote, setGlobalNote] = useState<string>(initial?.notes ?? '')
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'error'; msg: string } | null>(null)
 
   const totalSteps = steps.length
-  // Add 1 for the review screen
-  const totalScreens = totalSteps + 1
-  const currentScreen = screen === 'step' ? stepIdx + 1 : totalScreens
+  // +1 inspector screen, +1 review screen
+  const totalScreens = totalSteps + 2
+  const currentScreen =
+    screen === 'inspector' ? 1 :
+    screen === 'review'    ? totalScreens :
+                              stepIdx + 2  // inspector took position 1
   const pct = (currentScreen / totalScreens) * 100
 
   const currentStep = steps[stepIdx]
@@ -52,11 +59,15 @@ export function CheckWizard({
   }
 
   function next() {
-    if (screen === 'review') return
-    if (stepIdx < totalSteps - 1) {
-      setStepIdx(stepIdx + 1)
-    } else {
-      setScreen('review')
+    if (screen === 'inspector') {
+      setScreen('step')
+      setStepIdx(0)
+    } else if (screen === 'step') {
+      if (stepIdx < totalSteps - 1) {
+        setStepIdx(stepIdx + 1)
+      } else {
+        setScreen('review')
+      }
     }
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -65,9 +76,14 @@ export function CheckWizard({
     if (screen === 'review') {
       setScreen('step')
       setStepIdx(totalSteps - 1)
-    } else if (stepIdx > 0) {
-      setStepIdx(stepIdx - 1)
+    } else if (screen === 'step') {
+      if (stepIdx > 0) {
+        setStepIdx(stepIdx - 1)
+      } else {
+        setScreen('inspector')
+      }
     } else {
+      // screen === 'inspector' — first screen, abort wizard
       router.push(ticketHref)
     }
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -77,6 +93,7 @@ export function CheckWizard({
     startTransition(async () => {
       const payload: InspectionPayload = {
         answers,
+        inspectorName: inspectorName.trim() || undefined,
         completedAt: new Date().toISOString(),
         notes: globalNote.trim() || undefined,
         // Legacy "checkedIds" derived from yes-answers so the old flat UI still
@@ -132,6 +149,15 @@ export function CheckWizard({
         </div>
       </div>
 
+      {screen === 'inspector' && (
+        <InspectorCard
+          value={inspectorName}
+          onChange={setInspectorName}
+          onBack={back}
+          onNext={next}
+        />
+      )}
+
       {screen === 'step' && currentStep && (
         <StepCard
           step={currentStep}
@@ -147,6 +173,7 @@ export function CheckWizard({
       {screen === 'review' && (
         <ReviewCard
           flowKind={flowKind}
+          inspectorName={inspectorName}
           steps={steps}
           answers={answers}
           globalNote={globalNote}
@@ -157,6 +184,63 @@ export function CheckWizard({
           feedback={feedback}
         />
       )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Inspector identity (first screen)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface InspectorCardProps {
+  value:    string
+  onChange: (s: string) => void
+  onBack:   () => void
+  onNext:   () => void
+}
+
+function InspectorCard({ value, onChange, onBack, onNext }: InspectorCardProps) {
+  const valid = value.trim().length >= 2
+
+  return (
+    <div className="card animate-slide-up p-5">
+      <h2 className="font-display text-xl font-bold text-brand-ink">
+        Qui effectue le contrôle&nbsp;?
+      </h2>
+      <p className="mt-2 text-sm text-slate-500">
+        Cette information est conservée avec le diagnostic pour la traçabilité.
+      </p>
+
+      <div className="mt-5">
+        <label htmlFor="inspector-name" className="mb-1.5 block text-sm font-medium text-brand-ink">
+          Nom et prénom
+        </label>
+        <input
+          id="inspector-name"
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Ex : Pierre Durand"
+          className="field-input"
+          autoFocus
+          autoComplete="name"
+          maxLength={120}
+        />
+      </div>
+
+      <div className="mt-6 flex gap-3">
+        <button type="button" onClick={onBack} className="btn-secondary flex-1">
+          ← Annuler
+        </button>
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={!valid}
+          className="btn-primary flex-[2]"
+        >
+          Commencer le check
+        </button>
+      </div>
     </div>
   )
 }
@@ -321,6 +405,7 @@ function SeverityChoice({ value, onChange }: { value: string; onChange: (v: stri
 
 interface ReviewCardProps {
   flowKind:           'visual' | 'behavior'
+  inspectorName:      string
   steps:              InspectionStep[]
   answers:            Record<string, InspectionAnswer>
   globalNote:         string
@@ -332,7 +417,7 @@ interface ReviewCardProps {
 }
 
 function ReviewCard({
-  flowKind, steps, answers, globalNote, onGlobalNoteChange,
+  flowKind, inspectorName, steps, answers, globalNote, onGlobalNoteChange,
   onBack, onSubmit, isPending, feedback,
 }: ReviewCardProps) {
   const allAnswered = useMemo(
@@ -349,6 +434,13 @@ function ReviewCard({
       <p className="mt-1 text-sm text-slate-500">
         Diagnostic {flowKind === 'visual' ? 'visuel' : 'comportement'} — vérifiez vos réponses puis validez.
       </p>
+
+      {inspectorName.trim() && (
+        <div className="mt-4 flex items-center gap-2 rounded-xl bg-brand-cream px-3 py-2 text-sm text-brand-ink">
+          <span aria-hidden>👤</span>
+          <span>Effectué par <strong>{inspectorName.trim()}</strong></span>
+        </div>
+      )}
 
       <ul className="mt-4 divide-y divide-brand-stone/50">
         {steps.map((step) => (
