@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getTicketDetail } from '@/features/tickets/queries'
+import { getTicketDetail, getPartnerSchoolById } from '@/features/tickets/queries'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { formatDate, formatDateTime, TIMELINE_STEPS, getStatusStep } from '@/features/tickets/utils'
@@ -16,6 +16,10 @@ export default async function TicketDetailPage({ params }: PageProps) {
   const ticket = await getTicketDetail(params.id)
   if (!ticket) notFound()
 
+  const school = ticket.referent_school_id
+    ? await getPartnerSchoolById(ticket.referent_school_id)
+    : null
+
   const currentStep   = getStatusStep(ticket.status)
   const sortedPhotos  = [...ticket.ticket_photos].sort((a, b) => a.sort_order - b.sort_order)
   const publicMessages = ticket.ticket_messages
@@ -23,6 +27,8 @@ export default async function TicketDetailPage({ params }: PageProps) {
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
   const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
   const isRejected = ticket.status === 'rejected' || ticket.status === 'cancelled'
+
+  const cityRegion = [school?.city, school?.region].filter(Boolean).join(' · ')
 
   return (
     <div className="min-h-screen">
@@ -92,6 +98,58 @@ export default async function TicketDetailPage({ params }: PageProps) {
           )}
         </section>
 
+        {/* Votre école — contact + chat shortcut */}
+        {school && (
+          <section className="card p-5">
+            <h2 className="section-title mb-3">Votre école</h2>
+            <div className="flex items-start gap-3">
+              <span aria-hidden className="text-3xl">🏫</span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-brand-ink">{school.name}</p>
+                {cityRegion && (
+                  <p className="mt-0.5 text-xs text-slate-500">{cityRegion}</p>
+                )}
+
+                {(school.phone || school.email || school.address) && (
+                  <div className="mt-3 space-y-1.5 text-sm">
+                    {school.phone && (
+                      <a
+                        href={`tel:${school.phone.replace(/\s+/g, '')}`}
+                        className="flex items-center gap-2 text-brand-ink hover:text-brand-coral"
+                      >
+                        <span aria-hidden>📞</span>
+                        <span>{school.phone}</span>
+                      </a>
+                    )}
+                    {school.email && (
+                      <a
+                        href={`mailto:${school.email}?subject=SAV%20${encodeURIComponent(ticketRef)}`}
+                        className="flex items-center gap-2 text-brand-ink hover:text-brand-coral"
+                      >
+                        <span aria-hidden>✉️</span>
+                        <span className="break-all">{school.email}</span>
+                      </a>
+                    )}
+                    {school.address && (
+                      <p className="flex items-start gap-2 text-slate-700">
+                        <span aria-hidden>📍</span>
+                        <span className="whitespace-pre-line">{school.address}</span>
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <a
+              href="#chat"
+              className="btn-primary mt-4 inline-flex w-full items-center justify-center gap-2"
+            >
+              💬 Envoyer un message à l&apos;école
+            </a>
+          </section>
+        )}
+
         {/* Product info */}
         <section className="card p-5">
           <h2 className="section-title mb-3">Produit</h2>
@@ -123,13 +181,16 @@ export default async function TicketDetailPage({ params }: PageProps) {
           </section>
         )}
 
-        {/* Messages */}
-        <section className="card p-5">
-          <h2 className="section-title mb-4">Messages</h2>
+        {/* Messages — chat-style thread between client and school */}
+        <section id="chat" className="card scroll-mt-20 p-5">
+          <h2 className="section-title mb-4">
+            Échanges{school?.name ? ` avec ${school.name}` : " avec votre école"}
+          </h2>
 
           {publicMessages.length === 0 ? (
             <p className="rounded-xl bg-brand-cream/60 p-3 text-sm text-slate-500">
-              Aucun message pour l&apos;instant. Votre école vous répondra ici.
+              Aucun message pour l&apos;instant. Écrivez ci-dessous pour démarrer la conversation —
+              {school?.name ? ` ${school.name}` : ' votre école'} vous répondra ici.
             </p>
           ) : (
             <div className="mb-4 space-y-3">
