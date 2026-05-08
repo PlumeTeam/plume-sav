@@ -269,7 +269,7 @@ export async function createTicketAction(input: unknown) {
   if (ticketError || !ticket) {
     console.error('createTicketAction error:', ticketError)
     const detail = ticketError?.message ? ` (${ticketError.message})` : ''
-    return { error: { _form: [`Erreur lors de la création du ticket${detail}`] } }
+    return { error: { _form: [`Erreur lors de l'envoi de la demande${detail}`] } }
   }
 
   // Photos: separate ticket_photos table (best-effort — failure shouldn't

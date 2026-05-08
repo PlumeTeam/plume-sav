@@ -59,7 +59,7 @@ export function TicketWizard({ wings = [], schools = [] }: TicketWizardProps) {
   const back = () => go('back')
 
   function cancel() {
-    if (typeof window !== 'undefined' && window.confirm('Abandonner le ticket en cours ? Vos saisies seront perdues.')) {
+    if (typeof window !== 'undefined' && window.confirm('Abandonner la demande en cours ? Vos saisies seront perdues.')) {
       useWizardStore.getState().reset()
       router.push('/client')
     }
@@ -91,7 +91,7 @@ export function TicketWizard({ wings = [], schools = [] }: TicketWizardProps) {
             </button>
           )}
           <h1 className="flex-1 text-center text-sm font-semibold text-brand-ink">
-            Nouveau ticket SAV
+            Nouvelle demande SAV
           </h1>
           <span aria-hidden className="flex h-10 w-10 items-center justify-center">
             <PlumeLogo size="sm" />

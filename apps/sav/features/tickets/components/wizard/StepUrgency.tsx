@@ -37,7 +37,7 @@ export function StepUrgency({ onNext, onBack }: StepUrgencyProps) {
   return (
     <StepLayout
       title="C'est urgent ?"
-      subtitle="Réservez 'urgent' aux situations qui le justifient — l'école traite ces tickets en priorité."
+      subtitle="Réservez 'urgent' aux situations qui le justifient — l'école traite ces demandes en priorité."
       footer={<StepNav onBack={onBack} onNext={handleNext} nextLabel="Continuer" />}
     >
       <div className="space-y-3">

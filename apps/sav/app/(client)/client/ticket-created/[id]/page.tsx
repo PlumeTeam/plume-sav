@@ -134,8 +134,8 @@ export default async function TicketCreatedPage({ params }: PageProps) {
             <li className="flex items-start gap-2">
               <span aria-hidden className="mt-0.5">💬</span>
               <span>
-                Communiquez le numéro de suivi à l&apos;école via la messagerie du
-                ticket dès que le colis est expédié.
+                Communiquez le numéro de suivi à l&apos;école via la messagerie de
+                la demande dès que le colis est expédié.
               </span>
             </li>
             <li className="flex items-start gap-2">
@@ -178,7 +178,7 @@ export default async function TicketCreatedPage({ params }: PageProps) {
               <span aria-hidden className="mt-0.5">💬</span>
               <span>
                 L&apos;école vous recontactera après inspection via la messagerie
-                du ticket.
+                de la demande.
               </span>
             </li>
           </ul>
@@ -207,10 +207,10 @@ export default async function TicketCreatedPage({ params }: PageProps) {
           href={`/client/ticket/${ticket.id}`}
           className="btn-secondary flex-1"
         >
-          Voir mon ticket
+          Voir ma demande
         </Link>
         <Link href="/client" className="btn-secondary flex-1">
-          Retour à mes tickets
+          Retour à mes demandes
         </Link>
       </div>
     </main>

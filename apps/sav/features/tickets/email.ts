@@ -109,12 +109,12 @@ function clientConfirmationHTML(ctx: TicketEmailContext): string {
 
           <table role="presentation" cellpadding="0" cellspacing="0" border="0">
             <tr><td style="background:${PLUME_CORAL};border-radius:10px;">
-              <a href="${ticketUrl}" style="display:inline-block;padding:12px 24px;color:#fff;text-decoration:none;font-weight:600;font-size:14px;">Voir mon ticket →</a>
+              <a href="${ticketUrl}" style="display:inline-block;padding:12px 24px;color:#fff;text-decoration:none;font-weight:600;font-size:14px;">Voir ma demande →</a>
             </td></tr>
           </table>
 
           <p style="margin:24px 0 0;font-size:13px;color:#64748b;">
-            Vous pouvez à tout moment retrouver ce ticket dans votre espace SAV&nbsp;:
+            Vous pouvez à tout moment retrouver cette demande dans votre espace SAV&nbsp;:
             <a href="${APP_URL}/client" style="color:${PLUME_CORAL};">${APP_URL}/client</a>
           </p>
         </td></tr>

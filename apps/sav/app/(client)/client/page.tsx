@@ -61,21 +61,21 @@ export default async function ClientPage() {
         )}
       </section>
 
-      {/* ── Mes tickets ─────────────────────────────────────────── */}
+      {/* ── Mes demandes ────────────────────────────────────────── */}
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="section-title">Mes tickets SAV</h2>
+          <h2 className="section-title">Mes demandes SAV</h2>
           {tickets.length > 0 && (
-            <span className="text-xs text-slate-400">{tickets.length} ticket{tickets.length > 1 ? 's' : ''}</span>
+            <span className="text-xs text-slate-400">{tickets.length} demande{tickets.length > 1 ? 's' : ''}</span>
           )}
         </div>
 
         {tickets.length === 0 ? (
           <div className="card border-dashed px-4 py-8 text-center">
             <p className="text-3xl" aria-hidden>🎫</p>
-            <p className="mt-2 text-sm font-medium text-brand-ink">Aucun ticket pour l’instant</p>
+            <p className="mt-2 text-sm font-medium text-brand-ink">Aucune demande pour l’instant</p>
             <p className="mt-1 text-xs text-slate-500">
-              Pour créer un ticket SAV, sélectionnez une de vos ailes ci-dessus.
+              Pour envoyer une demande SAV, sélectionnez une de vos ailes ci-dessus.
             </p>
           </div>
         ) : (

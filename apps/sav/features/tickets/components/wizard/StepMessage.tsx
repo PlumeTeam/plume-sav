@@ -66,7 +66,7 @@ export function StepMessage({ onNext, onBack }: StepMessageProps) {
 
         <p className="rounded-xl bg-brand-cream p-3 text-xs text-slate-600">
           💬 Ce message sera envoyé à l&apos;école avec votre demande et
-          apparaîtra comme premier échange dans la conversation du ticket.
+          apparaîtra comme premier échange dans la conversation de la demande.
           Vous pourrez continuer à dialoguer avec l&apos;école depuis votre
           espace SAV.
         </p>

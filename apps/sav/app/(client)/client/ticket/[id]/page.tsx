@@ -58,7 +58,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
           <h2 className="section-title mb-4">Suivi en temps réel</h2>
           {isRejected ? (
             <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-              {ticket.status === 'rejected' ? 'Ticket rejeté' : 'Ticket annulé'}
+              {ticket.status === 'rejected' ? 'Demande rejetée' : 'Demande annulée'}
             </div>
           ) : (
             <ol className="space-y-3">

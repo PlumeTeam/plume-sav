@@ -57,7 +57,7 @@ export function WingCard({ wing }: WingCardProps) {
         onClick={handleCreateTicket}
         className="mt-4 w-full rounded-2xl border border-brand-stone bg-brand-cream py-2.5 text-sm font-semibold text-brand-ink transition-colors hover:bg-brand-coral/10 hover:border-brand-coral/40"
       >
-        Créer un ticket SAV
+        Envoyer une demande SAV
       </button>
     </div>
   )

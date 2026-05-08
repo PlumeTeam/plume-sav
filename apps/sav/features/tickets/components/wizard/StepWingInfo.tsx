@@ -69,7 +69,7 @@ export function StepWingInfo({ wings, onNext }: StepWingInfoProps) {
           </p>
           <p className="text-xs text-slate-500">
             Si vous avez acheté une aile Plume, contactez-nous pour qu&apos;elle soit
-            associée à votre compte avant d&apos;ouvrir un ticket SAV.
+            associée à votre compte avant d&apos;envoyer une demande SAV.
           </p>
           <a
             href="mailto:sav@plumeparagliders.com?subject=A%C3%AFle%20non%20enregistr%C3%A9e%20sur%20mon%20compte"
