@@ -42,6 +42,7 @@ export const createTicketSchema = z.object({
     alreadyRepaired:    z.enum(['yes', 'no']).nullable().optional(),
     repairDescription:  z.string().max(1000).optional(),
     waterContact:       z.enum(['none', 'fresh', 'salt']).nullable().optional(),
+    treeContact:        z.enum(['yes', 'no']).nullable().optional(),
     surfaceContact:     z.enum(['none', 'sand', 'snow', 'other']).nullable().optional(),
     surfaceContactNote: z.string().max(200).optional(),
     generalCondition:   z.enum(['excellent', 'good', 'worn', 'bad']).nullable().optional(),

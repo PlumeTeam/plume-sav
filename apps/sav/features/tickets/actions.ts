@@ -107,6 +107,7 @@ type WingHistoryInput = {
   alreadyRepaired?:    'yes' | 'no' | null
   repairDescription?:  string
   waterContact?:       'none' | 'fresh' | 'salt' | null
+  treeContact?:        'yes' | 'no' | null
   surfaceContact?:     'none' | 'sand' | 'snow' | 'other' | null
   surfaceContactNote?: string
   generalCondition?:   'excellent' | 'good' | 'worn' | 'bad' | null
@@ -127,6 +128,11 @@ function formatWingHistory(h: WingHistoryInput | undefined): string[] {
   }
   if (h.waterContact) {
     lines.push(`  • Contact avec l'eau : ${WATER_CONTACT_LABELS[h.waterContact] ?? h.waterContact}`)
+  }
+  if (h.treeContact === 'yes') {
+    lines.push('  • Arbrissage : Oui')
+  } else if (h.treeContact === 'no') {
+    lines.push('  • Arbrissage : Non')
   }
   if (h.surfaceContact) {
     const surface = SURFACE_CONTACT_LABELS[h.surfaceContact] ?? h.surfaceContact

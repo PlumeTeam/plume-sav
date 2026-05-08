@@ -44,6 +44,7 @@ export function StepWingHistory({ onNext, onBack }: StepWingHistoryProps) {
   const [alreadyRepaired,     setAlreadyRepaired]     = useState<'yes' | 'no' | null>(wingHistory.alreadyRepaired ?? null)
   const [repairDescription,   setRepairDescription]   = useState(wingHistory.repairDescription ?? '')
   const [waterContact,        setWaterContact]        = useState<WaterContactKind | null>(wingHistory.waterContact ?? null)
+  const [treeContact,         setTreeContact]         = useState<'yes' | 'no' | null>(wingHistory.treeContact ?? null)
   const [surfaceContact,      setSurfaceContact]      = useState<SurfaceContactKind | null>(wingHistory.surfaceContact ?? null)
   const [surfaceContactNote,  setSurfaceContactNote]  = useState(wingHistory.surfaceContactNote ?? '')
   const [generalCondition,    setGeneralCondition]    = useState<WingCondition | null>(wingHistory.generalCondition ?? null)
@@ -55,6 +56,7 @@ export function StepWingHistory({ onNext, onBack }: StepWingHistoryProps) {
       alreadyRepaired,
       repairDescription:  alreadyRepaired === 'yes' ? repairDescription.trim() || undefined : undefined,
       waterContact,
+      treeContact,
       surfaceContact,
       surfaceContactNote: surfaceContact === 'other' ? surfaceContactNote.trim() || undefined : undefined,
       generalCondition,
@@ -153,7 +155,28 @@ export function StepWingHistory({ onNext, onBack }: StepWingHistoryProps) {
           </div>
         </Section>
 
-        {/* 5. Sable / neige / dunes ? */}
+        {/* 5. Arbrissage ? */}
+        <Section
+          label="L'aile s'est-elle posée dans un arbre ?"
+          hint="Communément appelé « arbrissage »."
+        >
+          <div className="grid grid-cols-2 gap-2">
+            <ChoiceButton
+              selected={treeContact === 'yes'}
+              onClick={() => setTreeContact('yes')}
+              emoji="🌳"
+              label="Oui"
+            />
+            <ChoiceButton
+              selected={treeContact === 'no'}
+              onClick={() => setTreeContact('no')}
+              emoji="✕"
+              label="Non"
+            />
+          </div>
+        </Section>
+
+        {/* 6. Sable / neige / dunes ? */}
         <Section label="Contact avec sable, neige ou dunes ?">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {SURFACE_OPTIONS.map((opt) => (

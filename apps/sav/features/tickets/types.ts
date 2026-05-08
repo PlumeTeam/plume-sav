@@ -47,6 +47,7 @@ export interface WizardWingHistory {
   alreadyRepaired?:    'yes' | 'no' | null
   repairDescription?:  string
   waterContact?:       WaterContactKind | null
+  treeContact?:        'yes' | 'no' | null  // arbrissage
   surfaceContact?:     SurfaceContactKind | null
   surfaceContactNote?: string  // free text when surfaceContact === 'other'
   generalCondition?:   WingCondition | null
