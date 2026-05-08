@@ -19,19 +19,22 @@ import { resolveClientIdentity } from '@/features/auth/identity'
 import {
   sendClientConfirmationEmail,
   sendSchoolNotificationEmail,
+  sendClientStepUpdateEmail,
+  type ClientStepEmail,
   type TicketEmailContext,
 } from './email'
 import { getPartnerSchoolById } from './queries'
 
 // Maps school resolution outcome → request_status the ticket transitions into.
+// Aligned with the new step pipeline (migration 20260509000000).
 function resolutionToRequestStatus(r: SchoolResolution): RequestStatus {
   switch (r) {
-    case 'resolved_by_school':         return 'completed'
-    case 'normal_behavior_explained':  return 'completed'
-    case 'escalated_to_workshop':      return 'approved'    // visible by workshop queue
-    case 'escalated_to_plume':         return 'processing'  // stays open, plume picks up
-    case 'workshop_advice_requested':  return 'processing'  // school keeps the wing, just asks for input
-    case 'reflection':                 return 'processing'  // école n'a pas encore décidé
+    case 'resolved_by_school':         return 'school_resolved'      // école clôt sur place
+    case 'normal_behavior_explained':  return 'school_resolved'      // idem — pas de réparation
+    case 'escalated_to_workshop':      return 'escalated_to_workshop' // visible par l'atelier
+    case 'escalated_to_plume':         return 'processing'            // reste ouvert, Plume reprend
+    case 'workshop_advice_requested':  return 'processing'            // école garde l'aile, demande un avis
+    case 'reflection':                 return 'processing'            // école n'a pas encore décidé
     default: {
       const _exhaustive: never = r
       return 'processing'
@@ -51,13 +54,23 @@ function deriveServiceType(category: ProblemCategory): ServiceType {
 // so both columns stay in sync. Read by status_history triggers + cross-app queries.
 function requestStatusToSavStatus(status: RequestStatus): TicketStatus {
   switch (status) {
-    case 'pending':    return 'submitted'
-    case 'processing': return 'in_review'
-    case 'approved':   return 'diagnosed'
-    case 'completed':  return 'closed'
-    case 'rejected':   return 'rejected'
-    case 'cancelled':  return 'closed'
-    default:           return 'submitted'
+    case 'pending':                 return 'submitted'
+    case 'school_acknowledged':     return 'submitted'
+    case 'wing_received_school':    return 'in_review'
+    case 'school_checking':         return 'in_review'
+    case 'processing':              return 'in_review'
+    case 'approved':                return 'diagnosed'
+    case 'school_resolved':         return 'closed'
+    case 'escalated_to_workshop':   return 'diagnosed'
+    case 'wing_received_workshop':  return 'in_review'
+    case 'workshop_diagnosing':     return 'in_review'
+    case 'workshop_repairing':      return 'repair_in_progress'
+    case 'workshop_done':           return 'repaired'
+    case 'wing_returned':           return 'shipped'
+    case 'completed':               return 'closed'
+    case 'rejected':                return 'rejected'
+    case 'cancelled':               return 'closed'
+    default:                        return 'submitted'
   }
 }
 
@@ -613,6 +626,11 @@ export async function applySchoolResolutionAction(formData: FormData) {
     fullUpdate.workshop_assigned_at    = now
     fullUpdate.workshop_assigned_by    = user.id
   }
+  // Step pipeline timestamp — l'escalade vers atelier marque l'entrée dans
+  // la branche workshop, le client le voit dans sa timeline.
+  if (resolution === 'escalated_to_workshop') {
+    fullUpdate.escalated_to_workshop_at = now
+  }
 
   let { error } = await supabase
     .from('service_requests')
@@ -679,6 +697,294 @@ export async function saveWorkshopChecklistAction(formData: FormData) {
 
   revalidatePath(`/workshop/ticket/${ticketId}`)
   return { success: true }
+}
+
+// ============================================================
+// Pipeline d'étapes SAV (migration 20260509000000)
+// ============================================================
+//
+// Chaque transition est :
+//  - séquentielle (refus si le statut actuel n'est pas dans la whitelist),
+//  - write-once (le timestamp se remplit côté DB en even of duplicate clicks),
+//  - notifiée au client par email (best-effort).
+//
+// Les boutons UI s'appuient sur des Server Actions dédiées plutôt qu'un seul
+// `updateStatusAction` générique : ça permet d'écrire le timestamp correspondant
+// et de cibler la bonne copie email sans couplage côté client.
+
+interface AdvanceArgs {
+  ticketId:        string
+  /** Statuts à partir desquels la transition est autorisée. */
+  from:            RequestStatus[]
+  /** Statut cible. */
+  to:              RequestStatus
+  /** Colonne timestamp à renseigner avec NOW(). */
+  timestampColumn?: keyof TicketUpdate
+  /** ID de copie email envoyé au client à la transition. null = pas d'email. */
+  emailStep:       ClientStepEmail | null
+  /** Champs additionnels à patcher (ex: assignations). */
+  patch?:          Partial<TicketUpdate>
+  /** Note optionnelle à enregistrer dans ticket_status_history. */
+  historyNote?:    string
+}
+
+async function advanceTicketStep(args: AdvanceArgs) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: { _form: ['Non authentifié'] } }
+
+  const { ticketId, from, to, timestampColumn, emailStep, patch, historyNote } = args
+
+  // Lit le status courant + les infos client/école pour l'email.
+  const { data: current, error: fetchError } = await supabase
+    .from('service_requests')
+    .select('id, status, first_name, last_name, email, ticket_number, referent_school_id')
+    .eq('id', ticketId)
+    .single()
+    .returns<{
+      id:                  string
+      status:              RequestStatus
+      first_name:          string | null
+      last_name:           string | null
+      email:               string | null
+      ticket_number:       string | null
+      referent_school_id:  string | null
+    }>()
+
+  if (fetchError || !current) {
+    return { error: { _form: ['Demande introuvable'] } }
+  }
+
+  // Garde-fou séquentiel : si le statut courant n'est pas dans la whitelist
+  // ET qu'on n'est pas déjà au statut cible (idempotence), on refuse.
+  if (!from.includes(current.status) && current.status !== to) {
+    return {
+      error: {
+        _form: [
+          `Étape impossible depuis le statut actuel (« ${current.status} »). ` +
+          `Rafraîchissez la page pour voir l'état à jour.`,
+        ],
+      },
+    }
+  }
+
+  const now = new Date().toISOString()
+  const update: Partial<TicketUpdate> = {
+    ...(patch ?? {}),
+    status: to,
+  }
+  if (timestampColumn) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(update as any)[timestampColumn] = now
+  }
+
+  const { error: updateError } = await supabase
+    .from('service_requests')
+    .update(update)
+    .eq('id', ticketId)
+
+  if (updateError) {
+    return { error: { _form: [`Erreur lors de la mise à jour (${updateError.message})`] } }
+  }
+
+  // Audit trail (best-effort)
+  const { error: histError } = await supabase.from('ticket_status_history').insert({
+    ticket_id:  ticketId,
+    old_status: requestStatusToSavStatus(current.status),
+    new_status: requestStatusToSavStatus(to),
+    changed_by: user.id,
+    note:       historyNote ?? null,
+  })
+  if (histError) console.warn('ticket_status_history insert failed:', histError.message)
+
+  // Notification client (best-effort — n'interrompt jamais la transition)
+  if (emailStep && current.email) {
+    try {
+      const schoolDetail = current.referent_school_id
+        ? await getPartnerSchoolById(current.referent_school_id)
+        : null
+      const ref = current.ticket_number ?? `#${current.id.slice(0, 8).toUpperCase()}`
+      const r = await sendClientStepUpdateEmail(supabase, emailStep, {
+        ticketId:    current.id,
+        ticketRef:   ref,
+        clientFirst: current.first_name ?? 'Pilote',
+        clientEmail: current.email,
+        schoolName:  schoolDetail?.name ?? null,
+      })
+      if (!r.ok) console.warn(`[advanceTicketStep] step email "${emailStep}" skipped:`, r.error)
+    } catch (e) {
+      console.warn(`[advanceTicketStep] step email "${emailStep}" threw:`, e)
+    }
+  }
+
+  // Revalidation des pages susceptibles d'afficher ce ticket.
+  revalidatePath(`/client/ticket/${ticketId}`)
+  revalidatePath(`/school/ticket/${ticketId}`)
+  revalidatePath(`/workshop/ticket/${ticketId}`)
+  revalidatePath('/client')
+  revalidatePath('/school')
+  revalidatePath('/workshop')
+  revalidatePath('/plume')
+
+  return { success: true as const, previousStatus: current.status }
+}
+
+// ── École : étapes pré-décision ─────────────────────────────────────────────
+
+/**
+ * Étape 1 — L'école confirme avoir lu la demande.
+ * pending → school_acknowledged
+ */
+export async function acknowledgeTicketAction(formData: FormData) {
+  const ticketId = String(formData.get('ticketId') ?? '')
+  if (!ticketId) return { error: { _form: ['Identifiant manquant'] } }
+  return advanceTicketStep({
+    ticketId,
+    from:            ['pending'],
+    to:              'school_acknowledged',
+    timestampColumn: 'school_acknowledged_at',
+    emailStep:       'school_acknowledged',
+  })
+}
+
+/**
+ * Étape 2 — L'école a réceptionné l'aile (en main propre ou par poste).
+ * school_acknowledged → wing_received_school
+ */
+export async function markWingReceivedSchoolAction(formData: FormData) {
+  const ticketId = String(formData.get('ticketId') ?? '')
+  if (!ticketId) return { error: { _form: ['Identifiant manquant'] } }
+  return advanceTicketStep({
+    ticketId,
+    from:            ['school_acknowledged'],
+    to:              'wing_received_school',
+    timestampColumn: 'wing_received_school_at',
+    emailStep:       'wing_received_school',
+  })
+}
+
+/**
+ * Étape 3 — L'école lance le check (ouvre le wizard).
+ * wing_received_school → school_checking
+ *
+ * Pas de timestamp dédié : la fin de check est matérialisée par le
+ * remplissage de school_checklist, qui porte sa propre updatedAt.
+ */
+export async function startSchoolCheckAction(formData: FormData) {
+  const ticketId = String(formData.get('ticketId') ?? '')
+  if (!ticketId) return { error: { _form: ['Identifiant manquant'] } }
+  return advanceTicketStep({
+    ticketId,
+    from:      ['wing_received_school'],
+    to:        'school_checking',
+    emailStep: 'school_checking',
+  })
+}
+
+// ── Atelier : étapes post-escalade ──────────────────────────────────────────
+
+/**
+ * Étape 4 — L'atelier a réceptionné l'aile.
+ * escalated_to_workshop → wing_received_workshop
+ */
+export async function markWingReceivedWorkshopAction(formData: FormData) {
+  const ticketId = String(formData.get('ticketId') ?? '')
+  if (!ticketId) return { error: { _form: ['Identifiant manquant'] } }
+  return advanceTicketStep({
+    ticketId,
+    from:            ['escalated_to_workshop'],
+    to:              'wing_received_workshop',
+    timestampColumn: 'wing_received_workshop_at',
+    emailStep:       'wing_received_workshop',
+  })
+}
+
+/**
+ * Étape 5 — L'atelier commence le diagnostic technique.
+ * wing_received_workshop → workshop_diagnosing
+ */
+export async function startWorkshopDiagnosisAction(formData: FormData) {
+  const ticketId = String(formData.get('ticketId') ?? '')
+  if (!ticketId) return { error: { _form: ['Identifiant manquant'] } }
+  return advanceTicketStep({
+    ticketId,
+    from:            ['wing_received_workshop'],
+    to:              'workshop_diagnosing',
+    timestampColumn: 'workshop_diagnosis_at',
+    emailStep:       'workshop_diagnosing',
+  })
+}
+
+/**
+ * Étape 6 — La réparation démarre.
+ * workshop_diagnosing → workshop_repairing
+ */
+export async function startWorkshopRepairAction(formData: FormData) {
+  const ticketId = String(formData.get('ticketId') ?? '')
+  if (!ticketId) return { error: { _form: ['Identifiant manquant'] } }
+  return advanceTicketStep({
+    ticketId,
+    from:      ['workshop_diagnosing'],
+    to:        'workshop_repairing',
+    emailStep: 'workshop_repairing',
+  })
+}
+
+/**
+ * Étape 7 — L'atelier a fini la réparation.
+ * workshop_repairing → workshop_done
+ */
+export async function markWorkshopDoneAction(formData: FormData) {
+  const ticketId = String(formData.get('ticketId') ?? '')
+  if (!ticketId) return { error: { _form: ['Identifiant manquant'] } }
+  return advanceTicketStep({
+    ticketId,
+    from:            ['workshop_repairing'],
+    to:              'workshop_done',
+    timestampColumn: 'workshop_repair_done_at',
+    emailStep:       'workshop_done',
+  })
+}
+
+/**
+ * Étape 8 — L'atelier renvoie l'aile (au client direct ou via l'école).
+ * workshop_done → wing_returned
+ *
+ * `recipient` est consigné dans la note d'audit pour traçabilité.
+ */
+export async function markWingReturnedAction(formData: FormData) {
+  const ticketId = String(formData.get('ticketId') ?? '')
+  if (!ticketId) return { error: { _form: ['Identifiant manquant'] } }
+  const recipient = String(formData.get('recipient') ?? '')
+  const note = recipient === 'school'
+    ? "Aile renvoyée à l'école partenaire"
+    : recipient === 'client'
+      ? 'Aile renvoyée directement au client'
+      : "Aile renvoyée"
+  return advanceTicketStep({
+    ticketId,
+    from:            ['workshop_done'],
+    to:              'wing_returned',
+    timestampColumn: 'wing_returned_at',
+    emailStep:       'wing_returned',
+    historyNote:     note,
+  })
+}
+
+/**
+ * Étape finale — Clôture du ticket. Disponible depuis :
+ *  - wing_returned (parcours atelier complet)
+ *  - school_resolved (parcours école-only)
+ */
+export async function markTicketCompletedAction(formData: FormData) {
+  const ticketId = String(formData.get('ticketId') ?? '')
+  if (!ticketId) return { error: { _form: ['Identifiant manquant'] } }
+  return advanceTicketStep({
+    ticketId,
+    from:      ['wing_returned', 'school_resolved'],
+    to:        'completed',
+    emailStep: 'completed',
+  })
 }
 
 // École : assigne un atelier au ticket pour la communication, sans escalade.

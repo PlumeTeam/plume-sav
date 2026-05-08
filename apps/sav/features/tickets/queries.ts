@@ -410,13 +410,17 @@ export async function getWorkshopTickets(): Promise<TicketWithPhotos[]> {
   if (!user) return []
 
   // Workshop sees:
-  //  - status in (processing, approved, completed)  → physical wing in the loop
-  //  - school_resolution = 'workshop_advice_requested' → advice asked, no wing transfer yet
-  // We OR these via PostgREST so a single query covers both inbound paths.
+  //  - tickets dans le pipeline atelier (escalated → wing_returned)
+  //  - les tickets historiques (processing/approved/completed) — rétrocompat
+  //  - school_resolution = 'workshop_advice_requested' → avis distance, pas de transfert
+  // OR PostgREST permettant de couvrir les anciennes ET nouvelles entrées.
   const { data, error } = await supabase
     .from('service_requests')
     .select('*')
-    .or('status.in.(processing,approved,completed),school_resolution.eq.workshop_advice_requested')
+    .or(
+      'status.in.(processing,approved,completed,escalated_to_workshop,wing_received_workshop,workshop_diagnosing,workshop_repairing,workshop_done,wing_returned),' +
+      'school_resolution.eq.workshop_advice_requested'
+    )
     .order('urgency_level', { ascending: false })
     .order('created_at', { ascending: false })
 

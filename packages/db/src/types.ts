@@ -3,10 +3,23 @@
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
-// Enum partagé entre les apps Plume (valeurs réelles dans le projet Supabase)
+// Enum partagé entre les apps Plume (valeurs réelles dans le projet Supabase).
+// Pipeline SAV étendu (migration 20260509000000) : étapes école + atelier.
 export type RequestStatus =
+  // Statuts historiques (table service_requests partagée avec d'autres apps)
   | 'pending' | 'PENDING' | 'processing' | 'SUCCESS' | 'ERROR'
   | 'approved' | 'rejected' | 'completed' | 'cancelled'
+  // Nouveau pipeline école → atelier
+  | 'school_acknowledged'
+  | 'wing_received_school'
+  | 'school_checking'
+  | 'school_resolved'
+  | 'escalated_to_workshop'
+  | 'wing_received_workshop'
+  | 'workshop_diagnosing'
+  | 'workshop_repairing'
+  | 'workshop_done'
+  | 'wing_returned'
 
 // Enum SAV workflow (table ticket_status créée par la migration SAV)
 export type TicketStatus =
@@ -95,6 +108,14 @@ export interface Database {
           delivery_method: 'in_person' | 'postal' | null
           // Plume HQ severity flag (migration 20260508000000)
           is_plume_urgent: boolean
+          // Step pipeline timestamps (migration 20260509000000)
+          school_acknowledged_at:    string | null
+          wing_received_school_at:   string | null
+          escalated_to_workshop_at:  string | null
+          wing_received_workshop_at: string | null
+          workshop_diagnosis_at:     string | null
+          workshop_repair_done_at:   string | null
+          wing_returned_at:          string | null
           created_at: string
           updated_at: string
         }
@@ -150,6 +171,13 @@ export interface Database {
           referent_school_id?: string | null
           delivery_method?: 'in_person' | 'postal' | null
           is_plume_urgent?: boolean
+          school_acknowledged_at?:    string | null
+          wing_received_school_at?:   string | null
+          escalated_to_workshop_at?:  string | null
+          wing_received_workshop_at?: string | null
+          workshop_diagnosis_at?:     string | null
+          workshop_repair_done_at?:   string | null
+          wing_returned_at?:          string | null
           created_at?: string
           updated_at?: string
         }
@@ -205,6 +233,13 @@ export interface Database {
           referent_school_id?: string | null
           delivery_method?: 'in_person' | 'postal' | null
           is_plume_urgent?: boolean
+          school_acknowledged_at?:    string | null
+          wing_received_school_at?:   string | null
+          escalated_to_workshop_at?:  string | null
+          wing_received_workshop_at?: string | null
+          workshop_diagnosis_at?:     string | null
+          workshop_repair_done_at?:   string | null
+          wing_returned_at?:          string | null
           created_at?: string
           updated_at?: string
         }
