@@ -24,28 +24,52 @@ export default async function TicketCreatedPage({ params }: PageProps) {
       {/* ── Hero / Confirmation ─────────────────────────────────── */}
       <section className="rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-700 to-brand-ink px-5 py-7 text-white shadow-soft">
         <p className="text-xs font-semibold uppercase tracking-wider text-emerald-200">
-          ✓ Demande créée
+          ✓ Demande envoyée
         </p>
         <h1 className="mt-1 font-display text-2xl font-bold">
-          {isPostal
-            ? 'Votre demande SAV a bien été créée !'
-            : 'Votre demande SAV a bien été créée !'}
+          ✓ Votre école a été prévenue !
         </h1>
-        <p className="mt-2 text-sm leading-relaxed text-white/85">
+        <p className="mt-3 text-sm leading-relaxed text-white/85">
           {isPostal ? (
             <>
-              <strong>{schoolName}</strong> va réceptionner votre aile et reviendra
-              vers vous une fois l&apos;analyse effectuée.
+              <strong>{schoolName}</strong> attend votre aile. Pensez à l&apos;envoyer à&nbsp;:
             </>
           ) : (
             <>
-              Contactez <strong>{schoolName}</strong> pour convenir d&apos;un rendez-vous
-              et déposer votre aile.
+              <strong>{schoolName}</strong> vous attend pour déposer votre aile.
             </>
           )}
         </p>
-        <p className="mt-3 font-mono text-[11px] text-white/60">
-          Référence : {ticketRef}
+
+        {isPostal && school?.address && (
+          <div className="mt-4 rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-200">
+              📍 Adresse d&apos;envoi
+            </p>
+            <p className="mt-2 whitespace-pre-line text-base font-semibold leading-snug">
+              {school.name}
+            </p>
+            <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-white/90">
+              {school.address}
+            </p>
+          </div>
+        )}
+        {isPostal && !school?.address && (
+          <div className="mt-4 rounded-2xl bg-amber-400/15 p-4 ring-1 ring-amber-200/40">
+            <p className="text-sm text-amber-50">
+              ⚠️ L&apos;adresse postale de l&apos;école n&apos;est pas encore enregistrée.
+              Contactez-la (coordonnées plus bas) pour la confirmer avant l&apos;envoi.
+            </p>
+          </div>
+        )}
+
+        <p className="mt-4 text-sm leading-relaxed text-white/85">
+          Une fois que l&apos;école aura récupéré votre aile, elle vous tiendra
+          informé de la suite des événements.
+        </p>
+
+        <p className="mt-4 font-mono text-[11px] text-white/60">
+          Référence&nbsp;: {ticketRef}
         </p>
       </section>
 
