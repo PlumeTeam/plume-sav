@@ -1,22 +1,33 @@
 import { getClientTickets, getClientWings } from '@/features/tickets/queries'
 import { TicketCard } from '@/features/tickets/components/TicketCard'
 import { WingCard } from '@/features/tickets/components/WingCard'
+import { createClient } from '@/lib/supabase/server'
+import { resolveClientIdentity } from '@/features/auth/identity'
 
 export const dynamic = 'force-dynamic'
 
 export default async function ClientPage() {
-  const [tickets, wings] = await Promise.all([getClientTickets(), getClientWings()])
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const [tickets, wings, identity] = await Promise.all([
+    getClientTickets(),
+    getClientWings(),
+    user ? resolveClientIdentity(supabase, user) : Promise.resolve(null),
+  ])
 
   const activeCount = tickets.filter(
     (t) => t.status !== 'completed' && t.status !== 'cancelled' && t.status !== 'rejected'
   ).length
+
+  const firstName = identity?.firstName ?? 'Pilote'
 
   return (
     <main className="space-y-8 px-4 py-6">
       {/* ── Hero / Greeting ─────────────────────────────────────── */}
       <section className="rounded-3xl bg-gradient-to-br from-brand-navy via-brand-navy to-brand-ink px-5 py-6 text-white shadow-soft">
         <p className="text-xs font-semibold uppercase tracking-wider text-brand-coral">Mon espace SAV</p>
-        <h1 className="mt-1 font-display text-2xl font-bold">Bonjour, pilote 🪂</h1>
+        <h1 className="mt-1 font-display text-2xl font-bold">Bonjour {firstName} 🪂</h1>
         <p className="mt-1 text-sm text-white/70">
           {activeCount === 0
             ? 'Aucune demande en cours pour le moment.'

@@ -16,6 +16,7 @@ import {
 } from './schemas'
 import type { MessageSenderRole, TicketStatus, ServiceType, ProblemCategory, TicketUpdate } from './types'
 import type { RequestStatus, SchoolResolution } from './types'
+import { resolveClientIdentity } from '@/features/auth/identity'
 
 // Maps school resolution outcome → request_status the ticket transitions into.
 function resolutionToRequestStatus(r: SchoolResolution): RequestStatus {
@@ -110,79 +111,6 @@ function buildRichDescription(input: {
   }
 
   return `${lines.join('\n')}\n\n---\n\n${input.freeText}`
-}
-
-// Many shared-platform tables (e.g. customer_profiles) carry the client's name
-// + phone. We try to read them best-effort; if nothing comes back, we fall back
-// to the auth user's metadata, then to email-derived defaults so service_requests
-// NOT NULL columns are always satisfied.
-type ClientIdentity = {
-  firstName: string
-  lastName:  string
-  email:     string
-  phone:     string
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function resolveClientIdentity(supabase: any, user: { id: string; email?: string | null; user_metadata?: Record<string, unknown> | null }): Promise<ClientIdentity> {
-  const meta = (user.user_metadata ?? {}) as Record<string, unknown>
-  const metaFirst = stringOrNull(meta.first_name) ?? stringOrNull(meta.firstName)
-  const metaLast  = stringOrNull(meta.last_name)  ?? stringOrNull(meta.lastName)
-  const metaPhone = stringOrNull(meta.phone)
-  const metaName  = stringOrNull(meta.full_name) ?? stringOrNull(meta.name)
-
-  // Try a few likely shared-platform profile tables in order. Each query is
-  // wrapped in try/catch + .maybeSingle so a missing table doesn't bubble up.
-  let dbFirst:  string | null = null
-  let dbLast:   string | null = null
-  let dbPhone:  string | null = null
-  let dbEmail:  string | null = null
-
-  for (const table of ['customer_profiles', 'profiles', 'users']) {
-    try {
-      const r = await supabase
-        .from(table)
-        .select('first_name, last_name, email, phone')
-        .or(`id.eq.${user.id},user_id.eq.${user.id}`)
-        .maybeSingle()
-      if (r?.data) {
-        dbFirst = stringOrNull(r.data.first_name)
-        dbLast  = stringOrNull(r.data.last_name)
-        dbPhone = stringOrNull(r.data.phone)
-        dbEmail = stringOrNull(r.data.email)
-        break
-      }
-    } catch { /* table doesn't exist or query failed; try next */ }
-  }
-
-  // Fallback: split a "Full Name" string into first / last
-  let splitFirst: string | null = null
-  let splitLast:  string | null = null
-  if (metaName) {
-    const parts = metaName.trim().split(/\s+/)
-    splitFirst = parts[0] ?? null
-    splitLast  = parts.slice(1).join(' ') || null
-  }
-
-  const email = dbEmail ?? user.email ?? ''
-  // Email-derived first name as last resort: 'jeremy.dupont@x.com' → 'Jeremy'
-  const emailLocal = email.split('@')[0] ?? ''
-  const emailFirst = emailLocal
-    .split(/[._-]/)[0]
-    ?.replace(/^./, (c) => c.toUpperCase()) || null
-
-  return {
-    firstName: dbFirst   ?? metaFirst ?? splitFirst ?? emailFirst ?? 'Pilote',
-    lastName:  dbLast    ?? metaLast  ?? splitLast  ?? 'Plume',
-    email,
-    phone:     dbPhone   ?? metaPhone ?? '',
-  }
-}
-
-function stringOrNull(v: unknown): string | null {
-  if (typeof v !== 'string') return null
-  const trimmed = v.trim()
-  return trimmed.length > 0 ? trimmed : null
 }
 
 export async function createTicketAction(input: unknown) {
