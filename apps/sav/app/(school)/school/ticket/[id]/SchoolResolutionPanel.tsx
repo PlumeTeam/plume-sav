@@ -1,9 +1,22 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import dynamic from 'next/dynamic'
 import { applySchoolResolutionAction } from '@/features/tickets/actions'
 import { PARTNER_WORKSHOPS } from '@/features/tickets/constants'
 import type { SchoolResolution } from '@/features/tickets/types'
+
+const WorkshopMapPicker = dynamic(
+  () => import('@/features/tickets/components/WorkshopMapPicker'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[320px] items-center justify-center rounded-2xl bg-brand-cream text-sm text-slate-400">
+        Chargement de la carte…
+      </div>
+    ),
+  }
+)
 
 interface SchoolResolutionPanelProps {
   ticketId:              string
@@ -237,23 +250,42 @@ export function SchoolResolutionPanel({
 
       {/* WORKSHOP PICKER */}
       {showWorkshop && (
-        <div className="animate-slide-up">
+        <div className="animate-slide-up space-y-3">
           <label className="mb-1.5 block text-sm font-medium text-brand-ink">
             {choice === 'workshop_advice' ? 'Atelier consulté' : 'Atelier de destination'}
           </label>
-          <select
-            value={workshopId}
-            onChange={(e) => setWorkshopId(e.target.value)}
-            className="field-input"
-            required
-          >
-            <option value="">Sélectionner un atelier…</option>
-            {PARTNER_WORKSHOPS.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.label} — {w.region}
-              </option>
-            ))}
-          </select>
+
+          <WorkshopMapPicker
+            workshops={PARTNER_WORKSHOPS}
+            selectedId={workshopId || null}
+            onSelect={setWorkshopId}
+          />
+
+          {/* Liste textuelle (fallback / clavier) */}
+          <div className="space-y-2">
+            {PARTNER_WORKSHOPS.map((w) => {
+              const isSelected = workshopId === w.id
+              return (
+                <button
+                  key={w.id}
+                  type="button"
+                  onClick={() => setWorkshopId(w.id)}
+                  className={`flex w-full items-start gap-3 rounded-xl border-2 p-3 text-left transition-all active:scale-[0.99] ${
+                    isSelected
+                      ? 'border-brand-coral bg-brand-coral/10 shadow-plume'
+                      : 'border-brand-stone bg-white hover:border-brand-coral/40'
+                  }`}
+                >
+                  <span aria-hidden className="text-2xl">🛠️</span>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-brand-ink">{w.label}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">{w.city} · {w.region}</p>
+                  </div>
+                  {isSelected && <span className="text-brand-coral text-lg" aria-hidden>✓</span>}
+                </button>
+              )
+            })}
+          </div>
         </div>
       )}
 

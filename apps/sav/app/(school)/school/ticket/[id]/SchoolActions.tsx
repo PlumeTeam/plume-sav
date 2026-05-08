@@ -2,11 +2,25 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import {
   addRoleMessageAction,
   assignWorkshopForCommunicationAction,
 } from '@/features/tickets/actions'
 import { PARTNER_WORKSHOPS } from '@/features/tickets/constants'
+
+// Leaflet must not run on the server (window/document access).
+const WorkshopMapPicker = dynamic(
+  () => import('@/features/tickets/components/WorkshopMapPicker'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[320px] items-center justify-center rounded-2xl bg-brand-cream text-sm text-slate-400">
+        Chargement de la carte…
+      </div>
+    ),
+  }
+)
 
 type Channel = 'client' | 'workshop'
 
@@ -250,6 +264,13 @@ function WorkshopComposer({ ticketId, workshop, onPicked, onClose }: WorkshopCom
           en escaladant via le panneau Décision si besoin.
         </p>
 
+        <WorkshopMapPicker
+          workshops={PARTNER_WORKSHOPS}
+          selectedId={pickedId || null}
+          onSelect={setPickedId}
+        />
+
+        {/* Liste textuelle — fallback / clavier / lisibilité */}
         <div className="space-y-2">
           {PARTNER_WORKSHOPS.map((w) => {
             const isSelected = pickedId === w.id
@@ -271,11 +292,7 @@ function WorkshopComposer({ ticketId, workshop, onPicked, onClose }: WorkshopCom
                     {w.city} · {w.region}
                   </p>
                 </div>
-                <span className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold ${
-                  isSelected
-                    ? 'border-brand-coral bg-brand-coral text-white'
-                    : 'border-brand-stone bg-white text-transparent'
-                }`} aria-hidden>✓</span>
+                {isSelected && <span className="text-brand-coral text-lg" aria-hidden>✓</span>}
               </button>
             )
           })}

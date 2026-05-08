@@ -76,16 +76,26 @@ export const SCHOOL_RESOLUTIONS = [
 
 // ── Réseau d'ateliers partenaires ─────────────────────────────────────────
 // TODO: migrer vers une table partner_workshops quand le réseau grandit.
-export const PARTNER_WORKSHOPS: Array<{
+export type PartnerWorkshop = {
   id:       string
   label:    string
   city:     string
   region:   string
   address?: string
-}> = [
+  /** Latitude WGS84 — used by WorkshopMapPicker to drop a marker. */
+  lat:      number
+  /** Longitude WGS84. */
+  lng:      number
+}
+
+export const PARTNER_WORKSHOPS: PartnerWorkshop[] = [
   { id: 'plume-embrun',      label: 'Atelier Plume Embrun',       city: 'Embrun',    region: 'Hautes-Alpes',
-    address: "Résidence le Val d'Embrun, 05200 Embrun" },
-  { id: 'plume-annecy',      label: 'Atelier Plume Annecy',       city: 'Annecy',    region: 'Haute-Savoie' },
-  { id: 'air-repair',        label: 'Atelier Air Repair',         city: 'Grenoble',  region: 'Isère' },
-  { id: 'vol-libre-service', label: 'Atelier Vol Libre Service',  city: 'Chambéry',  region: 'Savoie' },
+    address: "Résidence le Val d'Embrun, 05200 Embrun",
+    lat: 44.5633, lng: 6.4957 },
+  { id: 'plume-annecy',      label: 'Atelier Plume Annecy',       city: 'Annecy',    region: 'Haute-Savoie',
+    lat: 45.8992, lng: 6.1294 },
+  { id: 'air-repair',        label: 'Atelier Air Repair',         city: 'Grenoble',  region: 'Isère',
+    lat: 45.1885, lng: 5.7245 },
+  { id: 'vol-libre-service', label: 'Atelier Vol Libre Service',  city: 'Chambéry',  region: 'Savoie',
+    lat: 45.5646, lng: 5.9178 },
 ]
