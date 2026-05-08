@@ -130,6 +130,9 @@ export const roleMessageSchema = z.object({
   content: z.string().min(1).max(5000),
   isInternal: z.preprocess((v) => v === 'true', z.boolean()),
   senderRole: z.enum(['client', 'school', 'workshop', 'plume_admin']),
+  // Optional explicit visibility — overrides the legacy is_internal mapping.
+  // Used by the new school action cards to differentiate "À l'atelier" vs "Au client".
+  visibilityLevel: z.enum(['all', 'school_plume', 'workshop_plume', 'plume_only']).optional(),
 })
 
 export const diagnosisSchema = z.object({

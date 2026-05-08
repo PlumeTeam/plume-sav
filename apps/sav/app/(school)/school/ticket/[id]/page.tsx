@@ -5,14 +5,8 @@ import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { TicketTimeline } from '@/features/tickets/components/TicketTimeline'
 import { CommentThread } from '@/features/tickets/components/CommentThread'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
-import { DiagnosisChecklist } from '@/features/tickets/components/DiagnosisChecklist'
-import {
-  SCHOOL_VISUAL_CHECKLIST,
-  SCHOOL_BEHAVIOR_CHECKLIST,
-} from '@/features/tickets/constants'
-import { saveSchoolChecklistAction } from '@/features/tickets/actions'
 import { formatDate } from '@/features/tickets/utils'
-import { SchoolMessageBox } from './SchoolMessageBox'
+import { SchoolActions } from './SchoolActions'
 import { SchoolResolutionPanel } from './SchoolResolutionPanel'
 import type { SchoolResolution } from '@/features/tickets/types'
 
@@ -26,22 +20,24 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
   const ticket = await getSchoolTicketDetail(params.id)
   if (!ticket) notFound()
 
+  // School sees public messages + own internal notes + workshop-plume channel
   const visibleMessages = ticket.ticket_messages
-    .filter((m) => m.visibility_level === 'all' || m.sender_role === 'school')
+    .filter((m) =>
+      m.visibility_level === 'all' ||
+      m.visibility_level === 'school_plume' ||
+      m.visibility_level === 'workshop_plume' ||
+      m.sender_role === 'school'
+    )
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+
   const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
 
-  // The DB doesn't have a dedicated problem_category column — the wizard folds
-  // it into description with a "[Comportements] …" line for behavior tickets.
-  // service_type also encodes the bucket ('sav' = comportement, 'repair' = visuel).
-  const isBehavior =
-    ticket.service_type === 'sav' ||
-    /^\s*\[Comportements\]/m.test(ticket.description ?? '')
-  const checklistItems = isBehavior ? SCHOOL_BEHAVIOR_CHECKLIST : SCHOOL_VISUAL_CHECKLIST
-
+  // The checklist is "validated" once it's saved at least once (any structure).
   const stored: ChecklistJson = (ticket.school_checklist ?? null) as ChecklistJson
-  const initialChecked = Array.isArray(stored?.checkedIds) ? stored!.checkedIds! : []
-  const initialNotes   = typeof stored?.notes === 'string' ? stored!.notes! : ''
+  const isCheckValidated = !!stored && (
+    (Array.isArray(stored.checkedIds) && stored.checkedIds.length > 0) ||
+    (typeof stored.notes === 'string' && stored.notes.trim().length > 0)
+  )
 
   return (
     <div className="min-h-screen">
@@ -65,7 +61,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
       </header>
 
       <main className="mx-auto max-w-4xl space-y-3 p-4 pb-12">
-        {/* Delivery method banner — surfaces "is a parcel coming?" vs "client booking RDV" */}
+        {/* Delivery method banner */}
         {ticket.delivery_method && (
           <section className={`card flex items-start gap-3 p-4 border-2 ${
             ticket.delivery_method === 'postal'
@@ -94,31 +90,23 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           </section>
         )}
 
+        {/* ── ACTIONS PRINCIPALES ─────────────────────────────────── */}
+        <SchoolActions ticketId={ticket.id} isCheckValidated={isCheckValidated} />
+
+        {/* Suivi */}
         <section className="card p-5">
           <h2 className="section-title mb-4">Suivi</h2>
           <TicketTimeline status={ticket.status} />
         </section>
 
-        {/* Checklist diagnostic */}
-        <section className="card p-5">
-          <h2 className="section-title mb-3">
-            Checklist premier diagnostic — {isBehavior ? 'comportement' : 'visuel'}
-          </h2>
-          <DiagnosisChecklist
-            ticketId={ticket.id}
-            items={checklistItems}
-            initialChecked={initialChecked}
-            initialNotes={initialNotes}
-            saveAction={saveSchoolChecklistAction}
-            variant="coral"
-            notesLabel="Observations école"
-            notesPlaceholder="Constatations factuelles, mesures prises, échange avec le client…"
-          />
-        </section>
-
-        {/* Issue / résolution */}
+        {/* Décision */}
         <section className="card p-5">
           <h2 className="section-title mb-4">Décision</h2>
+          {!isCheckValidated && !ticket.school_resolution && (
+            <div className="mb-4 rounded-xl bg-brand-cream p-3 text-xs text-slate-600">
+              💡 Lancez d&apos;abord le check de l&apos;aile pour une décision éclairée.
+            </div>
+          )}
           <SchoolResolutionPanel
             ticketId={ticket.id}
             currentResolution={ticket.school_resolution as SchoolResolution | null}
@@ -126,6 +114,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           />
         </section>
 
+        {/* Client */}
         <section className="card p-5">
           <h2 className="section-title mb-3">Client</h2>
           <div className="space-y-2">
@@ -135,6 +124,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           </div>
         </section>
 
+        {/* Produit */}
         <section className="card p-5">
           <h2 className="section-title mb-3">Produit</h2>
           <div className="space-y-2">
@@ -144,6 +134,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           </div>
         </section>
 
+        {/* Demande */}
         <section className="card p-5">
           <h2 className="section-title mb-3">Demande</h2>
           {ticket.description && (
@@ -156,6 +147,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           )}
         </section>
 
+        {/* Photos */}
         {ticket.ticket_photos.length > 0 && (
           <section className="card p-5">
             <h2 className="section-title mb-3">Photos ({ticket.ticket_photos.length})</h2>
@@ -163,17 +155,15 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           </section>
         )}
 
+        {/* Historique conversations */}
         <section className="card p-5">
-          <h2 className="section-title mb-4">Messages</h2>
+          <h2 className="section-title mb-4">Historique des messages</h2>
           <CommentThread
             messages={visibleMessages}
             ownRoles={['school']}
             showInternalBadge
-            emptyText="Aucun message."
+            emptyText="Aucun message — utilisez les actions en haut pour démarrer une conversation."
           />
-          <div className="mt-4">
-            <SchoolMessageBox ticketId={ticket.id} />
-          </div>
         </section>
       </main>
     </div>

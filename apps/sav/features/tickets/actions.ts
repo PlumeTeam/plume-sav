@@ -374,10 +374,11 @@ export async function updateTicketStatusAction(formData: FormData) {
 
 export async function addRoleMessageAction(formData: FormData) {
   const parsed = roleMessageSchema.safeParse({
-    ticketId: formData.get('ticketId'),
-    content: formData.get('content'),
-    isInternal: formData.get('isInternal'),
-    senderRole: formData.get('senderRole'),
+    ticketId:        formData.get('ticketId'),
+    content:         formData.get('content'),
+    isInternal:      formData.get('isInternal'),
+    senderRole:      formData.get('senderRole'),
+    visibilityLevel: formData.get('visibilityLevel') || undefined,
   })
   if (!parsed.success) {
     return { error: parsed.error.flatten().fieldErrors }
@@ -387,18 +388,29 @@ export async function addRoleMessageAction(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: { _form: ['Non authentifié'] } }
 
-  const { ticketId, content, isInternal, senderRole } = parsed.data
+  const { ticketId, content, isInternal, senderRole, visibilityLevel } = parsed.data
+
+  // Explicit visibility wins; otherwise fall back to a sender-role mapping.
+  // Allowed values per CHECK constraint: 'all' | 'school_plume' | 'workshop_plume' | 'plume_only'.
+  const visibility =
+    visibilityLevel ??
+    (isInternal
+      ? senderRole === 'school'      ? 'school_plume'
+      : senderRole === 'workshop'    ? 'workshop_plume'
+      : senderRole === 'plume_admin' ? 'plume_only'
+      : 'all'
+      : 'all')
 
   const { error } = await supabase.from('ticket_messages').insert({
-    ticket_id: ticketId,
-    sender_id: user.id,
-    sender_role: senderRole as MessageSenderRole,
+    ticket_id:        ticketId,
+    sender_id:        user.id,
+    sender_role:      senderRole as MessageSenderRole,
     content,
-    is_internal: isInternal,
-    visibility_level: isInternal ? senderRole : 'all',
+    is_internal:      isInternal,
+    visibility_level: visibility,
   })
 
-  if (error) return { error: { _form: ["Erreur lors de l'envoi"] } }
+  if (error) return { error: { _form: [`Erreur lors de l'envoi (${error.message})`] } }
 
   revalidatePath(`/school/ticket/${ticketId}`)
   revalidatePath(`/workshop/ticket/${ticketId}`)
