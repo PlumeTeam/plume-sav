@@ -46,8 +46,32 @@ const FALLBACK_PARTNER_SCHOOLS: PartnerSchool[] = [
   { id: 'plume-default-chamonix',  name: 'Chamonix Parapente',      region: 'Haute-Savoie', city: 'Chamonix',       lat: 45.9237, lng: 6.8694 },
 ]
 
+// Coerces a Postgres numeric/decimal-as-string into a real JS number.
+// PostgREST returns DECIMAL/NUMERIC columns as strings to preserve precision —
+// the map picker filters by `typeof === 'number'`, so leaving them as strings
+// silently hides every school from the markers list.
+function toNumber(v: unknown): number | null {
+  if (typeof v === 'number' && Number.isFinite(v)) return v
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = Number(v)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
+}
+
+function normaliseSchool(raw: Record<string, unknown>): PartnerSchool {
+  return {
+    id:     String(raw.id),
+    name:   String(raw.name ?? ''),
+    city:   typeof raw.city   === 'string' ? raw.city   : null,
+    region: typeof raw.region === 'string' ? raw.region : null,
+    lat:    toNumber(raw.lat),
+    lng:    toNumber(raw.lng),
+  }
+}
+
 function enrichWithCoords(s: PartnerSchool): PartnerSchool {
-  if (s.lat != null && s.lng != null) return s
+  if (typeof s.lat === 'number' && typeof s.lng === 'number') return s
   const fromId   = SCHOOL_COORDS_BY_ID[s.id]
   const fromName = SCHOOL_COORDS_BY_NAME[s.name]
   const coords   = fromId ?? fromName
@@ -59,30 +83,42 @@ export async function getPartnerSchools(): Promise<PartnerSchool[]> {
   // partner_schools is a shared-platform table not in the SAV DB types.
   const db = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
 
-  // Try the optimistic select with coords; if columns don't exist, retry without.
-  let data: PartnerSchool[] | null = null
-  try {
-    const r = await db
-      .from('partner_schools')
-      .select('id, name, city, region, lat, lng')
-      .order('name', { ascending: true })
-    if (!r.error) data = r.data as PartnerSchool[] | null
-  } catch { /* will retry below */ }
+  // 4 attempts in decreasing specificity:
+  //   1) coords + active filter
+  //   2) coords, no active filter
+  //   3) no coords, active filter
+  //   4) no coords, no active filter
+  // First non-error response with rows wins.
+  type Row = Record<string, unknown>
+  let rows: Row[] | null = null
 
-  if (!data) {
-    const r = await db
-      .from('partner_schools')
-      .select('id, name, city, region')
-      .order('name', { ascending: true })
-    if (r.error || !r.data || r.data.length === 0) {
-      if (r.error) console.warn('getPartnerSchools fallback:', r.error.message)
-      return FALLBACK_PARTNER_SCHOOLS.map(enrichWithCoords)
+  const attempts: Array<() => Promise<{ data: Row[] | null; error: { message: string } | null }>> = [
+    () => db.from('partner_schools').select('id, name, city, region, lat, lng').eq('active', true).order('name', { ascending: true }),
+    () => db.from('partner_schools').select('id, name, city, region, lat, lng').order('name', { ascending: true }),
+    () => db.from('partner_schools').select('id, name, city, region').eq('active', true).order('name', { ascending: true }),
+    () => db.from('partner_schools').select('id, name, city, region').order('name', { ascending: true }),
+  ]
+
+  for (const run of attempts) {
+    try {
+      const r = await run()
+      if (!r.error && r.data) {
+        rows = r.data as Row[]
+        break
+      }
+      if (r.error) {
+        console.warn('getPartnerSchools attempt failed, trying next:', r.error.message)
+      }
+    } catch (e) {
+      console.warn('getPartnerSchools attempt threw:', e)
     }
-    data = r.data as PartnerSchool[]
   }
 
-  if (data.length === 0) return FALLBACK_PARTNER_SCHOOLS.map(enrichWithCoords)
-  return data.map(enrichWithCoords)
+  if (!rows || rows.length === 0) {
+    return FALLBACK_PARTNER_SCHOOLS.map(enrichWithCoords)
+  }
+
+  return rows.map(normaliseSchool).map(enrichWithCoords)
 }
 
 // Hydrates a ticket row with its related collections via 3 separate queries
