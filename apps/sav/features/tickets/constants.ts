@@ -76,11 +76,9 @@ export const SCHOOL_RESOLUTIONS = [
 
 // ── Réseau d'ateliers partenaires ─────────────────────────────────────────
 // TODO: migrer vers une table partner_workshops quand le réseau grandit.
-export const PARTNER_WORKSHOPS: Array<{ id: string; label: string; region: string }> = [
-  { id: 'plume-annecy',     label: 'Atelier Plume Annecy',         region: 'Haute-Savoie' },
-  { id: 'plume-grenoble',   label: 'Atelier Plume Grenoble',       region: 'Isère' },
-  { id: 'plume-saint-hil',  label: 'Atelier Saint-Hilaire',        region: 'Isère' },
-  { id: 'plume-chamonix',   label: 'Atelier Plume Chamonix',       region: 'Haute-Savoie' },
-  { id: 'plume-pyrenees',   label: 'Atelier Plume Pyrénées',       region: 'Pyrénées' },
-  { id: 'plume-hq',         label: 'Atelier Plume HQ (Annecy)',    region: 'Haute-Savoie' },
+export const PARTNER_WORKSHOPS: Array<{ id: string; label: string; city: string; region: string }> = [
+  { id: 'plume-annecy',     label: 'Atelier Plume Annecy',         city: 'Annecy',    region: 'Haute-Savoie' },
+  { id: 'plume-briancon',   label: 'Atelier Plume Briançon',       city: 'Briançon',  region: 'Hautes-Alpes' },
+  { id: 'air-repair',       label: 'Atelier Air Repair',           city: 'Grenoble',  region: 'Isère' },
+  { id: 'vol-libre-service',label: 'Atelier Vol Libre Service',    city: 'Chambéry',  region: 'Savoie' },
 ]

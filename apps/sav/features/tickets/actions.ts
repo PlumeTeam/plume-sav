@@ -12,6 +12,7 @@ import {
   schoolChecklistSchema,
   schoolResolutionSchema,
   workshopChecklistSchema,
+  assignWorkshopSchema,
 } from './schemas'
 import type { MessageSenderRole, TicketStatus, ServiceType, ProblemCategory, TicketUpdate } from './types'
 import type { RequestStatus, SchoolResolution } from './types'
@@ -597,6 +598,42 @@ export async function saveWorkshopChecklistAction(formData: FormData) {
 
   if (error) return { error: { _form: ['Erreur lors de la sauvegarde'] } }
 
+  revalidatePath(`/workshop/ticket/${ticketId}`)
+  return { success: true }
+}
+
+// École : assigne un atelier au ticket pour la communication, sans escalade.
+// Utilisé par le picker du composer "Communiquer avec l'atelier" — l'école
+// choisit son interlocuteur, sans verrouiller la décision finale (qui reste
+// gérée par applySchoolResolutionAction).
+export async function assignWorkshopForCommunicationAction(formData: FormData) {
+  const parsed = assignWorkshopSchema.safeParse({
+    ticketId:      formData.get('ticketId'),
+    workshopId:    formData.get('workshopId'),
+    workshopLabel: formData.get('workshopLabel'),
+  })
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: { _form: ['Non authentifié'] } }
+
+  const { ticketId, workshopId, workshopLabel } = parsed.data
+  const now = new Date().toISOString()
+
+  const { error } = await supabase
+    .from('service_requests')
+    .update({
+      assigned_workshop_id:    workshopId,
+      assigned_workshop_label: workshopLabel,
+      workshop_assigned_at:    now,
+      workshop_assigned_by:    user.id,
+    })
+    .eq('id', ticketId)
+
+  if (error) return { error: { _form: [`Erreur lors de l'assignation (${error.message})`] } }
+
+  revalidatePath(`/school/ticket/${ticketId}`)
   revalidatePath(`/workshop/ticket/${ticketId}`)
   return { success: true }
 }

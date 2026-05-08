@@ -125,6 +125,14 @@ export const workshopChecklistSchema = z.object({
   notes:       z.string().max(5000).optional(),
 })
 
+// École : assigne un atelier au ticket pour la communication, sans changer
+// le statut/résolution (pas d'escalade — juste "voilà à qui je parle").
+export const assignWorkshopSchema = z.object({
+  ticketId:      z.string().uuid(),
+  workshopId:    z.string().min(1),
+  workshopLabel: z.string().min(1),
+})
+
 export const addMessageSchema = z.object({
   ticketId: z.string().uuid(),
   content: z.string().min(1).max(5000),
@@ -172,6 +180,7 @@ export type DiagnosisInput = z.infer<typeof diagnosisSchema>
 export type SchoolChecklistInput   = z.infer<typeof schoolChecklistSchema>
 export type SchoolResolutionInput  = z.infer<typeof schoolResolutionSchema>
 export type WorkshopChecklistInput = z.infer<typeof workshopChecklistSchema>
+export type AssignWorkshopInput    = z.infer<typeof assignWorkshopSchema>
 
 // Re-export for convenience
 export { WING_BRANDS }

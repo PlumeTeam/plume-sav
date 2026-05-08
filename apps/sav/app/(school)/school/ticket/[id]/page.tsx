@@ -91,7 +91,12 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
         )}
 
         {/* ── ACTIONS PRINCIPALES ─────────────────────────────────── */}
-        <SchoolActions ticketId={ticket.id} isCheckValidated={isCheckValidated} />
+        <SchoolActions
+          ticketId={ticket.id}
+          isCheckValidated={isCheckValidated}
+          assignedWorkshopId={ticket.assigned_workshop_id}
+          assignedWorkshopLabel={ticket.assigned_workshop_label}
+        />
 
         {/* Suivi */}
         <section className="card p-5">
