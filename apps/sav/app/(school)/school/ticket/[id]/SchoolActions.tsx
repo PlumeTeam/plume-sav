@@ -194,6 +194,10 @@ interface WorkshopComposerProps {
   onClose:  () => void
 }
 
+// Only affiliated workshops are exposed to the school — non-affiliated entries
+// in PARTNER_WORKSHOPS exist for context/future use but aren't pickable here.
+const AFFILIATED_WORKSHOPS = PARTNER_WORKSHOPS.filter((w) => w.affiliated)
+
 function WorkshopComposer({ ticketId, workshop, onPicked, onClose }: WorkshopComposerProps) {
   const [step, setStep] = useState<'pick' | 'compose'>(workshop ? 'compose' : 'pick')
   const [pickedId, setPickedId] = useState<string>(workshop?.id ?? '')
@@ -204,7 +208,7 @@ function WorkshopComposer({ ticketId, workshop, onPicked, onClose }: WorkshopCom
   function handlePick(e: React.FormEvent) {
     e.preventDefault()
     if (!pickedId) return
-    const ws = PARTNER_WORKSHOPS.find((w) => w.id === pickedId)
+    const ws = AFFILIATED_WORKSHOPS.find((w) => w.id === pickedId)
     if (!ws) return
 
     startTransition(async () => {
@@ -265,14 +269,14 @@ function WorkshopComposer({ ticketId, workshop, onPicked, onClose }: WorkshopCom
         </p>
 
         <WorkshopMapPicker
-          workshops={PARTNER_WORKSHOPS}
+          workshops={AFFILIATED_WORKSHOPS}
           selectedId={pickedId || null}
           onSelect={setPickedId}
         />
 
         {/* Liste textuelle — fallback / clavier / lisibilité */}
         <div className="space-y-2">
-          {PARTNER_WORKSHOPS.map((w) => {
+          {AFFILIATED_WORKSHOPS.map((w) => {
             const isSelected = pickedId === w.id
             return (
               <button
@@ -282,29 +286,13 @@ function WorkshopComposer({ ticketId, workshop, onPicked, onClose }: WorkshopCom
                 className={`flex w-full items-start gap-3 rounded-xl border-2 p-3 text-left transition-all active:scale-[0.99] ${
                   isSelected
                     ? 'border-brand-coral bg-brand-coral/10 shadow-plume'
-                    : w.affiliated
-                      ? 'border-brand-stone bg-white hover:border-brand-coral/40'
-                      : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+                    : 'border-brand-stone bg-white hover:border-brand-coral/40'
                 }`}
               >
                 <span aria-hidden className="text-2xl">🛠️</span>
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-brand-ink">
-                    {w.label}
-                    {w.affiliated && (
-                      <span className="ml-2 rounded-full bg-brand-coral/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-coral">
-                        Affilié
-                      </span>
-                    )}
-                  </p>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    {w.city} · {w.region}
-                  </p>
-                  {!w.affiliated && (
-                    <p className="mt-0.5 text-[11px] text-amber-700">
-                      Hors réseau Plume
-                    </p>
-                  )}
+                  <p className="text-sm font-semibold text-brand-ink">{w.label}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">{w.city} · {w.region}</p>
                 </div>
                 {isSelected && <span className="text-brand-coral text-lg" aria-hidden>✓</span>}
               </button>

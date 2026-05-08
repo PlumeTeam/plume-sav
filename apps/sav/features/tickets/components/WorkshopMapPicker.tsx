@@ -15,8 +15,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 })
 
-// Three icon flavours so an affiliated atelier is recognisable at a glance and
-// the selection state is unmistakable.
+// Coral teardrop in two states — the picker only ever shows affiliated workshops.
 function teardrop(opts: { fill: string; ring?: string; shadow?: string; size?: number }) {
   const size   = opts.size ?? 32
   const ring   = opts.ring   ? `border:3px solid ${opts.ring};` : ''
@@ -36,9 +35,8 @@ function teardrop(opts: { fill: string; ring?: string; shadow?: string; size?: n
   })
 }
 
-const SELECTED_ICON   = teardrop({ fill: '#FF7A59', ring: '#fff',  shadow: '0 4px 12px -2px rgba(255,122,89,0.6)' })
-const AFFILIATED_ICON = teardrop({ fill: '#FF7A59' })
-// Non-affiliated keeps Leaflet's default blue-ish marker so it's clearly distinct.
+const SELECTED_ICON = teardrop({ fill: '#FF7A59', ring: '#fff', shadow: '0 4px 12px -2px rgba(255,122,89,0.6)' })
+const DEFAULT_ICON  = teardrop({ fill: '#FF7A59' })
 
 interface WorkshopMapPickerProps {
   workshops:  PartnerWorkshop[]
@@ -78,31 +76,16 @@ export default function WorkshopMapPicker({ workshops, selectedId, onSelect }: W
         <RecenterOnSelect center={center} />
         {placeable.map((w) => {
           const isSelected = w.id === selectedId
-          const icon = isSelected
-            ? SELECTED_ICON
-            : w.affiliated
-              ? AFFILIATED_ICON
-              : new L.Icon.Default()
           return (
             <Marker
               key={w.id}
               position={[w.lat, w.lng]}
-              icon={icon}
+              icon={isSelected ? SELECTED_ICON : DEFAULT_ICON}
               eventHandlers={{ click: () => onSelect(w.id) }}
             >
               <Popup>
                 <div style={{ minWidth: 200 }}>
-                  <p style={{ fontWeight: 600, color: '#0f0f1d', margin: 0 }}>
-                    {w.label}
-                    {w.affiliated && (
-                      <span style={{
-                        marginLeft: 6, fontSize: 10, fontWeight: 600,
-                        color: '#FF7A59', textTransform: 'uppercase', letterSpacing: 0.5,
-                      }}>
-                        Affilié
-                      </span>
-                    )}
-                  </p>
+                  <p style={{ fontWeight: 600, color: '#0f0f1d', margin: 0 }}>{w.label}</p>
                   <p style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
                     {[w.city, w.region].filter(Boolean).join(' · ')}
                   </p>
@@ -111,18 +94,13 @@ export default function WorkshopMapPicker({ workshops, selectedId, onSelect }: W
                       {w.address}
                     </p>
                   )}
-                  {!w.affiliated && (
-                    <p style={{ fontSize: 11, color: '#92400e', marginTop: 6 }}>
-                      ⚠️ Atelier hors réseau Plume.
-                    </p>
-                  )}
                   <button
                     type="button"
                     onClick={() => onSelect(w.id)}
                     style={{
                       marginTop: 8,
                       padding: '6px 12px',
-                      background: isSelected ? '#10b981' : (w.affiliated ? '#FF7A59' : '#64748b'),
+                      background: isSelected ? '#10b981' : '#FF7A59',
                       color: '#fff',
                       border: 'none',
                       borderRadius: 8,
@@ -140,24 +118,6 @@ export default function WorkshopMapPicker({ workshops, selectedId, onSelect }: W
           )
         })}
       </MapContainer>
-
-      {/* Map legend */}
-      <div className="flex items-center gap-4 border-t border-brand-stone bg-brand-cream px-3 py-2 text-[11px] text-slate-600">
-        <span className="flex items-center gap-1.5">
-          <span aria-hidden style={{
-            display: 'inline-block', width: 10, height: 10, background: '#FF7A59',
-            borderRadius: '50% 50% 50% 0', transform: 'rotate(-45deg)',
-          }} />
-          Atelier affilié Plume
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span aria-hidden style={{
-            display: 'inline-block', width: 10, height: 16, background: '#3388ff',
-            borderRadius: '50% 50% 50% 0', transform: 'rotate(-45deg)',
-          }} />
-          Hors réseau
-        </span>
-      </div>
     </div>
   )
 }

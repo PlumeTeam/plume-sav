@@ -6,6 +6,9 @@ import { applySchoolResolutionAction } from '@/features/tickets/actions'
 import { PARTNER_WORKSHOPS } from '@/features/tickets/constants'
 import type { SchoolResolution } from '@/features/tickets/types'
 
+// Only affiliated workshops are exposed in the school decision flow.
+const AFFILIATED_WORKSHOPS = PARTNER_WORKSHOPS.filter((w) => w.affiliated)
+
 const WorkshopMapPicker = dynamic(
   () => import('@/features/tickets/components/WorkshopMapPicker'),
   {
@@ -131,7 +134,7 @@ export function SchoolResolutionPanel({
       fd.set('resolution', payload.resolution)
       if (note.trim()) fd.set('note', note.trim())
       if (payload.needsWorkshop) {
-        const ws = PARTNER_WORKSHOPS.find((w) => w.id === workshopId)
+        const ws = AFFILIATED_WORKSHOPS.find((w) => w.id === workshopId)
         fd.set('workshopId',    workshopId)
         fd.set('workshopLabel', ws?.label ?? workshopId)
       }
@@ -256,14 +259,14 @@ export function SchoolResolutionPanel({
           </label>
 
           <WorkshopMapPicker
-            workshops={PARTNER_WORKSHOPS}
+            workshops={AFFILIATED_WORKSHOPS}
             selectedId={workshopId || null}
             onSelect={setWorkshopId}
           />
 
           {/* Liste textuelle (fallback / clavier) */}
           <div className="space-y-2">
-            {PARTNER_WORKSHOPS.map((w) => {
+            {AFFILIATED_WORKSHOPS.map((w) => {
               const isSelected = workshopId === w.id
               return (
                 <button
@@ -273,25 +276,13 @@ export function SchoolResolutionPanel({
                   className={`flex w-full items-start gap-3 rounded-xl border-2 p-3 text-left transition-all active:scale-[0.99] ${
                     isSelected
                       ? 'border-brand-coral bg-brand-coral/10 shadow-plume'
-                      : w.affiliated
-                        ? 'border-brand-stone bg-white hover:border-brand-coral/40'
-                        : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+                      : 'border-brand-stone bg-white hover:border-brand-coral/40'
                   }`}
                 >
                   <span aria-hidden className="text-2xl">🛠️</span>
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-brand-ink">
-                      {w.label}
-                      {w.affiliated && (
-                        <span className="ml-2 rounded-full bg-brand-coral/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-coral">
-                          Affilié
-                        </span>
-                      )}
-                    </p>
+                    <p className="text-sm font-semibold text-brand-ink">{w.label}</p>
                     <p className="mt-0.5 text-xs text-slate-500">{w.city} · {w.region}</p>
-                    {!w.affiliated && (
-                      <p className="mt-0.5 text-[11px] text-amber-700">Hors réseau Plume</p>
-                    )}
                   </div>
                   {isSelected && <span className="text-brand-coral text-lg" aria-hidden>✓</span>}
                 </button>
