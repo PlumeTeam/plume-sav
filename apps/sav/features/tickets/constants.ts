@@ -76,9 +76,16 @@ export const SCHOOL_RESOLUTIONS = [
 
 // ── Réseau d'ateliers partenaires ─────────────────────────────────────────
 // TODO: migrer vers une table partner_workshops quand le réseau grandit.
-export const PARTNER_WORKSHOPS: Array<{ id: string; label: string; city: string; region: string }> = [
-  { id: 'plume-annecy',     label: 'Atelier Plume Annecy',         city: 'Annecy',    region: 'Haute-Savoie' },
-  { id: 'plume-briancon',   label: 'Atelier Plume Briançon',       city: 'Briançon',  region: 'Hautes-Alpes' },
-  { id: 'air-repair',       label: 'Atelier Air Repair',           city: 'Grenoble',  region: 'Isère' },
-  { id: 'vol-libre-service',label: 'Atelier Vol Libre Service',    city: 'Chambéry',  region: 'Savoie' },
+export const PARTNER_WORKSHOPS: Array<{
+  id:       string
+  label:    string
+  city:     string
+  region:   string
+  address?: string
+}> = [
+  { id: 'plume-embrun',      label: 'Atelier Plume Embrun',       city: 'Embrun',    region: 'Hautes-Alpes',
+    address: "Résidence le Val d'Embrun, 05200 Embrun" },
+  { id: 'plume-annecy',      label: 'Atelier Plume Annecy',       city: 'Annecy',    region: 'Haute-Savoie' },
+  { id: 'air-repair',        label: 'Atelier Air Repair',         city: 'Grenoble',  region: 'Isère' },
+  { id: 'vol-libre-service', label: 'Atelier Vol Libre Service',  city: 'Chambéry',  region: 'Savoie' },
 ]
