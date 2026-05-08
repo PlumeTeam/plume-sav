@@ -68,15 +68,10 @@ export function StepWingInfo({ wings, onNext }: StepWingInfoProps) {
             Aucune aile n&apos;est enregistrée sur votre compte pour l&apos;instant.
           </p>
           <p className="text-xs text-slate-500">
-            Si vous avez acheté une aile Plume, contactez-nous pour qu&apos;elle soit
-            associée à votre compte avant d&apos;envoyer une demande SAV.
+            Si vous avez acheté une aile Plume, rapprochez-vous de votre école
+            partenaire pour qu&apos;elle soit associée à votre compte avant
+            d&apos;envoyer une demande SAV.
           </p>
-          <a
-            href="mailto:sav@plumeparagliders.com?subject=A%C3%AFle%20non%20enregistr%C3%A9e%20sur%20mon%20compte"
-            className="btn-primary mt-2"
-          >
-            Contacter Plume
-          </a>
         </div>
       </StepLayout>
     )
@@ -128,11 +123,8 @@ export function StepWingInfo({ wings, onNext }: StepWingInfoProps) {
       </div>
 
       <p className="mt-6 rounded-2xl bg-brand-cream p-3 text-xs text-slate-500">
-        Une aile manque dans cette liste ?{' '}
-        <a href="mailto:sav@plumeparagliders.com" className="font-medium text-brand-coral hover:underline">
-          Contactez Plume
-        </a>{' '}
-        pour qu&apos;elle soit associée à votre compte.
+        Une aile manque dans cette liste&nbsp;? Rapprochez-vous de votre école
+        partenaire pour qu&apos;elle soit associée à votre compte.
       </p>
     </StepLayout>
   )

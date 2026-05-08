@@ -86,21 +86,6 @@ export default async function ClientPage() {
           </div>
         )}
       </section>
-
-      {/* ── Help ─────────────────────────────────────────────────── */}
-      <section className="card flex items-start gap-3 p-4">
-        <span aria-hidden className="text-xl">💬</span>
-        <div className="flex-1">
-          <p className="text-sm font-semibold text-brand-ink">Besoin d’aide ?</p>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Écrivez-nous à{' '}
-            <a href="mailto:sav@plumeparagliders.com" className="font-medium text-brand-coral hover:underline">
-              sav@plumeparagliders.com
-            </a>{' '}
-            ou contactez votre école partenaire.
-          </p>
-        </div>
-      </section>
     </main>
   )
 }

@@ -96,11 +96,9 @@ export function StepSchool({ schools, onNext, onBack }: StepSchoolProps) {
     return (
       <StepLayout
         title="Aucune école disponible"
-        subtitle="Aucune école partenaire n'est référencée. Contactez Plume."
+        subtitle="Aucune école partenaire n'est référencée pour le moment. Réessayez plus tard."
       >
-        <a href="mailto:sav@plumeparagliders.com" className="btn-primary">
-          Contacter Plume
-        </a>
+        <></>
       </StepLayout>
     )
   }
