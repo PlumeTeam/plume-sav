@@ -1,5 +1,5 @@
-import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/server'
 import { getTicketDetail } from '@/features/tickets/queries'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function TicketDetailPage({ params }: PageProps) {
   const ticket = await getTicketDetail(params.id)
-  if (!ticket) notFound()
+  if (!ticket) return <DebugNotFound ticketId={params.id} />
 
   const currentStep   = getStatusStep(ticket.status)
   const sortedPhotos  = [...ticket.ticket_photos].sort((a, b) => a.sort_order - b.sort_order)
@@ -171,5 +171,61 @@ function InfoRow({ label, value, mono }: { label: string; value: string; mono?: 
       <p className="flex-shrink-0 text-xs text-slate-500">{label}</p>
       <p className={`text-right text-sm text-brand-ink ${mono ? 'font-mono' : ''}`}>{value.trim() || '—'}</p>
     </div>
+  )
+}
+
+// Temporary diagnostic UI: surfaces the real reason the ticket can't be loaded.
+// Replace with a clean notFound() once the auth/RLS path is verified.
+async function DebugNotFound({ ticketId }: { ticketId: string }) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  // Fire the same query the real loader uses, so we capture the exact error.
+  const { data, error, status, statusText } = await supabase
+    .from('service_requests')
+    .select('id, user_id, email')
+    .eq('id', ticketId)
+    .maybeSingle()
+
+  return (
+    <main className="mx-auto max-w-2xl space-y-4 p-6">
+      <div className="card border-amber-300 bg-amber-50 p-5">
+        <p className="text-sm font-bold text-amber-900">⚠️ Ticket non chargeable — diagnostic</p>
+        <p className="mt-2 text-xs text-amber-900/80">
+          Le ticket existe peut-être en DB, mais la requête SELECT n&apos;a rien renvoyé.
+          Voici l&apos;état exact côté serveur :
+        </p>
+      </div>
+
+      <div className="card p-5">
+        <h3 className="section-title mb-2">Auth context</h3>
+        <pre className="overflow-x-auto rounded-xl bg-brand-cream p-3 text-xs text-brand-ink">
+{JSON.stringify({
+  authenticated: !!user,
+  userId: user?.id ?? null,
+  email:  user?.email ?? null,
+}, null, 2)}
+        </pre>
+      </div>
+
+      <div className="card p-5">
+        <h3 className="section-title mb-2">Query result</h3>
+        <pre className="overflow-x-auto rounded-xl bg-brand-cream p-3 text-xs text-brand-ink">
+{JSON.stringify({
+  ticketId,
+  rowFound:    !!data,
+  rowUserId:   data?.user_id ?? null,
+  rowEmail:    data?.email ?? null,
+  httpStatus:  status,
+  httpText:    statusText,
+  errorCode:   error?.code,
+  errorMsg:    error?.message,
+}, null, 2)}
+        </pre>
+      </div>
+
+      <Link href="/client" className="btn-primary inline-flex">
+        ← Retour à mes tickets
+      </Link>
+    </main>
   )
 }
