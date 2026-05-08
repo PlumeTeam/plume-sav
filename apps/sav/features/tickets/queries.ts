@@ -295,10 +295,14 @@ export async function getWorkshopTickets(): Promise<TicketWithPhotos[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
+  // Workshop sees:
+  //  - status in (processing, approved, completed)  → physical wing in the loop
+  //  - school_resolution = 'workshop_advice_requested' → advice asked, no wing transfer yet
+  // We OR these via PostgREST so a single query covers both inbound paths.
   const { data, error } = await supabase
     .from('service_requests')
     .select('*')
-    .in('status', ['processing', 'approved', 'completed'])
+    .or('status.in.(processing,approved,completed),school_resolution.eq.workshop_advice_requested')
     .order('urgency_level', { ascending: false })
     .order('created_at', { ascending: false })
 

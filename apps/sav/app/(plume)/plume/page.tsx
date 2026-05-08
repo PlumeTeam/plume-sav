@@ -14,6 +14,12 @@ export default async function PlumeDashboardPage() {
     (t) => t.school_resolution === 'escalated_to_plume'
   )
 
+  // Tickets flagged "défaut grave" by the school — sécurité, alerte HQ.
+  // These appear in workshop's queue too; HQ is alerted in parallel.
+  const plumeUrgent = tickets.filter(
+    (t) => t.is_plume_urgent && t.status !== 'completed' && t.status !== 'cancelled'
+  )
+
   const KPI_STATUS_GROUPS: Array<{ label: string; statuses: RequestStatus[]; tone: string }> = [
     { label: 'À traiter',   statuses: ['pending'],                tone: 'bg-amber-50 text-amber-800 ring-amber-200' },
     { label: 'En cours',    statuses: ['processing'],             tone: 'bg-sky-50 text-sky-800 ring-sky-200' },
@@ -35,6 +41,47 @@ export default async function PlumeDashboardPage() {
           <Link href="/workshop" className="btn-secondary text-xs px-4 py-2">Vue Atelier</Link>
         </div>
       </header>
+
+      {/* Défauts graves — alerte sécurité de plus haut niveau */}
+      {plumeUrgent.length > 0 && (
+        <section className="rounded-3xl border-2 border-red-400 bg-red-50 p-5">
+          <div className="flex items-start gap-3">
+            <span aria-hidden className="text-2xl">🚨</span>
+            <div className="flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-red-700">Alerte sécurité — niveau 3</p>
+              <h2 className="mt-0.5 font-display text-lg font-bold text-red-900">
+                {plumeUrgent.length} défaut{plumeUrgent.length > 1 ? 's' : ''} grave{plumeUrgent.length > 1 ? 's' : ''} signalé{plumeUrgent.length > 1 ? 's' : ''} par une école
+              </h2>
+              <p className="mt-1 text-xs text-red-900/80">
+                Une école a identifié un risque sécurité (suspentes, structure, malfaçon visible).
+                L&apos;atelier a été notifié en parallèle.
+              </p>
+              <ul className="mt-3 space-y-1.5">
+                {plumeUrgent.slice(0, 5).map((t) => {
+                  const ref = t.ticket_number ?? `#${t.id.slice(0, 8).toUpperCase()}`
+                  return (
+                    <li key={t.id}>
+                      <Link
+                        href={`/workshop/ticket/${t.id}`}
+                        className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 text-sm transition-colors hover:bg-red-100/50"
+                      >
+                        <span className="truncate font-medium text-red-900">
+                          <span className="font-mono text-xs text-red-700">{ref}</span>{' '}
+                          — {t.product_brand} {t.product_model}
+                          {t.assigned_workshop_label && (
+                            <span className="ml-2 text-xs font-normal opacity-70">→ {t.assigned_workshop_label}</span>
+                          )}
+                        </span>
+                        <span className="shrink-0 text-xs text-red-700">À examiner →</span>
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Escalations exceptionnelles — bandeau prioritaire */}
       {escalatedToPlume.length > 0 && (

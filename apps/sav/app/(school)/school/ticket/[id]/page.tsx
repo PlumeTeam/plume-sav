@@ -111,6 +111,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
             ticketId={ticket.id}
             currentResolution={ticket.school_resolution as SchoolResolution | null}
             assignedWorkshopLabel={ticket.assigned_workshop_label}
+            isPlumeUrgent={ticket.is_plume_urgent ?? false}
           />
         </section>
 

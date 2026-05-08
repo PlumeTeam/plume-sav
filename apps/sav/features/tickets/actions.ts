@@ -491,6 +491,7 @@ export async function applySchoolResolutionAction(formData: FormData) {
     note:          formData.get('note') || undefined,
     workshopId:    formData.get('workshopId') || undefined,
     workshopLabel: formData.get('workshopLabel') || undefined,
+    isPlumeUrgent: formData.get('isPlumeUrgent') || undefined,
   })
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors }
 
@@ -498,7 +499,7 @@ export async function applySchoolResolutionAction(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: { _form: ['Non authentifié'] } }
 
-  const { ticketId, resolution, note, workshopId, workshopLabel } = parsed.data
+  const { ticketId, resolution, note, workshopId, workshopLabel, isPlumeUrgent } = parsed.data
   const newStatus = resolutionToRequestStatus(resolution)
   const newSavStatus = (() => {
     switch (resolution) {
@@ -508,29 +509,50 @@ export async function applySchoolResolutionAction(formData: FormData) {
       case 'escalated_to_workshop':
         return 'repair_in_progress' as TicketStatus
       case 'escalated_to_plume':
+      case 'workshop_advice_requested':
+      case 'reflection':
         return 'in_review' as TicketStatus
     }
   })()
 
   const now = new Date().toISOString()
-  const update: TicketUpdate = {
+  // Tier 1 update: with all the new columns (is_plume_urgent + advice fields).
+  // Tier 2 fallback: drop is_plume_urgent if migration 20260508000000 isn't applied.
+  const fullUpdate: TicketUpdate = {
     school_resolution:      resolution,
     school_resolution_note: note ?? null,
     school_resolved_at:     now,
     school_resolved_by:     user.id,
     status:                 newStatus,
+    is_plume_urgent:        isPlumeUrgent ?? false,
   }
-  if (resolution === 'escalated_to_workshop') {
-    update.assigned_workshop_id    = workshopId ?? null
-    update.assigned_workshop_label = workshopLabel ?? null
-    update.workshop_assigned_at    = now
-    update.workshop_assigned_by    = user.id
+  // Both escalation and advice need a workshop reference, but reflection doesn't.
+  if (resolution === 'escalated_to_workshop' || resolution === 'workshop_advice_requested') {
+    fullUpdate.assigned_workshop_id    = workshopId ?? null
+    fullUpdate.assigned_workshop_label = workshopLabel ?? null
+    fullUpdate.workshop_assigned_at    = now
+    fullUpdate.workshop_assigned_by    = user.id
   }
 
-  const { error } = await supabase
+  let { error } = await supabase
     .from('service_requests')
-    .update(update)
+    .update(fullUpdate)
     .eq('id', ticketId)
+
+  // Retry without is_plume_urgent if the column is missing (migration not applied yet).
+  if (error) {
+    const looksLikeMissingColumn =
+      error.code === '42703' || error.code === 'PGRST204' ||
+      /column .* does not exist/i.test(error.message) ||
+      /could not find the .* column/i.test(error.message)
+    if (looksLikeMissingColumn) {
+      console.warn('applySchoolResolutionAction: retrying without is_plume_urgent —', error.message)
+      const legacyUpdate: TicketUpdate = { ...fullUpdate }
+      delete legacyUpdate.is_plume_urgent
+      const r = await supabase.from('service_requests').update(legacyUpdate).eq('id', ticketId)
+      error = r.error
+    }
+  }
 
   if (error) return { error: { _form: [`Erreur lors de la résolution (${error.message})`] } }
 

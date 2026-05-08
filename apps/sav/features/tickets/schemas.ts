@@ -80,7 +80,13 @@ export const schoolChecklistSchema = z.object({
   notes:       z.string().max(2000).optional(),
 })
 
-// École : choix d'une issue (3 outcomes + escalation Plume)
+// École : choix d'une issue
+//  - resolved_by_school        : niveau 1 — réparation école
+//  - normal_behavior_explained : niveau 1 — comportement normal expliqué
+//  - escalated_to_workshop     : niveau 2 — atelier (avec ou sans urgence Plume)
+//  - escalated_to_plume        : cas exceptionnel HQ
+//  - workshop_advice_requested : avis distance, l'aile reste à l'école
+//  - reflection                : école n'a pas encore décidé
 export const schoolResolutionSchema = z.object({
   ticketId:   z.string().uuid(),
   resolution: z.enum([
@@ -88,13 +94,20 @@ export const schoolResolutionSchema = z.object({
     'normal_behavior_explained',
     'escalated_to_workshop',
     'escalated_to_plume',
+    'workshop_advice_requested',
+    'reflection',
   ]),
   note: z.string().max(2000).optional(),
-  // Requis quand resolution === 'escalated_to_workshop'
+  // Requis pour escalated_to_workshop et workshop_advice_requested
   workshopId:    z.string().optional(),
   workshopLabel: z.string().optional(),
+  // Niveau 3 — défaut grave : escalade atelier + alerte Plume HQ
+  isPlumeUrgent: z.preprocess((v) => v === 'true' || v === true, z.boolean()).optional(),
 }).superRefine((data, ctx) => {
-  if (data.resolution === 'escalated_to_workshop') {
+  const needsWorkshop =
+    data.resolution === 'escalated_to_workshop' ||
+    data.resolution === 'workshop_advice_requested'
+  if (needsWorkshop) {
     if (!data.workshopId || !data.workshopLabel) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

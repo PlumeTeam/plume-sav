@@ -126,11 +126,23 @@ function WorkshopTicketCard({
         <p className={`font-semibold text-brand-ink ${compact ? 'text-xs' : 'text-sm'}`}>
           {ticket.product_brand} {ticket.product_model}
         </p>
-        {ticket.urgency_level === 2 && (
-          <span className="flex-shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-red-700">
-            Urgent
-          </span>
-        )}
+        <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-1">
+          {ticket.is_plume_urgent && (
+            <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
+              ⚠ Sécurité
+            </span>
+          )}
+          {ticket.school_resolution === 'workshop_advice_requested' && (
+            <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-sky-800">
+              💬 Avis demandé
+            </span>
+          )}
+          {ticket.urgency_level === 2 && (
+            <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-red-700">
+              Urgent
+            </span>
+          )}
+        </div>
       </div>
       <p className={`text-slate-500 ${compact ? 'mt-0.5 font-mono text-[11px]' : 'mt-1 font-mono text-xs'}`}>
         {ticketRef}
