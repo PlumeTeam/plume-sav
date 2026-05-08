@@ -215,60 +215,38 @@ export async function getClientWings(): Promise<ClientWing[]> {
 export async function getClientTickets(): Promise<TicketWithPhotos[]> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-
-  console.log('[SAV][getClientTickets] auth user:', user?.id ?? '<anonymous>', 'email:', user?.email ?? '—')
-
-  if (!user) {
-    console.warn('[SAV][getClientTickets] no authenticated user — returning []')
-    return []
-  }
+  if (!user) return []
 
   // RLS already scopes to the user's own rows; we don't need a manual filter.
-  const { data, error, status, statusText } = await supabase
+  const { data, error } = await supabase
     .from('service_requests')
     .select('*')
     .order('created_at', { ascending: false })
 
-  console.log('[SAV][getClientTickets] result:', {
-    rows:         data?.length ?? 0,
-    httpStatus:   status,
-    httpText:     statusText,
-    errorCode:    error?.code,
-    errorMessage: error?.message,
-  })
-
-  if (error) return []
+  if (error) {
+    console.error('getClientTickets error:', error.message)
+    return []
+  }
   return attachPhotosToList(supabase, (data ?? []) as Array<Record<string, unknown>>)
 }
 
 export async function getTicketDetail(ticketId: string): Promise<TicketDetail | null> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-
-  console.log('[SAV][getTicketDetail] ticketId:', ticketId, 'user:', user?.id ?? '<anonymous>')
-
-  if (!user) {
-    console.warn('[SAV][getTicketDetail] no authenticated user — returning null')
-    return null
-  }
+  if (!user) return null
 
   // .maybeSingle() — returns null without erroring when RLS hides the row,
-  // so we can distinguish "row hidden by RLS" from "actual SQL error".
-  const { data, error, status, statusText } = await supabase
+  // so the page can call notFound() rather than crash on PGRST116.
+  const { data, error } = await supabase
     .from('service_requests')
     .select('*')
     .eq('id', ticketId)
     .maybeSingle()
 
-  console.log('[SAV][getTicketDetail] result:', {
-    hasData:      !!data,
-    httpStatus:   status,
-    httpText:     statusText,
-    errorCode:    error?.code,
-    errorMessage: error?.message,
-  })
-
-  if (error || !data) return null
+  if (error || !data) {
+    if (error) console.error('getTicketDetail error:', error.message)
+    return null
+  }
   return hydrateTicket(supabase, data as Record<string, unknown>)
 }
 
