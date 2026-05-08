@@ -83,41 +83,56 @@ export async function getPartnerSchools(): Promise<PartnerSchool[]> {
   // partner_schools is a shared-platform table not in the SAV DB types.
   const db = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
 
-  // 4 attempts in decreasing specificity:
-  //   1) coords + active filter
-  //   2) coords, no active filter
-  //   3) no coords, active filter
-  //   4) no coords, no active filter
-  // First non-error response with rows wins.
   type Row = Record<string, unknown>
-  let rows: Row[] | null = null
+  type AttemptResult = { data: Row[] | null; error: { message: string; code?: string } | null }
 
-  const attempts: Array<() => Promise<{ data: Row[] | null; error: { message: string } | null }>> = [
-    () => db.from('partner_schools').select('id, name, city, region, lat, lng').eq('active', true).order('name', { ascending: true }),
-    () => db.from('partner_schools').select('id, name, city, region, lat, lng').order('name', { ascending: true }),
-    () => db.from('partner_schools').select('id, name, city, region').eq('active', true).order('name', { ascending: true }),
-    () => db.from('partner_schools').select('id, name, city, region').order('name', { ascending: true }),
+  // Attempts in decreasing column specificity. Each level tries the active filter
+  // first, then drops it. We never keep a 0-row result — empty success is treated
+  // the same as an error so we can fall through to the next attempt (might have
+  // failed because of column absence, RLS quirk, or weird active values).
+  const attempts: Array<{ label: string; run: () => Promise<AttemptResult> }> = [
+    { label: 'rich+active',  run: () => db.from('partner_schools').select('id, name, city, region, lat, lng').eq('active', true).order('name', { ascending: true }) },
+    { label: 'rich',         run: () => db.from('partner_schools').select('id, name, city, region, lat, lng').order('name', { ascending: true }) },
+    { label: 'noregion+active', run: () => db.from('partner_schools').select('id, name, city, lat, lng').eq('active', true).order('name', { ascending: true }) },
+    { label: 'noregion',     run: () => db.from('partner_schools').select('id, name, city, lat, lng').order('name', { ascending: true }) },
+    { label: 'minimal+active', run: () => db.from('partner_schools').select('id, name').eq('active', true).order('name', { ascending: true }) },
+    { label: 'minimal',      run: () => db.from('partner_schools').select('id, name').order('name', { ascending: true }) },
   ]
 
-  for (const run of attempts) {
+  let rows: Row[] | null = null
+  let usedLabel: string | null = null
+
+  for (const { label, run } of attempts) {
+    let r: AttemptResult
     try {
-      const r = await run()
-      if (!r.error && r.data) {
-        rows = r.data as Row[]
-        break
-      }
-      if (r.error) {
-        console.warn('getPartnerSchools attempt failed, trying next:', r.error.message)
-      }
+      r = await run()
     } catch (e) {
-      console.warn('getPartnerSchools attempt threw:', e)
+      console.warn(`[getPartnerSchools] attempt "${label}" threw:`, e)
+      continue
     }
+
+    if (r.error) {
+      console.warn(`[getPartnerSchools] attempt "${label}" errored:`, r.error.code ?? '?', r.error.message)
+      continue
+    }
+
+    const count = r.data?.length ?? 0
+    console.log(`[getPartnerSchools] attempt "${label}" returned ${count} row(s)`)
+    if (count > 0) {
+      rows = r.data as Row[]
+      usedLabel = label
+      break
+    }
+    // 0-row success → keep trying lower-specificity selects in case the
+    // active filter or the column subset is to blame.
   }
 
-  if (!rows || rows.length === 0) {
+  if (!rows) {
+    console.warn('[getPartnerSchools] all attempts failed or returned empty — using FALLBACK_PARTNER_SCHOOLS')
     return FALLBACK_PARTNER_SCHOOLS.map(enrichWithCoords)
   }
 
+  console.log(`[getPartnerSchools] using DB rows (path="${usedLabel}", count=${rows.length})`)
   return rows.map(normaliseSchool).map(enrichWithCoords)
 }
 
