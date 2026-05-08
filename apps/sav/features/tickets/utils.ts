@@ -23,7 +23,7 @@ export function formatDateTime(isoDate: string | null): string {
 export function getSupabasePublicUrl(storagePath: string): string {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   if (!url) return storagePath
-  return `${url}/storage/v1/object/public/ticket-photos/${storagePath}`
+  return `${url}/storage/v1/object/public/tickets/${storagePath}`
 }
 
 // Timeline steps for the Domino's-style tracker

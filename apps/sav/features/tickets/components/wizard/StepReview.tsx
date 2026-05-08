@@ -48,21 +48,49 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
         caption?: string
       }> = []
 
+      // Last error captured so we can surface it to the user verbatim if
+      // every upload fails. Otherwise it's just logged for diagnosis.
+      let lastUploadError: string | null = null
+
       setProgress({ done: 0, total: photos.length })
       for (let i = 0; i < photos.length; i++) {
         const photo = photos[i]
         const file  = _photoFiles[i]
         if (!photo || !file) continue
 
-        const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+        // Only [a-z0-9] in the extension — keeps the path safe even if
+        // the input file had something unusual.
+        const rawExt = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+        const ext = /^[a-z0-9]+$/.test(rawExt) ? rawExt : 'jpg'
         const storagePath = `${user.id}/${Date.now()}-${i}.${ext}`
 
+        console.log('[upload] →', {
+          bucket: 'tickets',
+          path: storagePath,
+          size: file.size,
+          type: file.type,
+        })
+
         const { error: uploadError } = await supabase.storage
-          .from('ticket-photos')
-          .upload(storagePath, file, { upsert: false, contentType: file.type || `image/${ext}` })
+          .from('tickets')
+          .upload(storagePath, file, {
+            upsert: false,
+            contentType: file.type || `image/${ext}`,
+            cacheControl: '3600',
+          })
 
         if (uploadError) {
-          console.error('Upload error:', uploadError.message)
+          // Supabase Storage errors carry .message and sometimes .statusCode
+          // / .error — log everything we have to ease diagnosis.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const e = uploadError as any
+          console.error('[upload] error:', {
+            message:    uploadError.message,
+            statusCode: e.statusCode ?? e.status ?? '?',
+            name:       e.name ?? '?',
+            error:      e.error ?? '?',
+          })
+          lastUploadError = uploadError.message
           continue
         }
 
@@ -75,9 +103,10 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
       }
 
       // Photos are optional — but if the user added some and they all failed
-      // to upload, surface the network error rather than silently dropping them.
+      // to upload, surface the actual Supabase error rather than a generic message.
       if (photos.length > 0 && uploadedPhotos.length === 0) {
-        setSubmitError("Échec de l'upload des photos. Vérifiez votre connexion et réessayez.")
+        const detail = lastUploadError ? ` (${lastUploadError})` : ''
+        setSubmitError(`Échec de l'upload des photos${detail}.`)
         setIsSubmitting(false)
         setProgress(null)
         return
