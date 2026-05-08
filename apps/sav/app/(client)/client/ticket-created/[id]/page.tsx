@@ -14,58 +14,37 @@ export default async function TicketCreatedPage({ params }: PageProps) {
     ? await getPartnerSchoolById(ticket.referent_school_id)
     : null
 
-  const isPostal = ticket.delivery_method === 'postal'
-  const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
+  const isPostal   = ticket.delivery_method === 'postal'
+  const ticketRef  = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
   const schoolName = school?.name ?? 'Votre école partenaire'
   const cityRegion = [school?.city, school?.region].filter(Boolean).join(' · ')
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 px-4 py-8">
+    <main className="mx-auto max-w-2xl space-y-5 px-4 py-8">
       {/* ── Hero / Confirmation ─────────────────────────────────── */}
       <section className="rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-700 to-brand-ink px-5 py-7 text-white shadow-soft">
         <p className="text-xs font-semibold uppercase tracking-wider text-emerald-200">
           ✓ Demande envoyée
         </p>
         <h1 className="mt-1 font-display text-2xl font-bold">
-          ✓ Votre école a été prévenue !
+          Votre école a été prévenue
         </h1>
-        <p className="mt-3 text-sm leading-relaxed text-white/85">
+
+        <p className="mt-3 text-sm leading-relaxed text-white/90">
           {isPostal ? (
             <>
-              <strong>{schoolName}</strong> attend votre aile. Pensez à l&apos;envoyer à&nbsp;:
+              <strong>{schoolName}</strong> a reçu votre demande SAV. Avant
+              d&apos;expédier votre aile, contactez-la (coordonnées ci-dessous)
+              pour confirmer l&apos;adresse et lui annoncer l&apos;envoi.
             </>
           ) : (
             <>
-              <strong>{schoolName}</strong> vous attend pour déposer votre aile.
+              <strong>{schoolName}</strong> a reçu votre demande SAV.{' '}
+              <strong className="text-white">Contactez-la pour convenir d&apos;un
+              rendez-vous</strong> avant de vous déplacer — l&apos;équipe n&apos;est
+              pas forcément sur place sans prévenir.
             </>
           )}
-        </p>
-
-        {isPostal && school?.address && (
-          <div className="mt-4 rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-200">
-              📍 Adresse d&apos;envoi
-            </p>
-            <p className="mt-2 whitespace-pre-line text-base font-semibold leading-snug">
-              {school.name}
-            </p>
-            <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-white/90">
-              {school.address}
-            </p>
-          </div>
-        )}
-        {isPostal && !school?.address && (
-          <div className="mt-4 rounded-2xl bg-amber-400/15 p-4 ring-1 ring-amber-200/40">
-            <p className="text-sm text-amber-50">
-              ⚠️ L&apos;adresse postale de l&apos;école n&apos;est pas encore enregistrée.
-              Contactez-la (coordonnées plus bas) pour la confirmer avant l&apos;envoi.
-            </p>
-          </div>
-        )}
-
-        <p className="mt-4 text-sm leading-relaxed text-white/85">
-          Une fois que l&apos;école aura récupéré votre aile, elle vous tiendra
-          informé de la suite des événements.
         </p>
 
         <p className="mt-4 font-mono text-[11px] text-white/60">
@@ -73,42 +52,75 @@ export default async function TicketCreatedPage({ params }: PageProps) {
         </p>
       </section>
 
-      {/* ── School identity card ────────────────────────────────── */}
-      {school && (
-        <section className="card flex items-start gap-4 p-5">
-          <span aria-hidden className="text-3xl">🏫</span>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-brand-ink">{school.name}</p>
-            {cityRegion && <p className="mt-0.5 text-xs text-slate-500">{cityRegion}</p>}
-
-            {/* Contact channels — only render the ones we actually have */}
-            <div className="mt-3 space-y-1.5 text-sm">
-              {school.phone && (
-                <a
-                  href={`tel:${school.phone.replace(/\s+/g, '')}`}
-                  className="flex items-center gap-2 text-brand-ink hover:text-brand-gold"
-                >
-                  <span aria-hidden>📞</span>
-                  <span>{school.phone}</span>
-                </a>
-              )}
-              {school.email && (
-                <a
-                  href={`mailto:${school.email}?subject=SAV%20${encodeURIComponent(ticketRef)}`}
-                  className="flex items-center gap-2 text-brand-ink hover:text-brand-gold"
-                >
-                  <span aria-hidden>✉️</span>
-                  <span className="break-all">{school.email}</span>
-                </a>
-              )}
-              {isPostal && school.address && (
-                <p className="flex items-start gap-2 text-slate-700">
-                  <span aria-hidden>📍</span>
-                  <span className="whitespace-pre-line">{school.address}</span>
-                </p>
+      {/* ── Coordonnées école — gros et au-dessus ───────────────── */}
+      {school && (school.phone || school.email) && (
+        <section className="card p-5">
+          <h2 className="section-title mb-3">Contacter votre école</h2>
+          <div className="flex items-start gap-3">
+            <span aria-hidden className="text-3xl">🏫</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-base font-semibold text-brand-ink">{school.name}</p>
+              {cityRegion && (
+                <p className="mt-0.5 text-xs text-slate-500">{cityRegion}</p>
               )}
             </div>
           </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {school.phone && (
+              <a
+                href={`tel:${school.phone.replace(/\s+/g, '')}`}
+                className="btn-primary justify-start gap-3 normal-case tracking-normal"
+              >
+                <span aria-hidden className="text-base">📞</span>
+                <span className="truncate text-sm font-semibold">{school.phone}</span>
+              </a>
+            )}
+            {school.email && (
+              <a
+                href={`mailto:${school.email}?subject=SAV%20${encodeURIComponent(ticketRef)}`}
+                className="btn-secondary justify-start gap-3 normal-case tracking-normal"
+              >
+                <span aria-hidden className="text-base">✉️</span>
+                <span className="truncate text-sm font-semibold">{school.email}</span>
+              </a>
+            )}
+          </div>
+        </section>
+      )}
+
+      {school && !school.phone && !school.email && (
+        <section className="card border-amber-300 bg-amber-50/60 p-4">
+          <p className="text-sm text-amber-800">
+            ⚠️ Les coordonnées de <strong>{school.name}</strong> ne sont pas encore
+            renseignées. L&apos;école vous contactera dès qu&apos;elle aura traité
+            votre demande.
+          </p>
+        </section>
+      )}
+
+      {/* ── Adresse postale (mode postal uniquement) ────────────── */}
+      {isPostal && school?.address && (
+        <section className="card p-5">
+          <h2 className="section-title mb-3">Adresse d&apos;envoi</h2>
+          <div className="flex items-start gap-3">
+            <span aria-hidden className="text-2xl">📍</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-brand-ink">{school.name}</p>
+              <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-700">
+                {school.address}
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+      {isPostal && school && !school.address && (
+        <section className="card border-amber-300 bg-amber-50/60 p-4">
+          <p className="text-sm text-amber-800">
+            ⚠️ L&apos;adresse postale de l&apos;école n&apos;est pas encore
+            enregistrée. Appelez-la ou écrivez-lui (coordonnées ci-dessus) pour la
+            confirmer avant d&apos;envoyer le colis.
+          </p>
         </section>
       )}
 
@@ -144,15 +156,6 @@ export default async function TicketCreatedPage({ params }: PageProps) {
                 Pensez à assurer le colis selon la valeur de votre aile.
               </span>
             </li>
-            {!school?.address && (
-              <li className="flex items-start gap-2 text-slate-600">
-                <span aria-hidden className="mt-0.5">⚠️</span>
-                <span>
-                  L&apos;adresse postale exacte de l&apos;école n&apos;est pas
-                  enregistrée — contactez-la avant l&apos;envoi pour la confirmer.
-                </span>
-              </li>
-            )}
           </ul>
         </section>
       )}
@@ -165,7 +168,8 @@ export default async function TicketCreatedPage({ params }: PageProps) {
             <li className="flex items-start gap-2">
               <span aria-hidden className="mt-0.5">📞</span>
               <span>
-                Contactez l&apos;école pour convenir d&apos;un créneau de dépôt.
+                Appelez ou écrivez à l&apos;école <strong>avant de vous déplacer</strong>{' '}
+                pour convenir d&apos;un créneau de dépôt.
               </span>
             </li>
             <li className="flex items-start gap-2">
@@ -185,24 +189,8 @@ export default async function TicketCreatedPage({ params }: PageProps) {
         </section>
       )}
 
-      {/* ── CTAs ────────────────────────────────────────────────── */}
+      {/* ── Navigation ─────────────────────────────────────────── */}
       <div className="flex flex-col gap-3 sm:flex-row">
-        {!isPostal && school?.email && (
-          <a
-            href={`mailto:${school.email}?subject=SAV%20${encodeURIComponent(ticketRef)}%20%E2%80%94%20prise%20de%20rendez-vous`}
-            className="btn-primary flex-1"
-          >
-            ✉️ Contacter l&apos;école
-          </a>
-        )}
-        {!isPostal && !school?.email && school?.phone && (
-          <a
-            href={`tel:${school.phone.replace(/\s+/g, '')}`}
-            className="btn-primary flex-1"
-          >
-            📞 Appeler l&apos;école
-          </a>
-        )}
         <Link
           href={`/client/ticket/${ticket.id}`}
           className="btn-secondary flex-1"
