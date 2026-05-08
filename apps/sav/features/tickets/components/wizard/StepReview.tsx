@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useWizardStore } from '../../store'
 import { createTicketAction } from '../../actions'
@@ -20,16 +20,22 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError]   = useState<string | null>(null)
   const [progress, setProgress]         = useState<{ done: number; total: number } | null>(null)
+  // Synchronous re-entry guard. setIsSubmitting(true) ne devient visible qu'au
+  // prochain render, donc deux clics rapides peuvent passer le `disabled` du
+  // bouton avant que React ne réagisse. Ce ref bloque le 2ème appel tout de suite.
+  const submitLockRef = useRef(false)
 
   const problemLabel  = PROBLEM_CATEGORIES.find((c) => c.value === problem.problemCategory)
   const isBehavior    = (problem.wingBehaviors?.length ?? 0) > 0
   const selectedSchool = schools.find((s) => s.id === problem.partnerSchoolId)
 
   async function handleSubmit() {
+    if (submitLockRef.current) return
     if (!problem.partnerSchoolId) {
       setSubmitError('École manquante. Revenez à l’étape précédente.')
       return
     }
+    submitLockRef.current = true
     setIsSubmitting(true)
     setSubmitError(null)
 
@@ -39,6 +45,7 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
       if (!user) {
         setSubmitError('Session expirée. Reconnectez-vous.')
         setIsSubmitting(false)
+        submitLockRef.current = false
         return
       }
 
@@ -64,12 +71,14 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
         const ext = /^[a-z0-9]+$/.test(rawExt) ? rawExt : 'jpg'
         const storagePath = `${user.id}/${Date.now()}-${i}.${ext}`
 
-        console.log('[upload] →', {
-          bucket: 'tickets',
-          path: storagePath,
-          size: file.size,
-          type: file.type,
-        })
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[upload] →', {
+            bucket: 'tickets',
+            path: storagePath,
+            size: file.size,
+            type: file.type,
+          })
+        }
 
         const { error: uploadError } = await supabase.storage
           .from('tickets')
@@ -108,6 +117,7 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
         const detail = lastUploadError ? ` (${lastUploadError})` : ''
         setSubmitError(`Échec de l'upload des photos${detail}.`)
         setIsSubmitting(false)
+        submitLockRef.current = false
         setProgress(null)
         return
       }
@@ -138,6 +148,7 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
         const errorMsg = Object.values(result.error).flat().join(' — ')
         setSubmitError(errorMsg || 'Erreur lors de la soumission.')
         setIsSubmitting(false)
+        submitLockRef.current = false
         setProgress(null)
         return
       }
@@ -155,6 +166,7 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
       console.error('Submit error:', err)
       setSubmitError('Une erreur inattendue est survenue. Réessayez.')
       setIsSubmitting(false)
+      submitLockRef.current = false
       setProgress(null)
     }
   }
@@ -174,11 +186,27 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
             disabled={isSubmitting || !problem.partnerSchoolId}
             className="btn-primary flex-[2]"
           >
-            {isSubmitting
-              ? 'Envoi…'
-              : selectedSchool
-                ? `Envoyer à ${selectedSchool.name}`
-                : 'Envoyer la demande'}
+            {isSubmitting ? (
+              <span className="inline-flex items-center justify-center gap-2">
+                <svg
+                  aria-hidden
+                  className="h-4 w-4 animate-spin"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                >
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.25" />
+                  <path
+                    d="M22 12a10 10 0 0 1-10 10"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span>Envoi…</span>
+              </span>
+            ) : selectedSchool
+              ? `Envoyer à ${selectedSchool.name}`
+              : 'Envoyer la demande'}
           </button>
         </>
       }

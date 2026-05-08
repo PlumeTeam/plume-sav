@@ -130,7 +130,9 @@ export async function getPartnerSchools(): Promise<PartnerSchool[]> {
     }
 
     const count = r.data?.length ?? 0
-    console.log(`[getPartnerSchools] attempt "${label}" returned ${count} row(s)`)
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[getPartnerSchools] attempt "${label}" returned ${count} row(s)`)
+    }
     if (count > 0) {
       rows = r.data as Row[]
       usedLabel = label
@@ -145,7 +147,9 @@ export async function getPartnerSchools(): Promise<PartnerSchool[]> {
     return FALLBACK_PARTNER_SCHOOLS.map(enrichWithCoords)
   }
 
-  console.log(`[getPartnerSchools] using DB rows (path="${usedLabel}", count=${rows.length})`)
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[getPartnerSchools] using DB rows (path="${usedLabel}", count=${rows.length})`)
+  }
   return rows.map(normaliseSchool).map(enrichWithCoords)
 }
 

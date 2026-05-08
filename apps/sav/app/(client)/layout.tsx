@@ -1,10 +1,19 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { logoutAction } from '@/features/auth/actions'
 import { PlumeLogo } from '@/app/_components/PlumeLogo'
 import { getCurrentUser, getCurrentUserRoles } from '@/features/auth/queries'
 
 export default async function ClientLayout({ children }: { children: React.ReactNode }) {
   const [user, roles] = await Promise.all([getCurrentUser(), getCurrentUserRoles()])
+
+  // Garde-fou rôle : un utilisateur école ou atelier ne doit pas pouvoir
+  // accéder à l'espace client en tapant l'URL. plume_admin garde l'accès
+  // (vue cross-rôle pour le support).
+  if (!roles.includes('client') && !roles.includes('plume_admin')) {
+    redirect('/select-dashboard')
+  }
+
   const multiRole = roles.length > 1 || roles.includes('plume_admin')
 
   return (

@@ -601,6 +601,16 @@ export async function applySchoolResolutionAction(formData: FormData) {
   if (!user) return { error: { _form: ['Non authentifié'] } }
 
   const { ticketId, resolution, note, workshopId, workshopLabel, isPlumeUrgent } = parsed.data
+
+  // Garde-fou : si l'école escalade ou demande un avis, le workshopId doit
+  // correspondre à un atelier connu de PARTNER_WORKSHOPS. Empêche un client
+  // qui forgerait une requête de pointer vers un atelier arbitraire.
+  if (resolution === 'escalated_to_workshop' || resolution === 'workshop_advice_requested') {
+    if (!workshopId || !PARTNER_WORKSHOPS.some((w) => w.id === workshopId)) {
+      return { error: { _form: ["Atelier inconnu — choisissez un atelier du réseau partenaire"] } }
+    }
+  }
+
   const newStatus = resolutionToRequestStatus(resolution)
   const newSavStatus = (() => {
     switch (resolution) {
@@ -1008,11 +1018,14 @@ export async function markWingReturnedAction(formData: FormData) {
   const ticketId = String(formData.get('ticketId') ?? '')
   if (!ticketId) return { error: { _form: ['Identifiant manquant'] } }
   const recipient = String(formData.get('recipient') ?? '')
+  // recipient est requis et doit être 'school' ou 'client' — refuse explicitement
+  // les valeurs forgées (anti-injection) plutôt que de fallback silencieusement.
+  if (recipient !== 'school' && recipient !== 'client') {
+    return { error: { _form: ['Destination invalide — choisissez école ou client'] } }
+  }
   const note = recipient === 'school'
     ? "Aile renvoyée à l'école partenaire"
-    : recipient === 'client'
-      ? 'Aile renvoyée directement au client'
-      : "Aile renvoyée"
+    : 'Aile renvoyée directement au client'
   return advanceTicketStep({
     ticketId,
     from:            ['workshop_done'],
@@ -1125,12 +1138,14 @@ function generatePlaceholderLabel(args: {
   const trackingNumber = `GLS-PLACEHOLDER-${legCode}-${short}-${stamp}`
   // URL clairement fake : facile à grepper le jour où on branche le vrai GLS.
   const labelUrl = `https://placeholder.gls.invalid/labels/${trackingNumber}.pdf`
-  console.warn('[generateSavShippingLabelAction] PLACEHOLDER GLS call', {
-    leg: args.leg,
-    from: args.from.rawLine,
-    to:   args.to.rawLine,
-    trackingNumber,
-  })
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn('[generateSavShippingLabelAction] PLACEHOLDER GLS call', {
+      leg: args.leg,
+      from: args.from.rawLine,
+      to:   args.to.rawLine,
+      trackingNumber,
+    })
+  }
   return { trackingNumber, labelUrl }
 }
 
@@ -1279,10 +1294,14 @@ export async function generateSavShippingLabelAction(formData: FormData): Promis
     }
 
     const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString()
+    // Restreindre aux types créés par le wizard SAV ('sav' pour comportements,
+    // 'repair' pour tear/line/riser — voir deriveServiceType). Les autres
+    // service_type (cours, info, révision) ne comptent pas dans le quota.
     const { count, error: countError } = await supabase
       .from('service_requests')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', user.id)
+      .in('service_type', ['sav', 'repair'])
       .gte('created_at', yearStart)
     if (countError) {
       console.warn('[generateSavShippingLabelAction] count failed:', countError.message)
@@ -1418,6 +1437,12 @@ export async function assignWorkshopForCommunicationAction(formData: FormData) {
   if (!user) return { error: { _form: ['Non authentifié'] } }
 
   const { ticketId, workshopId, workshopLabel } = parsed.data
+
+  // Garde-fou : workshopId doit être dans PARTNER_WORKSHOPS (anti-forge).
+  if (!PARTNER_WORKSHOPS.some((w) => w.id === workshopId)) {
+    return { error: { _form: ["Atelier inconnu — choisissez un atelier du réseau partenaire"] } }
+  }
+
   const now = new Date().toISOString()
 
   const { error } = await supabase

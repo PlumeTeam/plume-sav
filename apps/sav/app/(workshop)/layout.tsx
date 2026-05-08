@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { RoleHeader } from '@/app/_components/RoleHeader'
 import {
   getCurrentUser,
@@ -11,6 +12,13 @@ export default async function WorkshopLayout({ children }: { children: React.Rea
     getCurrentUserRoles(),
     getCurrentUserWorkshop(),
   ])
+
+  // Garde-fou rôle : seuls les rôles 'workshop' et 'plume_admin' accèdent
+  // à l'espace atelier.
+  if (!roles.includes('workshop') && !roles.includes('plume_admin')) {
+    redirect('/select-dashboard')
+  }
+
   const spaceLabel = workshop?.label ?? 'Espace Atelier'
 
   return (

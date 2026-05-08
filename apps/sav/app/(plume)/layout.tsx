@@ -1,8 +1,15 @@
+import { redirect } from 'next/navigation'
 import { RoleHeader } from '@/app/_components/RoleHeader'
 import { getCurrentUser, getCurrentUserRoles } from '@/features/auth/queries'
 
 export default async function PlumeLayout({ children }: { children: React.ReactNode }) {
   const [user, roles] = await Promise.all([getCurrentUser(), getCurrentUserRoles()])
+
+  // Garde-fou rôle : Plume HQ est strictement réservé aux plume_admin.
+  if (!roles.includes('plume_admin')) {
+    redirect('/select-dashboard')
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-white">
       <RoleHeader
