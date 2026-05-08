@@ -2,13 +2,14 @@
 
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { WizardWingInfo, WizardProblem, WizardPhoto } from './types'
+import type { WizardWingInfo, WizardWingHistory, WizardProblem, WizardPhoto } from './types'
 
 // Conversational flow — one question per screen.
 // The actual sequence shown is computed by buildWizardFlow() based on the
 // user's answers (e.g. 'behaviors' is skipped for visual problems).
 export type StepId =
   | 'wing'
+  | 'wing-history'
   | 'problem-category'
   | 'behaviors'
   | 'description'
@@ -20,18 +21,19 @@ export type StepId =
 
 export const STEP_LABELS: Record<StepId, string> = {
   'wing':             'Votre aile',
+  'wing-history':     "Historique de l'aile",
   'problem-category': 'Type de problème',
   'behaviors':        'Comportements',
   'description':      'Description',
   'urgency':          'Urgence',
   'photos':           'Photos',
   'school':           'École partenaire',
-  'delivery':         'Remise de l\'aile',
+  'delivery':         "Remise de l'aile",
   'review':           'Récapitulatif',
 }
 
 export function buildWizardFlow(problemCategory: string | undefined): StepId[] {
-  const flow: StepId[] = ['wing', 'problem-category']
+  const flow: StepId[] = ['wing', 'wing-history', 'problem-category']
   if (problemCategory === 'other') flow.push('behaviors')
   flow.push('description', 'urgency', 'photos', 'school', 'delivery', 'review')
   return flow
@@ -40,6 +42,7 @@ export function buildWizardFlow(problemCategory: string | undefined): StepId[] {
 interface WizardState {
   currentStepId: StepId
   wingInfo: WizardWingInfo
+  wingHistory: WizardWingHistory
   problem: WizardProblem
   photos: WizardPhoto[]
   // Files are NOT persisted — only previews (data URLs) survive a page refresh
@@ -49,6 +52,7 @@ interface WizardState {
 interface WizardActions {
   setStepId: (id: StepId) => void
   setWingInfo: (info: Partial<WizardWingInfo>) => void
+  setWingHistory: (history: Partial<WizardWingHistory>) => void
   setProblem: (problem: Partial<WizardProblem>) => void
   addPhoto: (photo: WizardPhoto, file: File) => void
   removePhoto: (index: number) => void
@@ -79,9 +83,12 @@ const defaultProblem: WizardProblem = {
   deliveryMethod: undefined,
 }
 
+const defaultWingHistory: WizardWingHistory = {}
+
 const defaultState: WizardState = {
   currentStepId: 'wing',
   wingInfo: defaultWingInfo,
+  wingHistory: defaultWingHistory,
   problem: defaultProblem,
   photos: [],
   _photoFiles: [],
@@ -96,6 +103,9 @@ export const useWizardStore = create<WizardState & WizardActions>()(
 
       setWingInfo: (info) =>
         set((s) => ({ wingInfo: { ...s.wingInfo, ...info } })),
+
+      setWingHistory: (history) =>
+        set((s) => ({ wingHistory: { ...s.wingHistory, ...history } })),
 
       setProblem: (problem) =>
         set((s) => ({ problem: { ...s.problem, ...problem } })),
@@ -138,6 +148,7 @@ export const useWizardStore = create<WizardState & WizardActions>()(
       partialize: (state) => ({
         currentStepId: state.currentStepId,
         wingInfo: state.wingInfo,
+        wingHistory: state.wingHistory,
         problem: state.problem,
         photos: state.photos,
       }),

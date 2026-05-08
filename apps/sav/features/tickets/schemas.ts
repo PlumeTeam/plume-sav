@@ -34,6 +34,18 @@ export const createTicketSchema = z.object({
   problemDescription: z.string().min(10).max(2000),
   urgency: z.enum(['normal', 'urgent']),
   wingBehaviors: z.array(z.string()).optional(),
+  // Optional history block — every field can be missing ("le client peut ne
+  // pas savoir"). Folded into description by the action.
+  wingHistory: z.object({
+    flightHours:        z.string().optional(),
+    flightCount:        z.string().optional(),
+    alreadyRepaired:    z.enum(['yes', 'no']).nullable().optional(),
+    repairDescription:  z.string().max(1000).optional(),
+    waterContact:       z.enum(['none', 'fresh', 'salt']).nullable().optional(),
+    surfaceContact:     z.enum(['none', 'sand', 'snow', 'other']).nullable().optional(),
+    surfaceContactNote: z.string().max(200).optional(),
+    generalCondition:   z.enum(['excellent', 'good', 'worn', 'bad']).nullable().optional(),
+  }).optional(),
   // Partner school the wizard sends the ticket to. Required for the new flow.
   schoolId: z.string().min(1, 'Choisissez une école pour traiter votre demande'),
   // Original referent school (linked to the wing's purchase). Captured so Plume HQ

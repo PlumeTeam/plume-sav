@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useWizardStore, buildWizardFlow, type StepId } from '../../store'
 import { WizardProgress } from './WizardProgress'
 import { StepWingInfo } from './StepWingInfo'
+import { StepWingHistory } from './StepWingHistory'
 import { StepProblemCategory } from './StepProblemCategory'
 import { StepBehaviors } from './StepBehaviors'
 import { StepDescription } from './StepDescription'
@@ -102,6 +103,7 @@ export function TicketWizard({ wings = [], schools = [] }: TicketWizardProps) {
         {/* `key` re-mounts each step so the slide-up animation triggers on every nav */}
         <div key={currentStepId}>
           {currentStepId === 'wing'             && <StepWingInfo wings={wings} onNext={next} />}
+          {currentStepId === 'wing-history'     && <StepWingHistory onNext={next} onBack={back} />}
           {currentStepId === 'problem-category' && <StepProblemCategory onNext={next} onBack={back} />}
           {currentStepId === 'behaviors'        && <StepBehaviors onNext={next} onBack={back} />}
           {currentStepId === 'description'      && <StepDescription onNext={next} onBack={back} />}

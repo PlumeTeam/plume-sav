@@ -34,6 +34,24 @@ export interface WizardWingInfo {
   flightHours: string
 }
 
+// Wing history step — every field is optional ("le client peut ne pas savoir").
+// Numeric inputs are stored as strings to keep the user's literal input until
+// we serialise into the ticket description.
+export type WaterContactKind   = 'none' | 'fresh' | 'salt'
+export type SurfaceContactKind = 'none' | 'sand' | 'snow' | 'other'
+export type WingCondition      = 'excellent' | 'good' | 'worn' | 'bad'
+
+export interface WizardWingHistory {
+  flightHours?:        string  // numeric input, kept as string while editing
+  flightCount?:        string
+  alreadyRepaired?:    'yes' | 'no' | null
+  repairDescription?:  string
+  waterContact?:       WaterContactKind | null
+  surfaceContact?:     SurfaceContactKind | null
+  surfaceContactNote?: string  // free text when surfaceContact === 'other'
+  generalCondition?:   WingCondition | null
+}
+
 export type SchoolChangeReasonCode =
   | 'school_closed'
   | 'moved_region'

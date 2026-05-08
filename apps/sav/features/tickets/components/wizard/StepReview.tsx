@@ -16,7 +16,7 @@ interface StepReviewProps {
 
 export function StepReview({ schools, onBack }: StepReviewProps) {
   const router = useRouter()
-  const { wingInfo, problem, photos, _photoFiles, reset } = useWizardStore()
+  const { wingInfo, wingHistory, problem, photos, _photoFiles, reset } = useWizardStore()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError]   = useState<string | null>(null)
   const [progress, setProgress]         = useState<{ done: number; total: number } | null>(null)
@@ -95,6 +95,7 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
         problemDescription:     problem.problemDescription,
         urgency:                problem.urgency,
         wingBehaviors:          problem.wingBehaviors,
+        wingHistory,
         schoolId:               problem.partnerSchoolId,
         referentSchoolId:       problem.referentSchoolId,
         schoolChangeReasonCode: problem.schoolChangeReasonCode,

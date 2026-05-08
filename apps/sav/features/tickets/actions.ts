@@ -81,6 +81,66 @@ const BEHAVIOR_LABELS_BY_ID: Record<string, string> = {
   other_behavior:  'Autre comportement inhabituel',
 }
 
+const WATER_CONTACT_LABELS: Record<string, string> = {
+  none:  'Non',
+  fresh: 'Eau douce',
+  salt:  'Eau salée',
+}
+
+const SURFACE_CONTACT_LABELS: Record<string, string> = {
+  none:  'Non',
+  sand:  'Sable / dunes',
+  snow:  'Neige',
+  other: 'Autre',
+}
+
+const CONDITION_LABELS: Record<string, string> = {
+  excellent: 'Excellent',
+  good:      'Bon',
+  worn:      'Usé',
+  bad:       'Mauvais',
+}
+
+type WingHistoryInput = {
+  flightHours?:        string
+  flightCount?:        string
+  alreadyRepaired?:    'yes' | 'no' | null
+  repairDescription?:  string
+  waterContact?:       'none' | 'fresh' | 'salt' | null
+  surfaceContact?:     'none' | 'sand' | 'snow' | 'other' | null
+  surfaceContactNote?: string
+  generalCondition?:   'excellent' | 'good' | 'worn' | 'bad' | null
+}
+
+function formatWingHistory(h: WingHistoryInput | undefined): string[] {
+  if (!h) return []
+  const lines: string[] = []
+  if (h.flightHours)     lines.push(`  • Heures de vol : ${h.flightHours} h`)
+  if (h.flightCount)     lines.push(`  • Nombre de vols : ${h.flightCount}`)
+  if (h.alreadyRepaired === 'yes') {
+    const repairLine = h.repairDescription
+      ? `  • Déjà réparée : oui — ${h.repairDescription}`
+      : `  • Déjà réparée : oui`
+    lines.push(repairLine)
+  } else if (h.alreadyRepaired === 'no') {
+    lines.push('  • Déjà réparée : non')
+  }
+  if (h.waterContact) {
+    lines.push(`  • Contact avec l'eau : ${WATER_CONTACT_LABELS[h.waterContact] ?? h.waterContact}`)
+  }
+  if (h.surfaceContact) {
+    const surface = SURFACE_CONTACT_LABELS[h.surfaceContact] ?? h.surfaceContact
+    const note = h.surfaceContact === 'other' && h.surfaceContactNote
+      ? ` (${h.surfaceContactNote})`
+      : ''
+    lines.push(`  • Sable/neige/dunes : ${surface}${note}`)
+  }
+  if (h.generalCondition) {
+    lines.push(`  • État général : ${CONDITION_LABELS[h.generalCondition] ?? h.generalCondition}`)
+  }
+  return lines
+}
+
 // The DB only has a single `description` TEXT column for narrative — no dedicated
 // problem_category, wing_size, wing_color, flight_hours, etc. We fold all the
 // wizard metadata into a structured prefix the school can read, then append the
@@ -95,6 +155,7 @@ function buildRichDescription(input: {
   wingColor?:      string
   flightHours?:    number | null
   wingBehaviors?:  string[]
+  wingHistory?:    WingHistoryInput
 }): string {
   const lines: string[] = []
   lines.push(`[Catégorie] ${PROBLEM_CATEGORY_LABELS[input.problemCategory] ?? input.problemCategory}`)
@@ -113,6 +174,12 @@ function buildRichDescription(input: {
       .map((id) => BEHAVIOR_LABELS_BY_ID[id] ?? id)
       .join(', ')
     lines.push(`[Comportements] ${labels}`)
+  }
+
+  const historyLines = formatWingHistory(input.wingHistory)
+  if (historyLines.length > 0) {
+    lines.push('[Historique aile]')
+    lines.push(...historyLines)
   }
 
   return `${lines.join('\n')}\n\n---\n\n${input.freeText}`
@@ -135,7 +202,7 @@ export async function createTicketAction(input: unknown) {
     purchaseDate, flightHours, problemCategory, problemDescription,
     urgency, photoPaths, schoolId, referentSchoolId: _ignoredReferentId,
     schoolChangeReasonCode, schoolChangeReasonNote, deliveryMethod,
-    wingBehaviors,
+    wingBehaviors, wingHistory,
   } = parsed.data
 
   const serviceType = deriveServiceType(problemCategory)
@@ -147,8 +214,8 @@ export async function createTicketAction(input: unknown) {
   const persistedSchoolId = schoolId.startsWith('plume-default-') ? null : schoolId
 
   // Build the rich description that folds all wizard metadata (category,
-  // urgency, wing size/colour, flight hours, behaviors) into the single
-  // narrative column the DB actually has.
+  // urgency, wing size/colour, flight hours, behaviors, wing history) into
+  // the single narrative column the DB actually has.
   const richDescription = buildRichDescription({
     problemCategory,
     urgency,
@@ -159,6 +226,7 @@ export async function createTicketAction(input: unknown) {
     wingColor,
     flightHours: flightHours ?? null,
     wingBehaviors,
+    wingHistory,
   })
 
   // Insert payload — restricted to columns that actually exist in
