@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useWizardStore } from '../../store'
 import { createTicketAction } from '../../actions'
-import { PROBLEM_CATEGORIES } from '../../types'
+import { PROBLEM_CATEGORIES, type WizardWingHistory } from '../../types'
 import { createClient } from '@/lib/supabase/client'
 import type { PartnerSchool } from '../../queries'
 import { StepLayout } from './StepLayout'
@@ -162,6 +162,10 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
           {wingInfo.flightHours && <Row label="Heures de vol" value={`${wingInfo.flightHours} h`} />}
         </Section>
 
+        <Section title="Historique de l'aile">
+          <WingHistoryRecap history={wingHistory} />
+        </Section>
+
         <Section title="Problème">
           <Row label="Catégorie" value={problemLabel ? `${problemLabel.emoji} ${problemLabel.label}` : (isBehavior ? '🪂 Comportement' : '—')} />
           <div>
@@ -266,5 +270,63 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
       <p className="flex-shrink-0 text-xs text-slate-500">{label}</p>
       <p className={`text-right text-sm text-brand-ink ${mono ? 'font-mono' : ''}`}>{value || '—'}</p>
     </div>
+  )
+}
+
+// Display labels for the wing-history enums. Kept in sync with the
+// French strings used in StepWingHistory's option lists and with the
+// server-side serialisation in actions.ts (formatWingHistory).
+const WATER_LABELS:   Record<string, string> = { none: 'Non', fresh: 'Eau douce', salt: 'Eau salée' }
+const SURFACE_LABELS: Record<string, string> = { none: 'Non', sand: 'Sable / dunes', snow: 'Neige', other: 'Autre' }
+const CONDITION_LABELS: Record<string, string> = {
+  excellent: 'Excellent', good: 'Bon', worn: 'Usé', bad: 'Mauvais',
+}
+
+function WingHistoryRecap({
+  history,
+}: {
+  history: WizardWingHistory
+}) {
+  const rows: Array<{ label: string; value: string }> = []
+
+  if (history.flightHours)
+    rows.push({ label: 'Heures de vol',  value: `${history.flightHours} h` })
+  if (history.flightCount)
+    rows.push({ label: 'Nombre de vols', value: history.flightCount })
+
+  if (history.alreadyRepaired === 'yes') {
+    const detail = history.repairDescription?.trim()
+    rows.push({ label: 'Déjà réparée', value: detail ? `Oui — ${detail}` : 'Oui' })
+  } else if (history.alreadyRepaired === 'no') {
+    rows.push({ label: 'Déjà réparée', value: 'Non' })
+  }
+
+  if (history.waterContact)
+    rows.push({ label: 'Contact eau', value: WATER_LABELS[history.waterContact] ?? history.waterContact })
+
+  if (history.treeContact === 'yes')      rows.push({ label: 'Arbrissage',  value: 'Oui' })
+  else if (history.treeContact === 'no')  rows.push({ label: 'Arbrissage',  value: 'Non' })
+
+  if (history.surfaceContact) {
+    const base = SURFACE_LABELS[history.surfaceContact] ?? history.surfaceContact
+    const note = history.surfaceContact === 'other' && history.surfaceContactNote?.trim()
+      ? ` (${history.surfaceContactNote.trim()})`
+      : ''
+    rows.push({ label: 'Sable / neige', value: `${base}${note}` })
+  }
+
+  if (history.generalCondition)
+    rows.push({ label: 'État général', value: CONDITION_LABELS[history.generalCondition] ?? history.generalCondition })
+
+  if (rows.length === 0) {
+    return <p className="text-sm text-slate-500">Aucune information renseignée.</p>
+  }
+
+  return (
+    <>
+      {rows.map((r) => (
+        <Row key={r.label} label={r.label} value={r.value} />
+      ))}
+    </>
   )
 }
