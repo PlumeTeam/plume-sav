@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { formatDate } from '@/features/tickets/utils'
 import type { TicketWithPhotos, RequestStatus } from '@/features/tickets/types'
+import type { PartnerSchool } from '@/features/tickets/queries'
+import { AdminTicketActions } from './AdminTicketActions'
 
 type StatusFilter = 'all' | 'pending' | 'processing' | 'approved' | 'completed' | 'rejected'
 
@@ -17,53 +19,127 @@ const FILTER_LABELS: Record<StatusFilter, string> = {
   rejected:   'Rejetés',
 }
 
+const PAGE_SIZE = 20
+
 interface AdminTicketTableProps {
   tickets: TicketWithPhotos[]
+  /** Liste des écoles partenaires — utilisée par le filtre + l'action de réassignation. */
+  schools: PartnerSchool[]
 }
 
-export function AdminTicketTable({ tickets }: AdminTicketTableProps) {
-  const [filter, setFilter] = useState<StatusFilter>('all')
-  const [search, setSearch] = useState('')
+export function AdminTicketTable({ tickets, schools }: AdminTicketTableProps) {
+  const [filter, setFilter]       = useState<StatusFilter>('all')
+  const [search, setSearch]       = useState('')
+  const [schoolFilter, setSchoolFilter]     = useState<string>('all')
+  const [workshopFilter, setWorkshopFilter] = useState<string>('all')
+  const [page, setPage]           = useState(0)
+  const [actionsOpenFor, setActionsOpenFor] = useState<string | null>(null)
+
+  // Map id → label pour affichage (école)
+  const schoolLabelById = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const s of schools) m.set(s.id, s.name)
+    return m
+  }, [schools])
+
+  // Écoles présentes dans les tickets — réduit la dropdown aux choix utiles.
+  const schoolOptions = useMemo(() => {
+    const ids = new Set<string>()
+    for (const t of tickets) {
+      if (t.school_id) ids.add(t.school_id)
+    }
+    return Array.from(ids)
+      .map((id) => ({ id, label: schoolLabelById.get(id) ?? id }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [tickets, schoolLabelById])
+
+  // Ateliers présents dans les tickets (assigned_workshop_*).
+  const workshopOptions = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const t of tickets) {
+      if (t.assigned_workshop_id) {
+        map.set(t.assigned_workshop_id, t.assigned_workshop_label ?? t.assigned_workshop_id)
+      }
+    }
+    return Array.from(map.entries())
+      .map(([id, label]) => ({ id, label }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [tickets])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return tickets
-      .filter((t) => {
-        if (filter === 'all') return true
-        return (t.status as RequestStatus) === filter
-      })
-      .filter((t) => {
-        if (!q) return true
-        return (
-          t.id.toLowerCase().includes(q) ||
-          t.product_brand?.toLowerCase().includes(q) ||
-          t.product_model?.toLowerCase().includes(q) ||
-          t.serial_number?.toLowerCase().includes(q) ||
-          t.ticket_number?.toLowerCase().includes(q)
-        )
-      })
-      .slice(0, 50)
-  }, [tickets, filter, search])
+    return tickets.filter((t) => {
+      if (filter !== 'all' && (t.status as RequestStatus) !== filter) return false
+      if (schoolFilter !== 'all' && t.school_id !== schoolFilter) return false
+      if (workshopFilter !== 'all' && t.assigned_workshop_id !== workshopFilter) return false
+      if (!q) return true
+      return (
+        t.id.toLowerCase().includes(q) ||
+        t.product_brand?.toLowerCase().includes(q) ||
+        t.product_model?.toLowerCase().includes(q) ||
+        t.serial_number?.toLowerCase().includes(q) ||
+        t.ticket_number?.toLowerCase().includes(q) ||
+        t.first_name?.toLowerCase().includes(q) ||
+        t.last_name?.toLowerCase().includes(q)
+      )
+    })
+  }, [tickets, filter, search, schoolFilter, workshopFilter])
+
+  // Reset page si les filtres changent et la page dépasse
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage   = Math.min(page, totalPages - 1)
+  const pageStart  = safePage * PAGE_SIZE
+  const visible    = filtered.slice(pageStart, pageStart + PAGE_SIZE)
+
+  function resetAndSet<T>(setter: (v: T) => void, v: T) {
+    setter(v)
+    setPage(0)
+  }
 
   return (
     <div className="space-y-3">
+      {/* Search + filtres dropdown */}
       <div className="flex flex-wrap items-center gap-2">
         <input
           type="search"
-          placeholder="Rechercher par n°, marque, modèle, série…"
+          placeholder="Rechercher par n°, marque, modèle, série, client…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => resetAndSet(setSearch, e.target.value)}
           className="field-input flex-1 min-w-[200px]"
           aria-label="Rechercher un ticket"
         />
+        <select
+          value={schoolFilter}
+          onChange={(e) => resetAndSet(setSchoolFilter, e.target.value)}
+          className="field-input w-auto min-w-[160px]"
+          aria-label="Filtre école"
+        >
+          <option value="all">Toutes les écoles</option>
+          {schoolOptions.map((s) => (
+            <option key={s.id} value={s.id}>{s.label}</option>
+          ))}
+        </select>
+        <select
+          value={workshopFilter}
+          onChange={(e) => resetAndSet(setWorkshopFilter, e.target.value)}
+          className="field-input w-auto min-w-[160px]"
+          aria-label="Filtre atelier"
+        >
+          <option value="all">Tous les ateliers</option>
+          {workshopOptions.map((w) => (
+            <option key={w.id} value={w.id}>{w.label}</option>
+          ))}
+        </select>
       </div>
+
+      {/* Status tabs */}
       <div className="flex gap-1 overflow-x-auto no-scrollbar" role="tablist">
         {(Object.keys(FILTER_LABELS) as StatusFilter[]).map((f) => (
           <button
             key={f}
             role="tab"
             aria-selected={filter === f}
-            onClick={() => setFilter(f)}
+            onClick={() => resetAndSet(setFilter, f)}
             className={`flex-shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
               filter === f
                 ? 'bg-brand-navy text-white'
@@ -88,18 +164,23 @@ export function AdminTicketTable({ tickets }: AdminTicketTableProps) {
                 <tr className="text-left">
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">N°</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Aile</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">École</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Atelier</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Statut</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Urgence</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Date</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-brand-stone/50">
-                {filtered.map((ticket) => {
+                {visible.map((ticket) => {
                   const ref  = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
-                  // Send the admin to the role-relevant detail view
                   const href = ticket.status === 'pending' || ticket.status === 'processing'
                     ? `/school/ticket/${ticket.id}`
                     : `/workshop/ticket/${ticket.id}`
+                  const schoolName = ticket.school_id
+                    ? schoolLabelById.get(ticket.school_id) ?? ticket.school_id
+                    : '—'
                   return (
                     <tr key={ticket.id} className="transition-colors hover:bg-brand-cream/40">
                       <td className="px-4 py-3">
@@ -109,6 +190,12 @@ export function AdminTicketTable({ tickets }: AdminTicketTableProps) {
                       </td>
                       <td className="px-4 py-3 text-slate-700">
                         {ticket.product_brand} {ticket.product_model}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-600">
+                        {schoolName}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-600">
+                        {ticket.assigned_workshop_label ?? '—'}
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge status={ticket.status} size="sm" />
@@ -123,19 +210,68 @@ export function AdminTicketTable({ tickets }: AdminTicketTableProps) {
                       <td className="px-4 py-3 text-xs text-slate-400">
                         {formatDate(ticket.created_at)}
                       </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => setActionsOpenFor(ticket.id)}
+                          className="rounded-full px-2 py-1 text-xs font-medium text-brand-navy hover:bg-brand-cream"
+                          aria-label={`Actions admin pour ${ref}`}
+                        >
+                          ⋯
+                        </button>
+                      </td>
                     </tr>
                   )
                 })}
               </tbody>
             </table>
           </div>
-          {tickets.length > filtered.length && (
-            <div className="border-t border-brand-stone/50 bg-brand-cream/40 px-4 py-2 text-center text-xs text-slate-400">
-              {filtered.length} ticket{filtered.length > 1 ? 's' : ''} affiché{filtered.length > 1 ? 's' : ''} sur {tickets.length}
+
+          {/* Pagination */}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-brand-stone/50 bg-brand-cream/40 px-4 py-2 text-xs text-slate-500">
+            <span>
+              {filtered.length === 0
+                ? '0 résultat'
+                : `${pageStart + 1}–${Math.min(pageStart + PAGE_SIZE, filtered.length)} sur ${filtered.length}`}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setPage(Math.max(0, safePage - 1))}
+                disabled={safePage === 0}
+                className="rounded-full px-3 py-1 font-medium text-brand-ink disabled:cursor-not-allowed disabled:opacity-40 hover:bg-white"
+              >
+                ← Précédent
+              </button>
+              <span className="px-2 text-slate-400">
+                Page {safePage + 1}/{totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage(Math.min(totalPages - 1, safePage + 1))}
+                disabled={safePage >= totalPages - 1}
+                className="rounded-full px-3 py-1 font-medium text-brand-ink disabled:cursor-not-allowed disabled:opacity-40 hover:bg-white"
+              >
+                Suivant →
+              </button>
             </div>
-          )}
+          </div>
         </div>
       )}
+
+      {/* Actions modal */}
+      {actionsOpenFor && (() => {
+        const target = tickets.find((t) => t.id === actionsOpenFor)
+        if (!target) return null
+        return (
+          <AdminTicketActions
+            ticket={target}
+            schools={schools}
+            currentSchoolLabel={target.school_id ? schoolLabelById.get(target.school_id) ?? null : null}
+            onClose={() => setActionsOpenFor(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

@@ -1,13 +1,92 @@
 import Link from 'next/link'
-import { getAllTickets, getTicketStats } from '@/features/tickets/queries'
+import { getAllTickets, getPartnerSchools, getTicketStats } from '@/features/tickets/queries'
 import { STATUS_CONFIG } from '@/features/tickets/types'
-import type { RequestStatus } from '@/features/tickets/types'
+import type { RequestStatus, TicketWithPhotos } from '@/features/tickets/types'
 import { AdminTicketTable } from './AdminTicketTable'
 
 export const dynamic = 'force-dynamic'
 
+const DAY_MS = 86_400_000
+
+// KPI groups alignés sur le pipeline d'étapes (migration 20260509000000).
+// On inclut les statuts hérités (processing/approved) dans leurs colonnes
+// logiques pour rester compatible avec les tickets antérieurs.
+const KPI_GROUPS: Array<{ key: string; label: string; statuses: RequestStatus[]; tone: string }> = [
+  {
+    key:   'school_pending',
+    label: 'En attente école',
+    statuses: ['pending', 'school_acknowledged', 'wing_received_school', 'school_checking'],
+    tone:  'bg-amber-50 text-amber-800 ring-amber-200',
+  },
+  {
+    key:   'school_in_progress',
+    label: 'En cours école',
+    statuses: ['processing', 'approved'],
+    tone:  'bg-sky-50 text-sky-800 ring-sky-200',
+  },
+  {
+    key:   'workshop',
+    label: "Chez l'atelier",
+    statuses: [
+      'escalated_to_workshop',
+      'wing_received_workshop',
+      'workshop_diagnosing',
+      'workshop_repairing',
+      'workshop_done',
+    ],
+    tone:  'bg-violet-50 text-violet-800 ring-violet-200',
+  },
+  {
+    key:   'done',
+    label: 'Terminés',
+    statuses: ['completed', 'school_resolved', 'wing_returned'],
+    tone:  'bg-emerald-50 text-emerald-800 ring-emerald-200',
+  },
+]
+
+const ACTIVE_STATUSES = new Set<RequestStatus>(
+  KPI_GROUPS.filter((g) => g.key !== 'done')
+    .flatMap((g) => g.statuses)
+)
+
+function daysSince(iso: string | null | undefined): number {
+  if (!iso) return 0
+  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / DAY_MS))
+}
+
+interface StagnantTicket {
+  ticket: TicketWithPhotos
+  reason: 'pending_too_long' | 'wing_not_arrived'
+  days:   number
+}
+
+// Tickets stagnants — défaut grave de SLA :
+//  - pending depuis > 5 jours : l'école n'a même pas accusé réception
+//  - school_acknowledged depuis > 7 jours : l'aile n'est pas arrivée
+function findStagnantTickets(tickets: TicketWithPhotos[]): StagnantTicket[] {
+  const out: StagnantTicket[] = []
+  for (const t of tickets) {
+    if (t.status === 'pending') {
+      const days = daysSince(t.created_at)
+      if (days > 5) {
+        out.push({ ticket: t, reason: 'pending_too_long', days })
+      }
+    } else if (t.status === 'school_acknowledged') {
+      const days = daysSince(t.school_acknowledged_at ?? t.created_at)
+      if (days > 7) {
+        out.push({ ticket: t, reason: 'wing_not_arrived', days })
+      }
+    }
+  }
+  return out.sort((a, b) => b.days - a.days)
+}
+
 export default async function PlumeDashboardPage() {
-  const [tickets, stats] = await Promise.all([getAllTickets(), getTicketStats()])
+  const [tickets, stats, schools] = await Promise.all([
+    getAllTickets(),
+    getTicketStats(),
+    getPartnerSchools(),
+  ])
 
   // Tickets explicitly escalated to Plume HQ (cas exceptionnels) — show on top.
   const escalatedToPlume = tickets.filter(
@@ -15,18 +94,21 @@ export default async function PlumeDashboardPage() {
   )
 
   // Tickets flagged "défaut grave" by the school — sécurité, alerte HQ.
-  // These appear in workshop's queue too; HQ is alerted in parallel.
   const plumeUrgent = tickets.filter(
     (t) => t.is_plume_urgent && t.status !== 'completed' && t.status !== 'cancelled'
   )
 
-  const KPI_STATUS_GROUPS: Array<{ label: string; statuses: RequestStatus[]; tone: string }> = [
-    { label: 'À traiter',   statuses: ['pending'],                tone: 'bg-amber-50 text-amber-800 ring-amber-200' },
-    { label: 'En cours',    statuses: ['processing'],             tone: 'bg-sky-50 text-sky-800 ring-sky-200' },
-    { label: 'Approuvés',   statuses: ['approved'],               tone: 'bg-violet-50 text-violet-800 ring-violet-200' },
-    { label: 'Terminés',    statuses: ['completed'],              tone: 'bg-emerald-50 text-emerald-800 ring-emerald-200' },
-    { label: 'Autres',      statuses: ['rejected', 'cancelled'],  tone: 'bg-slate-50 text-slate-700 ring-slate-200' },
-  ]
+  // KPIs alignés (T4) — comptés une seule fois sur la liste complète.
+  const groupCounts: Record<string, number> = {}
+  for (const g of KPI_GROUPS) {
+    groupCounts[g.key] = tickets.filter((t) => g.statuses.includes(t.status)).length
+  }
+  const urgentActive = tickets.filter(
+    (t) => t.urgency_level === 2 && ACTIVE_STATUSES.has(t.status)
+  ).length
+
+  // Stagnant tickets (T3)
+  const stagnant = findStagnantTickets(tickets)
 
   return (
     <main className="mx-auto max-w-6xl space-y-8 px-4 py-8">
@@ -120,37 +202,87 @@ export default async function PlumeDashboardPage() {
         </section>
       )}
 
-      {/* KPI cards */}
+      {/* Tickets stagnants (T3) */}
+      {stagnant.length > 0 && (
+        <section className="rounded-3xl border border-orange-300 bg-orange-50 p-5">
+          <div className="flex items-start gap-3">
+            <span aria-hidden className="text-2xl">⏰</span>
+            <div className="flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-orange-700">SLA dépassé</p>
+              <h2 className="mt-0.5 font-display text-lg font-bold text-brand-ink">
+                {stagnant.length} ticket{stagnant.length > 1 ? 's' : ''} stagnant{stagnant.length > 1 ? 's' : ''}
+              </h2>
+              <p className="mt-1 text-xs text-brand-ink/70">
+                Tickets qui n&apos;ont pas avancé dans les délais attendus — pensez à relancer l&apos;école.
+              </p>
+              <ul className="mt-3 space-y-1.5">
+                {stagnant.slice(0, 8).map(({ ticket, reason, days }) => {
+                  const ref = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
+                  const overdueLevel = days >= 14 ? 'red' : 'orange'
+                  const reasonLabel = reason === 'pending_too_long'
+                    ? "École n'a pas accusé réception"
+                    : "Aile pas reçue"
+                  return (
+                    <li key={ticket.id}>
+                      <Link
+                        href={`/school/ticket/${ticket.id}`}
+                        className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 text-sm transition-colors hover:bg-orange-100/40"
+                      >
+                        <span className="truncate font-medium text-brand-ink">
+                          <span className="font-mono text-xs text-slate-500">{ref}</span>{' '}
+                          — {ticket.product_brand} {ticket.product_model}
+                          <span className="ml-2 text-xs font-normal text-slate-500">· {reasonLabel}</span>
+                        </span>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
+                          overdueLevel === 'red'
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-orange-100 text-orange-800'
+                        }`}>
+                          {days} j de retard
+                        </span>
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+              {stagnant.length > 8 && (
+                <p className="mt-2 text-xs text-orange-800/70">
+                  + {stagnant.length - 8} autre{stagnant.length - 8 > 1 ? 's' : ''} ticket{stagnant.length - 8 > 1 ? 's' : ''} stagnant{stagnant.length - 8 > 1 ? 's' : ''}.
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* KPI cards — top-level overview */}
       <section>
         <h2 className="section-title mb-3">Vue d&apos;ensemble</h2>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <KpiCard label="Total tickets" value={stats.total} variant="navy" />
           <KpiCard label="Ce mois-ci"    value={stats.thisMonth} variant="cream" />
-          <KpiCard label="Urgents"       value={stats.urgent}    variant="coral" />
-          <KpiCard label="En cours"      value={stats.byStatus.processing ?? 0} variant="sky" />
+          <KpiCard label="Urgents (en cours)" value={urgentActive} variant="coral" />
+          <KpiCard label="Stagnants" value={stagnant.length} variant="sky" />
         </div>
       </section>
 
-      {/* Status breakdown */}
+      {/* Pipeline groups (T4) */}
       <section>
-        <h2 className="section-title mb-3">Par statut</h2>
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-          {KPI_STATUS_GROUPS.map(({ label, statuses, tone }) => {
-            const count = statuses.reduce((acc, s) => acc + (stats.byStatus[s] ?? 0), 0)
-            return (
-              <div key={label} className={`rounded-2xl px-4 py-3 ring-1 ${tone}`}>
-                <p className="text-2xl font-bold">{count}</p>
-                <p className="text-xs font-medium opacity-80">{label}</p>
-              </div>
-            )
-          })}
+        <h2 className="section-title mb-3">Par étape du pipeline</h2>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          {KPI_GROUPS.map((g) => (
+            <div key={g.key} className={`rounded-2xl px-4 py-3 ring-1 ${g.tone}`}>
+              <p className="text-2xl font-bold">{groupCounts[g.key] ?? 0}</p>
+              <p className="text-xs font-medium opacity-80">{g.label}</p>
+            </div>
+          ))}
         </div>
       </section>
 
-      {/* Tickets table with filter + search */}
+      {/* Tickets table */}
       <section>
         <h2 className="section-title mb-3">Tickets</h2>
-        <AdminTicketTable tickets={tickets} />
+        <AdminTicketTable tickets={tickets} schools={schools} />
       </section>
 
       {/* By-status detail */}

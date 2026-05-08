@@ -26,7 +26,9 @@ export function WorkshopActionBar({
   const [showMessage,   setShowMessage]   = useState(false)
   const [showDiagnosis, setShowDiagnosis] = useState(false)
   const [messageContent, setMessageContent] = useState('')
-  const [isInternal, setIsInternal] = useState(true)
+  // Default = false : la majorité des messages atelier vont au client/école.
+  // Les notes purement internes restent un opt-in via la checkbox.
+  const [isInternal, setIsInternal] = useState(false)
   const [notes, setNotes] = useState(diagnosisNotes ?? '')
   const [cost,  setCost]  = useState(estimatedCost?.toString() ?? '')
   const [hours, setHours] = useState(estimatedHours?.toString() ?? '')

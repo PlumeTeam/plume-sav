@@ -204,6 +204,32 @@ export const generateShippingLabelSchema = z.object({
   }
 })
 
+// ============================================================
+// Actions admin Plume HQ (T2)
+// ============================================================
+
+// Réassignation d'un ticket à une autre école — ne change PAS le statut,
+// juste l'aiguillage. Plume conserve `referent_school_id` à jour pour la
+// traçabilité et `school_id` devient l'école qui traite désormais.
+export const adminReassignSchoolSchema = z.object({
+  ticketId: z.string().uuid(),
+  schoolId: z.string().min(1, 'École requise'),
+  // Note libre obligatoire : pourquoi cette réassignation ?
+  reason:   z.string().trim().min(3, 'Motif requis (3 caractères min)').max(2000),
+})
+
+// Fermeture manuelle d'un ticket par l'admin — note obligatoire pour la
+// traçabilité. Statut → completed.
+export const adminCloseTicketSchema = z.object({
+  ticketId: z.string().uuid(),
+  note:     z.string().trim().min(3, 'Note obligatoire (3 caractères min)').max(2000),
+})
+
+// Relance email d'une école qui n'a pas pris en charge son ticket.
+export const adminRemindSchoolSchema = z.object({
+  ticketId: z.string().uuid(),
+})
+
 export const diagnosisSchema = z.object({
   ticketId: z.string().uuid(),
   diagnosisNotes: z.string().max(5000).optional(),

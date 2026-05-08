@@ -14,6 +14,11 @@ import { WorkshopActionBar } from './WorkshopActionBar'
 import { WorkshopStepPanel } from './WorkshopStepPanel'
 import type { WorkshopReturnDestination } from '@/features/tickets/types'
 
+// Lien public de suivi GLS — accepte tout numéro de tracking en query param.
+function buildGlsTrackingUrl(tracking: string): string {
+  return `https://gls-group.com/track/${encodeURIComponent(tracking)}`
+}
+
 interface PageProps { params: { id: string } }
 
 export const dynamic = 'force-dynamic'
@@ -91,7 +96,45 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
           </section>
         )}
 
-        {/* Checklist technique atelier */}
+        {/* Expédition entrante école → atelier (P3) */}
+        {(ticket.school_workshop_tracking || ticket.escalated_to_workshop_at) && (
+          <section className="card p-5">
+            <h2 className="section-title mb-3">Expédition depuis l&apos;école</h2>
+            <div className="space-y-2 text-sm">
+              {ticket.escalated_to_workshop_at && (
+                <p className="text-brand-ink">
+                  <span className="text-xs text-slate-500">Escaladée le </span>
+                  {formatDate(ticket.escalated_to_workshop_at)}
+                </p>
+              )}
+              {ticket.school_workshop_tracking ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-slate-500">Tracking GLS :</span>
+                  <span className="font-mono text-xs text-brand-ink">{ticket.school_workshop_tracking}</span>
+                  <a
+                    href={buildGlsTrackingUrl(ticket.school_workshop_tracking)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-medium text-brand-gold hover:underline"
+                  >
+                    Suivre →
+                  </a>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500">
+                  L&apos;école n&apos;a pas encore généré de bon de transport pour ce ticket.
+                </p>
+              )}
+              {ticket.wing_received_workshop_at && (
+                <p className="text-xs text-emerald-700">
+                  ✓ Aile réceptionnée le {formatDate(ticket.wing_received_workshop_at)}
+                </p>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Checklist technique atelier — les notes vivent dans WorkshopActionBar (P2) */}
         <section className="card p-5">
           <h2 className="section-title mb-3">Checklist diagnostic technique</h2>
           <DiagnosisChecklist
@@ -101,8 +144,7 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
             initialNotes={initialNotes}
             saveAction={saveWorkshopChecklistAction}
             variant="navy"
-            notesLabel="Notes diagnostic"
-            notesPlaceholder="Mesures, interventions effectuées, pièces remplacées, anomalies constatées…"
+            hideNotes
           />
         </section>
 

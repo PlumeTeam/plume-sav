@@ -16,6 +16,8 @@ interface DiagnosisChecklistProps {
   notesPlaceholder?: string
   notesLabel?:       string
   title?:            string
+  /** Hide the inline notes textarea (notes saisies ailleurs, ex. WorkshopActionBar). */
+  hideNotes?:        boolean
 }
 
 export function DiagnosisChecklist({
@@ -28,6 +30,7 @@ export function DiagnosisChecklist({
   notesPlaceholder = 'Notes complémentaires (optionnel)…',
   notesLabel       = 'Notes',
   title,
+  hideNotes = false,
 }: DiagnosisChecklistProps) {
   const [isPending, startTransition] = useTransition()
   const [checked, setChecked] = useState<string[]>(initialChecked)
@@ -99,17 +102,19 @@ export function DiagnosisChecklist({
         })}
       </ul>
 
-      <div>
-        <label className="mb-1 block text-xs font-medium text-slate-600">{notesLabel}</label>
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          rows={3}
-          className="field-input resize-none"
-          placeholder={notesPlaceholder}
-          maxLength={5000}
-        />
-      </div>
+      {!hideNotes && (
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-600">{notesLabel}</label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            className="field-input resize-none"
+            placeholder={notesPlaceholder}
+            maxLength={5000}
+          />
+        </div>
+      )}
 
       {feedback && (
         <p className={`rounded-xl px-3 py-2 text-sm ${

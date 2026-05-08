@@ -16,6 +16,10 @@ type KanbanColumn = {
 // Colonnes Kanban — chaque colonne couvre à la fois les statuts hérités
 // (processing/approved/completed) et les nouveaux statuts du pipeline d'étapes
 // (migration 20260509000000) pour qu'aucun ticket ne soit invisible.
+//
+// "Terminés" est splitté en "À expédier" (workshop_done = réparé non renvoyé)
+// et "Renvoyés" (wing_returned + completed) pour que l'atelier sache d'un
+// coup d'œil ce qui reste à mettre en colis.
 const COLUMNS: KanbanColumn[] = [
   {
     id:       'processing',
@@ -30,12 +34,26 @@ const COLUMNS: KanbanColumn[] = [
     hint:     'Devis validé, travail en cours',
   },
   {
-    id:       'completed',
-    label:    'Terminés',
-    statuses: ['workshop_done', 'wing_returned', 'completed'],
-    hint:     'Réparation finalisée',
+    id:       'to_ship',
+    label:    'À expédier',
+    statuses: ['workshop_done'],
+    hint:     'Réparé, étiquette retour à imprimer',
+  },
+  {
+    id:       'returned',
+    label:    'Renvoyés',
+    statuses: ['wing_returned', 'completed'],
+    hint:     'Aile renvoyée ou ticket clôturé',
   },
 ]
+
+type UrgencyFilter = 'all' | 'urgent' | 'safety'
+
+const URGENCY_LABELS: Record<UrgencyFilter, string> = {
+  all:    'Tous',
+  urgent: 'Urgents',
+  safety: 'Sécurité',
+}
 
 interface WorkshopKanbanProps {
   tickets: TicketWithPhotos[]
@@ -43,14 +61,34 @@ interface WorkshopKanbanProps {
 
 export function WorkshopKanban({ tickets }: WorkshopKanbanProps) {
   const [activeTab, setActiveTab] = useState<string>(COLUMNS[0]!.id)
+  const [search,    setSearch]    = useState('')
+  const [urgency,   setUrgency]   = useState<UrgencyFilter>('all')
+
+  const filteredTickets = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return tickets.filter((t) => {
+      if (urgency === 'urgent' && t.urgency_level !== 2) return false
+      if (urgency === 'safety' && !t.is_plume_urgent)    return false
+      if (!q) return true
+      return (
+        t.product_model?.toLowerCase().includes(q) ||
+        t.product_brand?.toLowerCase().includes(q) ||
+        t.serial_number?.toLowerCase().includes(q) ||
+        t.first_name?.toLowerCase().includes(q) ||
+        t.last_name?.toLowerCase().includes(q) ||
+        t.description?.toLowerCase().includes(q) ||
+        t.ticket_number?.toLowerCase().includes(q)
+      )
+    })
+  }, [tickets, search, urgency])
 
   const byColumn = useMemo(
     () =>
       COLUMNS.reduce<Record<string, TicketWithPhotos[]>>((acc, col) => {
-        acc[col.id] = tickets.filter((t) => col.statuses.includes(t.status))
+        acc[col.id] = filteredTickets.filter((t) => col.statuses.includes(t.status))
         return acc
       }, {}),
-    [tickets]
+    [filteredTickets]
   )
 
   const visibleColumn = COLUMNS.find((c) => c.id === activeTab) ?? COLUMNS[0]!
@@ -58,6 +96,35 @@ export function WorkshopKanban({ tickets }: WorkshopKanbanProps) {
 
   return (
     <div>
+      {/* Search + urgency filter */}
+      <div className="space-y-3 px-4 pt-3 pb-1 md:px-6 md:pt-0 md:pb-3">
+        <input
+          type="search"
+          placeholder="Rechercher modèle, série, client, description…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="field-input"
+          aria-label="Rechercher un ticket atelier"
+        />
+        <div className="flex gap-1 overflow-x-auto no-scrollbar" role="tablist" aria-label="Filtre urgence">
+          {(Object.keys(URGENCY_LABELS) as UrgencyFilter[]).map((u) => (
+            <button
+              key={u}
+              role="tab"
+              aria-selected={urgency === u}
+              onClick={() => setUrgency(u)}
+              className={`flex-shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                urgency === u
+                  ? 'bg-brand-navy text-white'
+                  : 'bg-white text-slate-500 ring-1 ring-brand-stone hover:bg-brand-cream'
+              }`}
+            >
+              {URGENCY_LABELS[u]}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Mobile tab strip */}
       <div className="flex gap-1 overflow-x-auto no-scrollbar px-4 py-3 md:hidden" role="tablist">
         {COLUMNS.map((col) => (
@@ -80,7 +147,7 @@ export function WorkshopKanban({ tickets }: WorkshopKanbanProps) {
       {/* Mobile: stacked list */}
       <div className="space-y-3 px-4 pb-8 md:hidden">
         {visibleTickets.length === 0 ? (
-          <EmptyState hint={visibleColumn.hint} />
+          <EmptyState hint={visibleColumn.hint} hasSearch={search.trim().length > 0 || urgency !== 'all'} />
         ) : (
           visibleTickets.map((ticket) => (
             <WorkshopTicketCard key={ticket.id} ticket={ticket} />
@@ -89,7 +156,7 @@ export function WorkshopKanban({ tickets }: WorkshopKanbanProps) {
       </div>
 
       {/* Desktop: kanban columns */}
-      <div className="hidden md:grid md:grid-cols-3 md:gap-4 md:p-6">
+      <div className="hidden md:grid md:grid-cols-4 md:gap-4 md:p-6 md:pt-0">
         {COLUMNS.map((col) => (
           <div key={col.id} className="rounded-3xl border border-brand-stone/60 bg-white p-4">
             <div className="mb-3 flex items-baseline justify-between">
@@ -117,12 +184,16 @@ export function WorkshopKanban({ tickets }: WorkshopKanbanProps) {
   )
 }
 
-function EmptyState({ hint }: { hint: string }) {
+function EmptyState({ hint, hasSearch }: { hint: string; hasSearch: boolean }) {
   return (
     <div className="rounded-3xl border border-dashed border-brand-stone bg-white px-4 py-10 text-center">
       <p className="text-3xl" aria-hidden>🔧</p>
-      <p className="mt-2 text-sm font-medium text-brand-ink">Aucun ticket dans cet onglet</p>
-      <p className="mt-1 text-xs text-slate-500">{hint}</p>
+      <p className="mt-2 text-sm font-medium text-brand-ink">
+        {hasSearch ? 'Aucun résultat' : 'Aucun ticket dans cet onglet'}
+      </p>
+      <p className="mt-1 text-xs text-slate-500">
+        {hasSearch ? 'Essayez avec d’autres mots-clés ou un autre filtre.' : hint}
+      </p>
     </div>
   )
 }
