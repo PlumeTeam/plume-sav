@@ -10,6 +10,7 @@ import { WORKSHOP_TECHNICAL_CHECKLIST } from '@/features/tickets/constants'
 import { saveWorkshopChecklistAction } from '@/features/tickets/actions'
 import { formatDate } from '@/features/tickets/utils'
 import { WorkshopActionBar } from './WorkshopActionBar'
+import { WorkshopStepPanel } from './WorkshopStepPanel'
 
 interface PageProps { params: { id: string } }
 
@@ -53,7 +54,19 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
 
       <main className="mx-auto max-w-4xl space-y-3 p-4 pb-12">
         <section className="card p-5">
-          <h2 className="section-title mb-4">Suivi</h2>
+          <h2 className="section-title mb-4">Étapes atelier</h2>
+          <WorkshopStepPanel
+            ticketId={ticket.id}
+            status={ticket.status}
+            wingReceivedWorkshopAt={ticket.wing_received_workshop_at}
+            workshopDiagnosisAt={ticket.workshop_diagnosis_at}
+            workshopRepairDoneAt={ticket.workshop_repair_done_at}
+            wingReturnedAt={ticket.wing_returned_at}
+          />
+        </section>
+
+        <section className="card p-5">
+          <h2 className="section-title mb-4">Suivi global</h2>
           <TicketTimeline status={ticket.status} />
         </section>
 
@@ -84,7 +97,6 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
           <h2 className="section-title mb-4">Actions atelier</h2>
           <WorkshopActionBar
             ticketId={ticket.id}
-            currentStatus={ticket.status}
             diagnosisNotes={ticket.diagnosis_notes}
             estimatedCost={ticket.estimated_cost}
             estimatedHours={ticket.estimated_hours}

@@ -7,6 +7,7 @@ import { CommentThread } from '@/features/tickets/components/CommentThread'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { formatDate } from '@/features/tickets/utils'
 import { SchoolActions } from './SchoolActions'
+import { SchoolStepPanel } from './SchoolStepPanel'
 import { SchoolResolutionPanel } from './SchoolResolutionPanel'
 import type { SchoolResolution } from '@/features/tickets/types'
 
@@ -90,7 +91,19 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           </section>
         )}
 
-        {/* ── ACTIONS PRINCIPALES ─────────────────────────────────── */}
+        {/* ── ÉTAPES SÉQUENTIELLES ───────────────────────────────── */}
+        <section className="card p-5">
+          <h2 className="section-title mb-4">Étapes</h2>
+          <SchoolStepPanel
+            ticketId={ticket.id}
+            status={ticket.status}
+            schoolAcknowledgedAt={ticket.school_acknowledged_at}
+            wingReceivedSchoolAt={ticket.wing_received_school_at}
+            isCheckValidated={isCheckValidated}
+          />
+        </section>
+
+        {/* ── ACTIONS PRINCIPALES (chat + check) ─────────────────── */}
         <SchoolActions
           ticketId={ticket.id}
           isCheckValidated={isCheckValidated}

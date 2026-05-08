@@ -2,7 +2,6 @@
 
 import { useTransition, useState } from 'react'
 import {
-  updateTicketStatusAction,
   addRoleMessageAction,
   saveDiagnosisAction,
 } from '@/features/tickets/actions'
@@ -10,28 +9,14 @@ import type { RequestStatus } from '@/features/tickets/types'
 
 interface WorkshopActionBarProps {
   ticketId: string
-  currentStatus: RequestStatus
   diagnosisNotes: string | null
   estimatedCost:  number | null
   estimatedHours: number | null
   partsNeeded:    string | null
 }
 
-const STATUS_TRANSITIONS: Partial<Record<RequestStatus, Array<{ label: string; newStatus: RequestStatus; help?: string }>>> = {
-  approved: [
-    { label: 'Marquer comme réparé', newStatus: 'completed',
-      help: 'Confirme que la réparation est terminée et que le ticket peut être clôturé.' },
-  ],
-}
-
-const NO_ACTION_HINT: Partial<Record<RequestStatus, string>> = {
-  processing: 'Saisissez le diagnostic ci-dessous. L’école validera ensuite la mise en réparation.',
-  completed:  'Ticket clôturé — plus rien à faire.',
-}
-
 export function WorkshopActionBar({
   ticketId,
-  currentStatus,
   diagnosisNotes,
   estimatedCost,
   estimatedHours,
@@ -47,19 +32,6 @@ export function WorkshopActionBar({
   const [hours, setHours] = useState(estimatedHours?.toString() ?? '')
   const [parts, setParts] = useState(partsNeeded ?? '')
   const [feedback, setFeedback] = useState<{ type: 'error' | 'ok'; msg: string } | null>(null)
-
-  const transitions = STATUS_TRANSITIONS[currentStatus] ?? []
-
-  function handleStatusChange(newStatus: RequestStatus) {
-    startTransition(async () => {
-      const fd = new FormData()
-      fd.set('ticketId', ticketId)
-      fd.set('newStatus', newStatus)
-      const result = await updateTicketStatusAction(fd)
-      if (result?.error) setFeedback({ type: 'error', msg: 'Erreur statut.' })
-      else setFeedback({ type: 'ok', msg: 'Statut mis à jour.' })
-    })
-  }
 
   async function handleSendMessage(e: React.FormEvent) {
     e.preventDefault()
@@ -105,29 +77,6 @@ export function WorkshopActionBar({
         }`}>
           {feedback.msg}
         </p>
-      )}
-
-      {transitions.length > 0 ? (
-        <div className="space-y-2">
-          {transitions.map(({ label, newStatus, help }) => (
-            <div key={newStatus}>
-              <button
-                onClick={() => handleStatusChange(newStatus)}
-                disabled={isPending}
-                className="btn-primary w-full"
-              >
-                {label}
-              </button>
-              {help && <p className="mt-1 text-xs text-slate-500">{help}</p>}
-            </div>
-          ))}
-        </div>
-      ) : (
-        NO_ACTION_HINT[currentStatus] && (
-          <p className="rounded-xl bg-brand-cream px-3 py-2 text-xs text-slate-600">
-            {NO_ACTION_HINT[currentStatus]}
-          </p>
-        )
       )}
 
       <div className="flex flex-wrap gap-2">
