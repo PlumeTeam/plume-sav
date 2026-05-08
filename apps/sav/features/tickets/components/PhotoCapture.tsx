@@ -73,7 +73,7 @@ export function PhotoCapture({
         type="button"
         disabled={disabled}
         onClick={() => cameraRef.current?.click()}
-        className="flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-brand-coral/40 bg-brand-coral/5 px-4 py-5 text-sm font-semibold text-brand-ink hover:bg-brand-coral/10 transition-colors disabled:opacity-50"
+        className="flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-brand-gold/40 bg-brand-gold/5 px-4 py-5 text-sm font-semibold text-brand-ink hover:bg-brand-gold/10 transition-colors disabled:opacity-50"
       >
         <span className="text-xl" aria-hidden>📷</span>
         Prendre une photo

@@ -68,14 +68,14 @@ export function TicketWizard({ wings = [], schools = [] }: TicketWizardProps) {
   const isFirstStep = flow.indexOf(currentStepId) === 0
 
   return (
-    <div className="flex min-h-screen flex-col bg-brand-cream">
-      <header className="sticky top-0 z-20 border-b border-brand-stone/60 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+    <div className="flex min-h-screen flex-col bg-white">
+      <header className="sticky top-0 z-20 bg-brand-navy/95 backdrop-blur supports-[backdrop-filter]:bg-brand-navy/85">
         <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3">
           {!isFirstStep ? (
             <button
               onClick={back}
               type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-xl text-brand-ink active:bg-brand-cream"
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-white/80 hover:bg-white/10 hover:text-white transition-colors"
               aria-label="Étape précédente"
             >
               ←
@@ -84,17 +84,17 @@ export function TicketWizard({ wings = [], schools = [] }: TicketWizardProps) {
             <button
               onClick={cancel}
               type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-xl text-brand-ink active:bg-brand-cream"
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-white/80 hover:bg-white/10 hover:text-white transition-colors"
               aria-label="Annuler"
             >
               ×
             </button>
           )}
-          <h1 className="flex-1 text-center text-sm font-semibold text-brand-ink">
+          <h1 className="flex-1 text-center text-xs font-medium uppercase tracking-[0.12em] text-white/80">
             Nouvelle demande SAV
           </h1>
           <span aria-hidden className="flex h-10 w-10 items-center justify-center">
-            <PlumeLogo size="sm" />
+            <PlumeLogo size="sm" variant="light" />
           </span>
         </div>
         <WizardProgress flow={flow} currentId={currentStepId} />

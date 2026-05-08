@@ -20,11 +20,11 @@ L.Icon.Default.mergeOptions({
 const SELECTED_ICON = L.divIcon({
   html: `<div style="
     width: 32px; height: 32px;
-    background: #FF7A59;
+    background: #C97D18;
     border: 3px solid #fff;
     border-radius: 50% 50% 50% 0;
     transform: rotate(-45deg);
-    box-shadow: 0 4px 12px -2px rgba(255,122,89,0.6);
+    box-shadow: 0 4px 12px -2px rgba(201,125,24,0.6);
   "></div>`,
   className: '',
   iconSize:   [32, 32],
@@ -79,7 +79,7 @@ export default function SchoolMapPicker({ schools, selectedId, onSelect }: Schoo
             >
               <Popup>
                 <div style={{ minWidth: 160 }}>
-                  <p style={{ fontWeight: 600, color: '#0f0f1d', margin: 0 }}>{s.name}</p>
+                  <p style={{ fontWeight: 600, color: '#3A3A3A', margin: 0 }}>{s.name}</p>
                   {(s.city || s.region) && (
                     <p style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
                       {[s.city, s.region].filter(Boolean).join(' · ')}
@@ -91,7 +91,7 @@ export default function SchoolMapPicker({ schools, selectedId, onSelect }: Schoo
                     style={{
                       marginTop: 8,
                       padding: '6px 12px',
-                      background: isSelected ? '#10b981' : '#FF7A59',
+                      background: isSelected ? '#10b981' : '#C97D18',
                       color: '#fff',
                       border: 'none',
                       borderRadius: 8,

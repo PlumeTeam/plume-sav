@@ -38,7 +38,7 @@ export function CommentThread({
             <div
               className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
                 isOwn
-                  ? 'bg-brand-coral text-white rounded-br-sm'
+                  ? 'bg-brand-gold text-white rounded-br-sm'
                   : 'bg-brand-cream text-brand-ink ring-1 ring-brand-stone rounded-bl-sm'
               }`}
             >

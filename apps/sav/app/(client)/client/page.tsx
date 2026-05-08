@@ -26,7 +26,7 @@ export default async function ClientPage() {
     <main className="space-y-8 px-4 py-6">
       {/* ── Hero / Greeting ─────────────────────────────────────── */}
       <section className="rounded-3xl bg-gradient-to-br from-brand-navy via-brand-navy to-brand-ink px-5 py-6 text-white shadow-soft">
-        <p className="text-xs font-semibold uppercase tracking-wider text-brand-coral">Mon espace SAV</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-brand-gold">Mon espace SAV</p>
         <h1 className="mt-1 font-display text-2xl font-bold">Bonjour {firstName} 🪂</h1>
         <p className="mt-1 text-sm text-white/70">
           {activeCount === 0

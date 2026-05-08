@@ -200,7 +200,7 @@ export function WorkshopActionBar({
               type="checkbox"
               checked={isInternal}
               onChange={(e) => setIsInternal(e.target.checked)}
-              className="h-4 w-4 rounded border-brand-stone text-brand-coral focus:ring-brand-coral"
+              className="h-4 w-4 rounded border-brand-stone text-brand-gold focus:ring-brand-gold"
             />
             Commentaire interne
           </label>

@@ -59,7 +59,7 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
 
         {/* Contexte de l'escalation école */}
         {ticket.school_resolution === 'escalated_to_workshop' && ticket.school_resolution_note && (
-          <section className="card p-5 bg-brand-coral/5 border-brand-coral/30">
+          <section className="card p-5 bg-brand-gold/5 border-brand-gold/30">
             <h2 className="section-title mb-2">Note de l&apos;école qui a escaladé</h2>
             <p className="whitespace-pre-line text-sm text-brand-ink">{ticket.school_resolution_note}</p>
           </section>

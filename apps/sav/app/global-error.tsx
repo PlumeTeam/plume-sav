@@ -11,8 +11,8 @@ export default function GlobalError({ error, reset }: { error: Error; reset: () 
         justifyContent: 'center',
         gap: '1.25rem',
         padding: '1rem',
-        background: '#FAF6F0',
-        color: '#0f0f1d',
+        background: '#f8f8f7',
+        color: '#3A3A3A',
         fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
         textAlign: 'center',
       }}>
@@ -21,7 +21,7 @@ export default function GlobalError({ error, reset }: { error: Error; reset: () 
           <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Erreur critique</h1>
           <p style={{ marginTop: '0.5rem', maxWidth: '28rem', color: '#475569', fontSize: '0.875rem' }}>
             L&apos;application n&apos;a pas pu démarrer. Réessayez ou contactez{' '}
-            <a href="mailto:sav@plumeparagliders.com" style={{ color: '#FF7A59', fontWeight: 600 }}>
+            <a href="mailto:sav@plumeparagliders.com" style={{ color: '#C97D18', fontWeight: 600 }}>
               sav@plumeparagliders.com
             </a>.
           </p>
@@ -44,7 +44,7 @@ export default function GlobalError({ error, reset }: { error: Error; reset: () 
           onClick={reset}
           style={{
             padding: '0.75rem 1.5rem',
-            background: '#FF7A59',
+            background: '#C97D18',
             color: '#fff',
             border: 'none',
             borderRadius: '1rem',

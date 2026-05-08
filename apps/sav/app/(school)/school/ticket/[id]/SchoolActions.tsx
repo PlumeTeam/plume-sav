@@ -55,7 +55,7 @@ export function SchoolActions({
           type="button"
           onClick={() => setOpen(open === 'client' ? null : 'client')}
           className={`card flex flex-col items-start gap-2 p-5 text-left transition-all hover:-translate-y-0.5 ${
-            open === 'client' ? 'border-2 border-brand-coral bg-brand-coral/5 shadow-plume' : ''
+            open === 'client' ? 'border-2 border-brand-gold bg-brand-gold/5 shadow-plume' : ''
           }`}
         >
           <span aria-hidden className="text-3xl">💬</span>
@@ -70,7 +70,7 @@ export function SchoolActions({
           type="button"
           onClick={() => setOpen(open === 'workshop' ? null : 'workshop')}
           className={`card flex flex-col items-start gap-2 p-5 text-left transition-all hover:-translate-y-0.5 ${
-            open === 'workshop' ? 'border-2 border-brand-coral bg-brand-coral/5 shadow-plume' : ''
+            open === 'workshop' ? 'border-2 border-brand-gold bg-brand-gold/5 shadow-plume' : ''
           }`}
         >
           <span aria-hidden className="text-3xl">🛠️</span>
@@ -285,8 +285,8 @@ function WorkshopComposer({ ticketId, workshop, onPicked, onClose }: WorkshopCom
                 onClick={() => setPickedId(w.id)}
                 className={`flex w-full items-start gap-3 rounded-xl border-2 p-3 text-left transition-all active:scale-[0.99] ${
                   isSelected
-                    ? 'border-brand-coral bg-brand-coral/10 shadow-plume'
-                    : 'border-brand-stone bg-white hover:border-brand-coral/40'
+                    ? 'border-brand-gold bg-brand-gold/10 shadow-plume'
+                    : 'border-brand-stone bg-white hover:border-brand-gold/40'
                 }`}
               >
                 <span aria-hidden className="text-2xl">🛠️</span>
@@ -294,7 +294,7 @@ function WorkshopComposer({ ticketId, workshop, onPicked, onClose }: WorkshopCom
                   <p className="text-sm font-semibold text-brand-ink">{w.label}</p>
                   <p className="mt-0.5 text-xs text-slate-500">{w.city} · {w.region}</p>
                 </div>
-                {isSelected && <span className="text-brand-coral text-lg" aria-hidden>✓</span>}
+                {isSelected && <span className="text-brand-gold text-lg" aria-hidden>✓</span>}
               </button>
             )
           })}
@@ -316,7 +316,7 @@ function WorkshopComposer({ ticketId, workshop, onPicked, onClose }: WorkshopCom
     <form onSubmit={handleSend} className="card animate-slide-up space-y-3 p-5">
       <div className="flex items-baseline justify-between">
         <p className="text-sm font-semibold text-brand-ink">
-          Message à <span className="text-brand-coral">{workshop?.label}</span>
+          Message à <span className="text-brand-gold">{workshop?.label}</span>
         </p>
         <button type="button" onClick={onClose} className="text-xs text-slate-500 hover:text-brand-ink">
           Annuler

@@ -12,8 +12,12 @@ const SIZE_PX: Record<NonNullable<PlumeLogoProps['size']>, number> = {
 
 export function PlumeLogo({ size = 'md', variant = 'dark', withWordmark = false }: PlumeLogoProps) {
   const px = SIZE_PX[size]
-  const tone = variant === 'dark' ? '#1a1a2e' : '#FAF6F0'
-  const wordmarkColor = variant === 'dark' ? 'text-brand-ink' : 'text-brand-cream'
+  // variant === 'dark'  → logo destiné aux fonds CLAIRS (rectangle Plume Black)
+  // variant === 'light' → logo destiné aux fonds SOMBRES (rectangle blanc, wordmark blanc)
+  const tone     = variant === 'dark' ? '#0F2430' : '#FFFFFF'
+  const flame    = '#C97D18'
+  const surface  = variant === 'dark' ? '#FFFFFF' : '#0F2430'
+  const wordmark = variant === 'dark' ? 'text-brand-navy' : 'text-white'
 
   return (
     <span className="inline-flex items-center gap-2.5" aria-label="Plume">
@@ -28,15 +32,15 @@ export function PlumeLogo({ size = 'md', variant = 'dark', withWordmark = false 
         <rect width="64" height="64" rx={px > 40 ? 16 : 12} fill={tone} />
         <path
           d="M16 46c0-15 9-26 22-30 4 9 1 19-7 24-4 2-9 4-15 6Z"
-          fill="#FF7A59"
+          fill={flame}
         />
         <path
           d="M16 46c5-2 10-4 14-7 5 3 9 5 14 5-3 5-8 8-14 8-7 0-12-2-14-6Z"
-          fill="#FAF6F0"
+          fill={surface}
         />
       </svg>
       {withWordmark && (
-        <span className={`font-display text-base font-bold tracking-tight ${wordmarkColor}`}>
+        <span className={`font-display text-base font-bold tracking-brand-tight ${wordmark}`}>
           Plume <span className="font-normal opacity-60">SAV</span>
         </span>
       )}

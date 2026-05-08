@@ -93,7 +93,7 @@ export function LoginForm() {
 
       <p className="text-center text-xs text-slate-500">
         Pas encore de compte ? Contactez votre école partenaire ou{' '}
-        <a href="mailto:sav@plumeparagliders.com" className="font-medium text-brand-coral hover:underline">
+        <a href="mailto:sav@plumeparagliders.com" className="font-medium text-brand-gold hover:underline">
           sav@plumeparagliders.com
         </a>
       </p>

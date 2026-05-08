@@ -86,7 +86,7 @@ export default async function TicketCreatedPage({ params }: PageProps) {
               {school.phone && (
                 <a
                   href={`tel:${school.phone.replace(/\s+/g, '')}`}
-                  className="flex items-center gap-2 text-brand-ink hover:text-brand-coral"
+                  className="flex items-center gap-2 text-brand-ink hover:text-brand-gold"
                 >
                   <span aria-hidden>📞</span>
                   <span>{school.phone}</span>
@@ -95,7 +95,7 @@ export default async function TicketCreatedPage({ params }: PageProps) {
               {school.email && (
                 <a
                   href={`mailto:${school.email}?subject=SAV%20${encodeURIComponent(ticketRef)}`}
-                  className="flex items-center gap-2 text-brand-ink hover:text-brand-coral"
+                  className="flex items-center gap-2 text-brand-ink hover:text-brand-gold"
                 >
                   <span aria-hidden>✉️</span>
                   <span className="break-all">{school.email}</span>

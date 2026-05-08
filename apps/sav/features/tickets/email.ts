@@ -11,10 +11,10 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@plume/db'
 
 const APP_URL    = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://plume-sav.vercel.app').replace(/\/$/, '')
-const PLUME_NAVY  = '#1a1a2e'
-const PLUME_CORAL = '#E85D26'
-const PLUME_CREAM = '#FAF6F0'
-const PLUME_INK   = '#0f0f1d'
+const PLUME_NAVY  = '#0F2430'
+const PLUME_CORAL = '#C97D18'
+const PLUME_CREAM = '#f8f8f7'
+const PLUME_INK   = '#3A3A3A'
 
 export type EmailDeliveryMethod = 'in_person' | 'postal'
 
@@ -119,7 +119,7 @@ function clientConfirmationHTML(ctx: TicketEmailContext): string {
           </p>
         </td></tr>
 
-        <tr><td style="padding:18px 32px;background:${PLUME_CREAM};border-top:1px solid #E9E4DC;">
+        <tr><td style="padding:18px 32px;background:${PLUME_CREAM};border-top:1px solid #E5E5E5;">
           <p style="margin:0;font-size:12px;color:#64748b;">
             Plume Paragliders — SAV
           </p>
@@ -174,7 +174,7 @@ function schoolNotificationHTML(ctx: TicketEmailContext): string {
           ` : ''}
 
           <p style="margin:22px 0 8px;font-size:11px;letter-spacing:0.5px;color:#64748b;text-transform:uppercase;">Description complète</p>
-          <div style="padding:14px 16px;background:#fff;border:1px solid #E9E4DC;border-radius:10px;font-size:14px;line-height:1.5;">
+          <div style="padding:14px 16px;background:#fff;border:1px solid #E5E5E5;border-radius:10px;font-size:14px;line-height:1.5;">
             ${escapeBlock(ctx.description)}
           </div>
 
@@ -196,7 +196,7 @@ function schoolNotificationHTML(ctx: TicketEmailContext): string {
           </table>
         </td></tr>
 
-        <tr><td style="padding:18px 32px;background:${PLUME_CREAM};border-top:1px solid #E9E4DC;">
+        <tr><td style="padding:18px 32px;background:${PLUME_CREAM};border-top:1px solid #E5E5E5;">
           <p style="margin:0;font-size:12px;color:#64748b;">
             Plume Paragliders — SAV<br/>
             <a href="mailto:sav@plumeparagliders.com" style="color:#64748b;">sav@plumeparagliders.com</a>

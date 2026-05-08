@@ -57,7 +57,7 @@ export function StepMessage({ onNext, onBack }: StepMessageProps) {
             <button
               type="button"
               onClick={resetToDefault}
-              className="text-xs text-slate-500 underline underline-offset-2 hover:text-brand-coral"
+              className="text-xs text-slate-500 underline underline-offset-2 hover:text-brand-gold"
             >
               Restaurer le message par défaut
             </button>

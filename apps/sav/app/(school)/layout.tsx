@@ -17,7 +17,7 @@ export default async function SchoolLayout({ children }: { children: React.React
   const spaceLabel = school?.name ? `École ${school.name}` : 'Espace École'
 
   return (
-    <div className="flex min-h-screen flex-col bg-brand-cream">
+    <div className="flex min-h-screen flex-col bg-white">
       <RoleHeader
         spaceLabel={spaceLabel}
         spaceColor="green"

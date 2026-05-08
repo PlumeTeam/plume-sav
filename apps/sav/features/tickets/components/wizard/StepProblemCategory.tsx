@@ -56,8 +56,8 @@ export function StepProblemCategory({ onNext, onBack }: StepProblemCategoryProps
           onClick={() => setSelected('wing_behavior')}
           className={`flex flex-col items-start rounded-2xl border-2 p-4 text-left transition-all active:scale-[0.97] ${
             selected === 'wing_behavior'
-              ? 'border-brand-coral bg-brand-coral/10 shadow-plume'
-              : 'border-brand-stone bg-white hover:border-brand-coral/40'
+              ? 'border-brand-gold bg-brand-gold/10 shadow-plume'
+              : 'border-brand-stone bg-white hover:border-brand-gold/40'
           }`}
         >
           <span className="mb-1 text-2xl" aria-hidden>🪂</span>
@@ -76,8 +76,8 @@ export function StepProblemCategory({ onNext, onBack }: StepProblemCategoryProps
               onClick={() => setSelected(cat.value)}
               className={`flex flex-col items-start rounded-2xl border-2 p-4 text-left transition-all active:scale-[0.97] ${
                 isSelected
-                  ? 'border-brand-coral bg-brand-coral/10 shadow-plume'
-                  : 'border-brand-stone bg-white hover:border-brand-coral/40'
+                  ? 'border-brand-gold bg-brand-gold/10 shadow-plume'
+                  : 'border-brand-stone bg-white hover:border-brand-gold/40'
               }`}
             >
               <span className="mb-1 text-2xl" aria-hidden>{cat.emoji}</span>

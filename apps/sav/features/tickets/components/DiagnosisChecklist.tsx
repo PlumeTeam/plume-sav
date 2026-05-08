@@ -85,7 +85,7 @@ export function DiagnosisChecklist({
                   type="checkbox"
                   checked={isChecked}
                   onChange={() => toggle(item.id)}
-                  className="mt-0.5 h-4 w-4 rounded border-brand-stone text-brand-coral focus:ring-brand-coral"
+                  className="mt-0.5 h-4 w-4 rounded border-brand-stone text-brand-gold focus:ring-brand-gold"
                 />
                 <span className="flex-1 text-sm text-brand-ink">
                   {item.label}

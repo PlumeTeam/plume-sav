@@ -14,7 +14,7 @@ export default async function WorkshopLayout({ children }: { children: React.Rea
   const spaceLabel = workshop?.label ?? 'Espace Atelier'
 
   return (
-    <div className="flex min-h-screen flex-col bg-brand-cream">
+    <div className="flex min-h-screen flex-col bg-white">
       <RoleHeader
         spaceLabel={spaceLabel}
         spaceColor="orange"

@@ -73,7 +73,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
                         isDone
                           ? 'bg-emerald-500 text-white'
                           : isCurrent
-                          ? 'bg-brand-coral text-white ring-4 ring-brand-coral/20'
+                          ? 'bg-brand-gold text-white ring-4 ring-brand-gold/20'
                           : 'bg-brand-stone text-slate-400'
                       }`}
                     >
@@ -89,7 +89,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
                       {step.label}
                     </span>
                     {isCurrent && (
-                      <span className="ml-auto h-2 w-2 rounded-full bg-brand-coral animate-pulse-dot" aria-hidden />
+                      <span className="ml-auto h-2 w-2 rounded-full bg-brand-gold animate-pulse-dot" aria-hidden />
                     )}
                   </li>
                 )
@@ -115,7 +115,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
                     {school.phone && (
                       <a
                         href={`tel:${school.phone.replace(/\s+/g, '')}`}
-                        className="flex items-center gap-2 text-brand-ink hover:text-brand-coral"
+                        className="flex items-center gap-2 text-brand-ink hover:text-brand-gold"
                       >
                         <span aria-hidden>📞</span>
                         <span>{school.phone}</span>
@@ -124,7 +124,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
                     {school.email && (
                       <a
                         href={`mailto:${school.email}?subject=SAV%20${encodeURIComponent(ticketRef)}`}
-                        className="flex items-center gap-2 text-brand-ink hover:text-brand-coral"
+                        className="flex items-center gap-2 text-brand-ink hover:text-brand-gold"
                       >
                         <span aria-hidden>✉️</span>
                         <span className="break-all">{school.email}</span>
@@ -201,7 +201,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
                     <div
                       className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
                         isClient
-                          ? 'bg-brand-coral text-white rounded-br-sm'
+                          ? 'bg-brand-gold text-white rounded-br-sm'
                           : 'bg-brand-cream text-brand-ink ring-1 ring-brand-stone rounded-bl-sm'
                       }`}
                     >

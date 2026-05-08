@@ -2,11 +2,11 @@ import { PlumeLogo } from '@/app/_components/PlumeLogo'
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative flex min-h-screen flex-col bg-brand-cream">
+    <div className="relative flex min-h-screen flex-col bg-white">
       {/* Top decorative band — Plume gradient */}
       <div
         aria-hidden
-        className="absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-brand-navy via-brand-navy/90 to-brand-cream"
+        className="absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-brand-navy via-brand-navy/90 to-white"
       />
 
       <header className="relative z-10 flex items-center justify-center pt-10 pb-8">

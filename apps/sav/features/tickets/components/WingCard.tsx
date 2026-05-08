@@ -55,7 +55,7 @@ export function WingCard({ wing }: WingCardProps) {
       <button
         type="button"
         onClick={handleCreateTicket}
-        className="mt-4 w-full rounded-2xl border border-brand-stone bg-brand-cream py-2.5 text-sm font-semibold text-brand-ink transition-colors hover:bg-brand-coral/10 hover:border-brand-coral/40"
+        className="mt-4 w-full rounded-2xl border border-brand-stone bg-brand-cream py-2.5 text-sm font-semibold text-brand-ink transition-colors hover:bg-brand-gold/10 hover:border-brand-gold/40"
       >
         Envoyer une demande SAV
       </button>

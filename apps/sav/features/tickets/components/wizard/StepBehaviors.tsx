@@ -47,15 +47,15 @@ export function StepBehaviors({ onNext, onBack }: StepBehaviorsProps) {
               key={behavior.id}
               className={`flex cursor-pointer items-start gap-3 rounded-2xl border-2 p-4 transition-all active:scale-[0.99] ${
                 checked
-                  ? 'border-brand-coral bg-brand-coral/5'
-                  : 'border-brand-stone bg-white hover:border-brand-coral/40'
+                  ? 'border-brand-gold bg-brand-gold/5'
+                  : 'border-brand-stone bg-white hover:border-brand-gold/40'
               }`}
             >
               <input
                 type="checkbox"
                 checked={checked}
                 onChange={() => toggle(behavior.id)}
-                className="mt-0.5 h-5 w-5 rounded border-brand-stone text-brand-coral focus:ring-brand-coral"
+                className="mt-0.5 h-5 w-5 rounded border-brand-stone text-brand-gold focus:ring-brand-gold"
               />
               <span className="text-sm text-brand-ink">{behavior.label}</span>
             </label>

@@ -101,8 +101,8 @@ export function StepWingInfo({ wings, onNext }: StepWingInfoProps) {
               onClick={() => selectWing(wing)}
               className={`w-full rounded-2xl border-2 p-4 text-left transition-all active:scale-[0.99] ${
                 isSelected
-                  ? 'border-brand-coral bg-brand-coral/10 text-brand-ink shadow-plume'
-                  : 'border-brand-stone bg-white text-brand-ink hover:border-brand-coral/40'
+                  ? 'border-brand-gold bg-brand-gold/10 text-brand-ink shadow-plume'
+                  : 'border-brand-stone bg-white text-brand-ink hover:border-brand-gold/40'
               }`}
             >
               <div className="flex items-start justify-between gap-3">
@@ -113,7 +113,7 @@ export function StepWingInfo({ wings, onNext }: StepWingInfoProps) {
                 </div>
                 <span className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold ${
                   isSelected
-                    ? 'border-brand-coral bg-brand-coral text-white'
+                    ? 'border-brand-gold bg-brand-gold text-white'
                     : 'border-brand-stone bg-white text-transparent'
                 }`} aria-hidden>✓</span>
               </div>

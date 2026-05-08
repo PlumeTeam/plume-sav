@@ -35,8 +35,8 @@ function teardrop(opts: { fill: string; ring?: string; shadow?: string; size?: n
   })
 }
 
-const SELECTED_ICON = teardrop({ fill: '#FF7A59', ring: '#fff', shadow: '0 4px 12px -2px rgba(255,122,89,0.6)' })
-const DEFAULT_ICON  = teardrop({ fill: '#FF7A59' })
+const SELECTED_ICON = teardrop({ fill: '#C97D18', ring: '#fff', shadow: '0 4px 12px -2px rgba(201,125,24,0.6)' })
+const DEFAULT_ICON  = teardrop({ fill: '#C97D18' })
 
 interface WorkshopMapPickerProps {
   workshops:  PartnerWorkshop[]
@@ -85,7 +85,7 @@ export default function WorkshopMapPicker({ workshops, selectedId, onSelect }: W
             >
               <Popup>
                 <div style={{ minWidth: 200 }}>
-                  <p style={{ fontWeight: 600, color: '#0f0f1d', margin: 0 }}>{w.label}</p>
+                  <p style={{ fontWeight: 600, color: '#3A3A3A', margin: 0 }}>{w.label}</p>
                   <p style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
                     {[w.city, w.region].filter(Boolean).join(' · ')}
                   </p>
@@ -100,7 +100,7 @@ export default function WorkshopMapPicker({ workshops, selectedId, onSelect }: W
                     style={{
                       marginTop: 8,
                       padding: '6px 12px',
-                      background: isSelected ? '#10b981' : '#FF7A59',
+                      background: isSelected ? '#10b981' : '#C97D18',
                       color: '#fff',
                       border: 'none',
                       borderRadius: 8,

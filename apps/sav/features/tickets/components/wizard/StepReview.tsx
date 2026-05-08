@@ -266,7 +266,7 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
 
         <Section title="Message à l'école">
           {problem.clientMessage?.trim() ? (
-            <div className="rounded-xl border-l-4 border-brand-coral bg-brand-cream/60 p-3">
+            <div className="rounded-xl border-l-4 border-brand-gold bg-brand-cream/60 p-3">
               <p className="whitespace-pre-line text-sm italic leading-relaxed text-brand-ink">
                 {problem.clientMessage.trim()}
               </p>
@@ -287,7 +287,7 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
             <p className="text-xs text-slate-500">Upload des photos…</p>
             <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white">
               <div
-                className="h-full rounded-full bg-brand-coral transition-all duration-300"
+                className="h-full rounded-full bg-brand-gold transition-all duration-300"
                 style={{ width: `${(progress.done / progress.total) * 100}%` }}
               />
             </div>

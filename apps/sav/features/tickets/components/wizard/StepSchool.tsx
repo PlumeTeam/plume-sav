@@ -118,10 +118,10 @@ export function StepSchool({ schools, onNext, onBack }: StepSchoolProps) {
         }
       >
         <div className="space-y-4">
-          <div className="card flex items-start gap-3 border-2 border-brand-coral bg-brand-coral/10 p-5 shadow-plume">
+          <div className="card flex items-start gap-3 border-2 border-brand-gold bg-brand-gold/10 p-5 shadow-plume">
             <span aria-hidden className="text-3xl">🏫</span>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold uppercase tracking-wider text-brand-coral">Votre école référente</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-brand-gold">Votre école référente</p>
               <p className="mt-1 truncate text-base font-bold text-brand-ink">{referentSchool.name}</p>
               {(referentSchool.city || referentSchool.region) && (
                 <p className="mt-0.5 text-xs text-slate-600">
@@ -137,7 +137,7 @@ export function StepSchool({ schools, onNext, onBack }: StepSchoolProps) {
           <button
             type="button"
             onClick={() => setSub('reason')}
-            className="block w-full text-center text-xs text-slate-500 underline underline-offset-4 hover:text-brand-coral"
+            className="block w-full text-center text-xs text-slate-500 underline underline-offset-4 hover:text-brand-gold"
           >
             Je ne souhaite pas interagir avec mon école référente
           </button>
@@ -174,8 +174,8 @@ export function StepSchool({ schools, onNext, onBack }: StepSchoolProps) {
                 onClick={() => setReasonCode(r.code)}
                 className={`flex w-full items-start gap-3 rounded-2xl border-2 p-4 text-left transition-all active:scale-[0.99] ${
                   isSelected
-                    ? 'border-brand-coral bg-brand-coral/10 shadow-plume'
-                    : 'border-brand-stone bg-white hover:border-brand-coral/40'
+                    ? 'border-brand-gold bg-brand-gold/10 shadow-plume'
+                    : 'border-brand-stone bg-white hover:border-brand-gold/40'
                 }`}
               >
                 <span aria-hidden className="text-2xl">{r.emoji}</span>
@@ -185,7 +185,7 @@ export function StepSchool({ schools, onNext, onBack }: StepSchoolProps) {
                 </div>
                 <span className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold ${
                   isSelected
-                    ? 'border-brand-coral bg-brand-coral text-white'
+                    ? 'border-brand-gold bg-brand-gold text-white'
                     : 'border-brand-stone bg-white text-transparent'
                 }`} aria-hidden>✓</span>
               </button>
@@ -249,8 +249,8 @@ export function StepSchool({ schools, onNext, onBack }: StepSchoolProps) {
                   onClick={() => setPickedId(s.id)}
                   className={`flex w-full items-start gap-3 rounded-2xl border-2 p-3 text-left transition-all active:scale-[0.99] ${
                     isSelected
-                      ? 'border-brand-coral bg-brand-coral/10 shadow-plume'
-                      : 'border-brand-stone bg-white hover:border-brand-coral/40'
+                      ? 'border-brand-gold bg-brand-gold/10 shadow-plume'
+                      : 'border-brand-stone bg-white hover:border-brand-gold/40'
                   }`}
                 >
                   <span aria-hidden className="text-xl">🏫</span>
@@ -269,7 +269,7 @@ export function StepSchool({ schools, onNext, onBack }: StepSchoolProps) {
                       </p>
                     )}
                   </div>
-                  {isSelected && <span className="text-brand-coral text-lg" aria-hidden>✓</span>}
+                  {isSelected && <span className="text-brand-gold text-lg" aria-hidden>✓</span>}
                 </button>
               )
             })}

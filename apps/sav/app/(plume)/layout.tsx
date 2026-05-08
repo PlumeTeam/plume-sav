@@ -4,7 +4,7 @@ import { getCurrentUser, getCurrentUserRoles } from '@/features/auth/queries'
 export default async function PlumeLayout({ children }: { children: React.ReactNode }) {
   const [user, roles] = await Promise.all([getCurrentUser(), getCurrentUserRoles()])
   return (
-    <div className="flex min-h-screen flex-col bg-brand-cream">
+    <div className="flex min-h-screen flex-col bg-white">
       <RoleHeader
         spaceLabel="Plume HQ"
         spaceColor="navy"

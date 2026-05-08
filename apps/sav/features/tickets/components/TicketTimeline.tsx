@@ -29,7 +29,7 @@ export function TicketTimeline({ status }: TicketTimelineProps) {
                 isDone
                   ? 'bg-emerald-500 text-white'
                   : isCurrent
-                  ? 'bg-brand-coral text-white ring-4 ring-brand-coral/20'
+                  ? 'bg-brand-gold text-white ring-4 ring-brand-gold/20'
                   : 'bg-brand-stone text-slate-400'
               }`}
               aria-hidden
@@ -46,7 +46,7 @@ export function TicketTimeline({ status }: TicketTimelineProps) {
               {step.label}
             </span>
             {isCurrent && (
-              <span className="ml-auto h-2 w-2 rounded-full bg-brand-coral animate-pulse-dot" aria-hidden />
+              <span className="ml-auto h-2 w-2 rounded-full bg-brand-gold animate-pulse-dot" aria-hidden />
             )}
           </li>
         )

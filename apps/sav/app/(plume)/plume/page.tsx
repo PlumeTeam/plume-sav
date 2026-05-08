@@ -33,7 +33,7 @@ export default async function PlumeDashboardPage() {
       {/* Header */}
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-brand-coral">Plume HQ</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-brand-gold">Plume HQ</p>
           <h1 className="mt-0.5 font-display text-2xl font-bold text-brand-ink">Tableau de bord</h1>
         </div>
         <div className="flex gap-2">
@@ -85,11 +85,11 @@ export default async function PlumeDashboardPage() {
 
       {/* Escalations exceptionnelles — bandeau prioritaire */}
       {escalatedToPlume.length > 0 && (
-        <section className="rounded-3xl border-2 border-brand-coral/40 bg-brand-coral/10 p-5">
+        <section className="rounded-3xl border-2 border-brand-gold/40 bg-brand-gold/10 p-5">
           <div className="flex items-start gap-3">
             <span aria-hidden className="text-2xl">🦅</span>
             <div className="flex-1">
-              <p className="text-xs font-semibold uppercase tracking-wider text-brand-coral">À traiter en priorité</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-brand-gold">À traiter en priorité</p>
               <h2 className="mt-0.5 font-display text-lg font-bold text-brand-ink">
                 {escalatedToPlume.length} cas exceptionnel{escalatedToPlume.length > 1 ? 's' : ''} escaladé{escalatedToPlume.length > 1 ? 's' : ''} à Plume HQ
               </h2>
@@ -109,7 +109,7 @@ export default async function PlumeDashboardPage() {
                           <span className="font-mono text-xs text-slate-500">{ref}</span>{' '}
                           — {t.product_brand} {t.product_model}
                         </span>
-                        <span className="shrink-0 text-xs text-brand-coral">Triage requis →</span>
+                        <span className="shrink-0 text-xs text-brand-gold">Triage requis →</span>
                       </Link>
                     </li>
                   )
@@ -180,7 +180,7 @@ function KpiCard({ label, value, variant }: { label: string; value: number; vari
   const tones: Record<typeof variant, string> = {
     navy:  'bg-brand-navy text-white',
     cream: 'bg-white text-brand-ink ring-1 ring-brand-stone',
-    coral: 'bg-brand-coral text-white shadow-plume',
+    coral: 'bg-brand-gold text-white shadow-plume',
     sky:   'bg-sky-50 text-sky-900 ring-1 ring-sky-200',
   }
   return (

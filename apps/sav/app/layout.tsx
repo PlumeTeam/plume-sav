@@ -1,20 +1,13 @@
 import type { Metadata, Viewport } from 'next'
-import { Quicksand, Playfair_Display } from 'next/font/google'
+import { Quicksand } from 'next/font/google'
 import './globals.css'
 
+// Quicksand pour tout — Light 300 (légendes), Regular 400 (corps),
+// Medium 500 (boutons / labels), Semibold 600 (sous-titres), Bold 700 (titres).
 const quicksand = Quicksand({
   subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
+  weight: ['300', '400', '500', '600', '700'],
   variable: '--font-quicksand',
-  display: 'swap',
-})
-
-// iBrand isn't a Google Font; Playfair Display is the closest editorial serif
-// that pairs well with Quicksand and ships with Next's font optimizer.
-const display = Playfair_Display({
-  subsets: ['latin'],
-  weight: ['600', '700'],
-  variable: '--font-display',
   display: 'swap',
 })
 
@@ -36,7 +29,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#1a1a2e',
+  themeColor: '#0F2430',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -49,8 +42,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="fr" className={`${quicksand.variable} ${display.variable}`}>
-      <body className="min-h-screen bg-brand-cream font-sans text-slate-900 antialiased">
+    <html lang="fr" className={quicksand.variable}>
+      <body className="min-h-screen bg-white font-sans text-brand-ink antialiased tracking-brand">
         {children}
       </body>
     </html>

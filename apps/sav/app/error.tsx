@@ -15,7 +15,7 @@ export default function GlobalError({ error, reset }: { error: Error; reset: () 
         <p className="mt-2 max-w-md text-sm text-slate-500">
           Quelque chose s’est mal passé. Vous pouvez réessayer ou revenir à l’accueil.
           Si le problème persiste, contactez{' '}
-          <a href="mailto:sav@plumeparagliders.com" className="font-medium text-brand-coral hover:underline">
+          <a href="mailto:sav@plumeparagliders.com" className="font-medium text-brand-gold hover:underline">
             sav@plumeparagliders.com
           </a>.
         </p>

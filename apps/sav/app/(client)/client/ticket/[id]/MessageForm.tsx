@@ -70,7 +70,7 @@ function SendButton() {
     <button
       type="submit"
       disabled={pending}
-      className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-brand-coral text-white shadow-plume disabled:opacity-50 hover:bg-brand-coral/90 transition-colors"
+      className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-brand-gold text-white shadow-plume disabled:opacity-50 hover:bg-brand-gold/90 transition-colors"
       aria-label="Envoyer le message"
     >
       {pending ? '…' : '↑'}

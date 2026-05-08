@@ -218,8 +218,8 @@ export function StepWingHistory({ onNext, onBack }: StepWingHistoryProps) {
                   onClick={() => setGeneralCondition(opt.value)}
                   className={`flex w-full items-start gap-3 rounded-2xl border-2 p-3 text-left transition-all active:scale-[0.99] ${
                     isSelected
-                      ? 'border-brand-coral bg-brand-coral/10 shadow-plume'
-                      : 'border-brand-stone bg-white hover:border-brand-coral/40'
+                      ? 'border-brand-gold bg-brand-gold/10 shadow-plume'
+                      : 'border-brand-stone bg-white hover:border-brand-gold/40'
                   }`}
                 >
                   <span aria-hidden className="text-2xl">{opt.emoji}</span>
@@ -270,8 +270,8 @@ function ChoiceButton({
       onClick={onClick}
       className={`flex flex-col items-center justify-center gap-1 rounded-2xl border-2 px-2 py-3 text-sm font-semibold transition-all active:scale-[0.97] ${
         selected
-          ? 'border-brand-coral bg-brand-coral/10 text-brand-ink shadow-plume'
-          : 'border-brand-stone bg-white text-brand-ink hover:border-brand-coral/40'
+          ? 'border-brand-gold bg-brand-gold/10 text-brand-ink shadow-plume'
+          : 'border-brand-stone bg-white text-brand-ink hover:border-brand-gold/40'
       }`}
     >
       <span aria-hidden className="text-xl">{emoji}</span>

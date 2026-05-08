@@ -139,7 +139,7 @@ export function CheckWizard({
         </div>
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-brand-stone">
           <div
-            className="h-full rounded-full bg-brand-coral transition-all duration-500 ease-out"
+            className="h-full rounded-full bg-brand-gold transition-all duration-500 ease-out"
             style={{ width: `${pct}%` }}
             role="progressbar"
             aria-valuemin={1}
@@ -344,7 +344,7 @@ function YesNoNa({ value, onChange, yesHint }: { value: string; onChange: (v: st
             ? opt.tone === 'emerald' ? 'border-emerald-500 bg-emerald-50 text-emerald-900'
             : opt.tone === 'red'     ? 'border-red-500 bg-red-50 text-red-900'
             :                          'border-slate-500 bg-slate-50 text-slate-900'
-            : 'border-brand-stone bg-white text-brand-ink hover:border-brand-coral/40'
+            : 'border-brand-stone bg-white text-brand-ink hover:border-brand-gold/40'
           return (
             <button
               key={opt.value}
@@ -383,8 +383,8 @@ function SeverityChoice({ value, onChange }: { value: string; onChange: (v: stri
             onClick={() => onChange(opt.value)}
             className={`flex w-full items-start gap-3 rounded-2xl border-2 p-4 text-left transition-all active:scale-[0.99] ${
               isSelected
-                ? 'border-brand-coral bg-brand-coral/10 shadow-plume'
-                : 'border-brand-stone bg-white hover:border-brand-coral/40'
+                ? 'border-brand-gold bg-brand-gold/10 shadow-plume'
+                : 'border-brand-stone bg-white hover:border-brand-gold/40'
             }`}
           >
             <span aria-hidden className="text-2xl">{opt.emoji}</span>
@@ -451,7 +451,7 @@ function ReviewCard({
                 <p className="mt-1 text-xs text-slate-500">{answers[step.id]?.note}</p>
               )}
             </div>
-            <span className="shrink-0 text-sm font-semibold text-brand-coral">
+            <span className="shrink-0 text-sm font-semibold text-brand-gold">
               {formatAnswer(step, answers[step.id])}
             </span>
           </li>

@@ -52,7 +52,7 @@ export function TicketCard({ ticket, basePath = '/client', showUrgency = false }
         <p className="mt-1 text-xs text-slate-400">{formatDate(ticket.created_at)}</p>
       </div>
 
-      <span className="shrink-0 text-lg text-slate-300 group-hover:text-brand-coral transition-colors" aria-hidden>›</span>
+      <span className="shrink-0 text-lg text-slate-300 group-hover:text-brand-gold transition-colors" aria-hidden>›</span>
     </Link>
   )
 }

@@ -67,8 +67,8 @@ export function StepDelivery({ schools, onNext, onBack }: StepDeliveryProps) {
               onClick={() => setSelected(opt.value)}
               className={`flex w-full items-start gap-4 rounded-2xl border-2 p-5 text-left transition-all active:scale-[0.99] ${
                 isSelected
-                  ? 'border-brand-coral bg-brand-coral/10 shadow-plume'
-                  : 'border-brand-stone bg-white hover:border-brand-coral/40'
+                  ? 'border-brand-gold bg-brand-gold/10 shadow-plume'
+                  : 'border-brand-stone bg-white hover:border-brand-gold/40'
               }`}
             >
               <span className="text-4xl" aria-hidden>{opt.emoji}</span>
@@ -78,7 +78,7 @@ export function StepDelivery({ schools, onNext, onBack }: StepDeliveryProps) {
               </div>
               <span className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold ${
                 isSelected
-                  ? 'border-brand-coral bg-brand-coral text-white'
+                  ? 'border-brand-gold bg-brand-gold text-white'
                   : 'border-brand-stone bg-white text-transparent'
               }`} aria-hidden>✓</span>
             </button>

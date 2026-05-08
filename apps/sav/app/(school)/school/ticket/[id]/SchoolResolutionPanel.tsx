@@ -169,7 +169,7 @@ export function SchoolResolutionPanel({
               className={`flex w-full items-start gap-3 rounded-2xl border-2 p-4 text-left transition-all active:scale-[0.99] ${
                 isSelected
                   ? `${c.border} ${c.bg} shadow-soft`
-                  : 'border-brand-stone bg-white hover:border-brand-coral/40'
+                  : 'border-brand-stone bg-white hover:border-brand-gold/40'
               }`}
             >
               <span aria-hidden className="text-2xl">{c.emoji}</span>
@@ -178,7 +178,7 @@ export function SchoolResolutionPanel({
                 <p className="mt-0.5 text-xs text-slate-600">{c.description}</p>
               </div>
               <span className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold ${
-                isSelected ? 'border-brand-coral bg-brand-coral text-white'
+                isSelected ? 'border-brand-gold bg-brand-gold text-white'
                            : 'border-brand-stone bg-white text-transparent'
               }`} aria-hidden>✓</span>
             </button>
@@ -193,8 +193,8 @@ export function SchoolResolutionPanel({
           onClick={() => setChoice('workshop_advice')}
           className={`flex items-start gap-2 rounded-xl border p-3 text-left text-sm transition-colors ${
             choice === 'workshop_advice'
-              ? 'border-brand-coral bg-brand-coral/5'
-              : 'border-brand-stone bg-white hover:border-brand-coral/40'
+              ? 'border-brand-gold bg-brand-gold/5'
+              : 'border-brand-stone bg-white hover:border-brand-gold/40'
           }`}
         >
           <span aria-hidden>💬</span>
@@ -209,8 +209,8 @@ export function SchoolResolutionPanel({
           onClick={() => setChoice('reflection')}
           className={`flex items-start gap-2 rounded-xl border p-3 text-left text-sm transition-colors ${
             choice === 'reflection'
-              ? 'border-brand-coral bg-brand-coral/5'
-              : 'border-brand-stone bg-white hover:border-brand-coral/40'
+              ? 'border-brand-gold bg-brand-gold/5'
+              : 'border-brand-stone bg-white hover:border-brand-gold/40'
           }`}
         >
           <span aria-hidden>⏸️</span>
@@ -236,8 +236,8 @@ export function SchoolResolutionPanel({
                 onClick={() => setLevel1Sub(s.value)}
                 className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-colors ${
                   isSel
-                    ? 'border-brand-coral bg-brand-coral/5'
-                    : 'border-brand-stone bg-white hover:border-brand-coral/40'
+                    ? 'border-brand-gold bg-brand-gold/5'
+                    : 'border-brand-stone bg-white hover:border-brand-gold/40'
                 }`}
               >
                 <span aria-hidden className="text-xl">{s.emoji}</span>
@@ -275,8 +275,8 @@ export function SchoolResolutionPanel({
                   onClick={() => setWorkshopId(w.id)}
                   className={`flex w-full items-start gap-3 rounded-xl border-2 p-3 text-left transition-all active:scale-[0.99] ${
                     isSelected
-                      ? 'border-brand-coral bg-brand-coral/10 shadow-plume'
-                      : 'border-brand-stone bg-white hover:border-brand-coral/40'
+                      ? 'border-brand-gold bg-brand-gold/10 shadow-plume'
+                      : 'border-brand-stone bg-white hover:border-brand-gold/40'
                   }`}
                 >
                   <span aria-hidden className="text-2xl">🛠️</span>
@@ -284,7 +284,7 @@ export function SchoolResolutionPanel({
                     <p className="text-sm font-semibold text-brand-ink">{w.label}</p>
                     <p className="mt-0.5 text-xs text-slate-500">{w.city} · {w.region}</p>
                   </div>
-                  {isSelected && <span className="text-brand-coral text-lg" aria-hidden>✓</span>}
+                  {isSelected && <span className="text-brand-gold text-lg" aria-hidden>✓</span>}
                 </button>
               )
             })}

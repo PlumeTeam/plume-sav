@@ -10,26 +10,41 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
+        // Quicksand partout — display utilise simplement le même family avec
+        // un weight 700, défini via les classes (font-display + font-bold).
         sans:    ['var(--font-quicksand)', 'system-ui', 'sans-serif'],
-        display: ['var(--font-display)', 'var(--font-quicksand)', 'serif'],
+        display: ['var(--font-quicksand)', 'system-ui', 'sans-serif'],
+      },
+      letterSpacing: {
+        // Brand spec: titres 0.02em, body 0.01em.
+        brand:       '0.01em',
+        'brand-tight': '0.02em',
       },
       colors: {
-        // Plume brand palette — derived from the Charte graphique JPEG
+        // Plume brand palette — aligned with BRAND_SPEC.md.
+        // `gold` is the canonical CTA color; `coral` is kept as an alias to
+        // ease migration from the previous palette and is identical to gold.
         brand: {
-          navy:   '#1a1a2e',  // Primary surface (headers, dark cards)
-          ink:    '#0f0f1d',  // Active state, focus rings
-          coral:  '#FF7A59',  // Primary accent (CTAs, highlights)
-          peach:  '#FFB8A4',  // Soft accent surfaces
-          cream:  '#FAF6F0',  // Page background warm
-          stone:  '#E9E4DC',  // Borders, dividers (warm)
+          navy:   '#0F2430',  // Plume Black — headers, nav
+          ink:    '#3A3A3A',  // Body text
+          black:  '#010101',  // Strong titles
+          gold:   '#C97D18',  // CTA / primary action
+          coral:  '#C97D18',  // Alias of gold for legacy classes
+          teal:   '#0C4A6E',  // Secondary accent
+          cream:  '#f8f8f7',  // Section backgrounds
+          stone:  '#E5E5E5',  // Subtle borders / dividers
+          silver: '#C5C5C5',  // Stronger borders
         },
       },
       borderRadius: {
         '2.5xl': '1.25rem',
+        // Brand spec: cards 14px, buttons 25px (pill).
+        card:    '14px',
+        pill:    '25px',
       },
       boxShadow: {
-        soft:  '0 1px 2px 0 rgb(15 15 29 / 0.04), 0 1px 3px 0 rgb(15 15 29 / 0.06)',
-        plume: '0 8px 24px -6px rgb(255 122 89 / 0.25)',
+        soft:  '0 1px 2px 0 rgb(15 36 48 / 0.04), 0 1px 3px 0 rgb(15 36 48 / 0.06)',
+        plume: '0 8px 24px -6px rgb(201 125 24 / 0.25)',
       },
       keyframes: {
         'fade-in':    { '0%': { opacity: '0' }, '100%': { opacity: '1' } },

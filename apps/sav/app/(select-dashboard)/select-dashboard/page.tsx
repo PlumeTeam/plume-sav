@@ -106,7 +106,7 @@ export default async function SelectDashboardPage() {
               className="group card flex items-start gap-4 p-5 transition-all hover:-translate-y-0.5 hover:shadow-plume"
             >
               <span
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-cream text-2xl ring-1 ring-brand-stone group-hover:bg-brand-coral/10 group-hover:ring-brand-coral/30 transition-colors"
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-cream text-2xl ring-1 ring-brand-stone group-hover:bg-brand-gold/10 group-hover:ring-brand-gold/30 transition-colors"
                 aria-hidden
               >
                 {emoji}
@@ -115,7 +115,7 @@ export default async function SelectDashboardPage() {
                 <p className="font-semibold text-brand-ink">{label}</p>
                 <p className="mt-0.5 text-xs text-slate-500">{description}</p>
               </div>
-              <span className="self-center text-slate-300 group-hover:text-brand-coral transition-colors" aria-hidden>›</span>
+              <span className="self-center text-slate-300 group-hover:text-brand-gold transition-colors" aria-hidden>›</span>
             </a>
           ))}
         </div>
