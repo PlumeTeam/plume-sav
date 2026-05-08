@@ -42,6 +42,8 @@ export interface TicketEmailContext {
   description:     string  // already-rich description (with [Catégorie] prefix etc.)
   urgency:         'normal' | 'urgent'
   deliveryMethod:  EmailDeliveryMethod
+  /** Optional personalised message from the client (already trimmed). */
+  clientMessage?:  string
 }
 
 // ─── HTML helpers ──────────────────────────────────────────────────────────
@@ -164,6 +166,13 @@ function schoolNotificationHTML(ctx: TicketEmailContext): string {
               ${recapRow('Urgence', urgencyLabel(ctx.urgency), true)}
             </td></tr>
           </table>
+
+          ${ctx.clientMessage ? `
+          <p style="margin:22px 0 8px;font-size:11px;letter-spacing:0.5px;color:${PLUME_CORAL};text-transform:uppercase;">Message du client</p>
+          <div style="padding:14px 16px;background:${PLUME_CREAM};border-left:3px solid ${PLUME_CORAL};border-radius:10px;font-size:14px;line-height:1.5;font-style:italic;color:${PLUME_INK};">
+            ${escapeBlock(ctx.clientMessage)}
+          </div>
+          ` : ''}
 
           <p style="margin:22px 0 8px;font-size:11px;letter-spacing:0.5px;color:#64748b;text-transform:uppercase;">Description complète</p>
           <div style="padding:14px 16px;background:#fff;border:1px solid #E9E4DC;border-radius:10px;font-size:14px;line-height:1.5;">

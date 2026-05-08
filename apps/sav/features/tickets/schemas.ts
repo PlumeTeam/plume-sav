@@ -59,6 +59,9 @@ export const createTicketSchema = z.object({
   deliveryMethod: z.enum(['in_person', 'postal'], {
     errorMap: () => ({ message: 'Choisissez la méthode de remise de l\'aile' }),
   }),
+  // Optional personalised message — posted as the first chat message and
+  // included in the school notification email when non-empty.
+  clientMessage: z.string().max(2000).optional(),
   photoPaths: z.array(z.object({
     storagePath: z.string().min(1),
     photoType: z.enum(['overview', 'damage_closeup', 'serial_tag', 'other']),

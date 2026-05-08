@@ -208,7 +208,7 @@ export async function createTicketAction(input: unknown) {
     purchaseDate, flightHours, problemCategory, problemDescription,
     urgency, photoPaths, schoolId, referentSchoolId: _ignoredReferentId,
     schoolChangeReasonCode, schoolChangeReasonNote, deliveryMethod,
-    wingBehaviors, wingHistory,
+    wingBehaviors, wingHistory, clientMessage,
   } = parsed.data
 
   const serviceType = deriveServiceType(problemCategory)
@@ -295,6 +295,22 @@ export async function createTicketAction(input: unknown) {
   })
   if (histError) console.warn('ticket_status_history insert failed:', histError.message)
 
+  // First chat message — posts the client's personalised message as the
+  // opening reply so the school sees it in the conversation thread.
+  // Best-effort: skipped silently if empty or if ticket_messages is missing.
+  const trimmedClientMessage = clientMessage?.trim() ?? ''
+  if (trimmedClientMessage.length > 0) {
+    const { error: msgError } = await supabase.from('ticket_messages').insert({
+      ticket_id:        ticket.id,
+      sender_id:        user.id,
+      sender_role:      'client',
+      content:          trimmedClientMessage,
+      is_internal:      false,
+      visibility_level: 'all',
+    })
+    if (msgError) console.warn('client message insert failed:', msgError.message)
+  }
+
   // Email notifications (best-effort) — never block ticket creation.
   // Both dispatches run in parallel; failures are logged but swallowed.
   try {
@@ -326,6 +342,7 @@ export async function createTicketAction(input: unknown) {
       description:    richDescription,
       urgency,
       deliveryMethod,
+      clientMessage:  trimmedClientMessage || undefined,
     }
 
     const [clientRes, schoolRes] = await Promise.allSettled([

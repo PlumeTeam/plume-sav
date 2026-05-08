@@ -125,6 +125,7 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
         urgency:                problem.urgency,
         wingBehaviors:          problem.wingBehaviors,
         wingHistory,
+        clientMessage:          problem.clientMessage,
         schoolId:               problem.partnerSchoolId,
         referentSchoolId:       problem.referentSchoolId,
         schoolChangeReasonCode: problem.schoolChangeReasonCode,
@@ -260,6 +261,20 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
           )}
           {!problem.deliveryMethod && (
             <p className="text-sm text-amber-700">Méthode de remise non choisie — revenez en arrière.</p>
+          )}
+        </Section>
+
+        <Section title="Message à l'école">
+          {problem.clientMessage?.trim() ? (
+            <div className="rounded-xl border-l-4 border-brand-coral bg-brand-cream/60 p-3">
+              <p className="whitespace-pre-line text-sm italic leading-relaxed text-brand-ink">
+                {problem.clientMessage.trim()}
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">
+              Aucun message — vous pouvez en revenir à l&apos;étape précédente pour en ajouter un.
+            </p>
           )}
         </Section>
 

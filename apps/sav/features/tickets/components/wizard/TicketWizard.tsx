@@ -13,6 +13,7 @@ import { StepUrgency } from './StepUrgency'
 import { StepPhotos } from './StepPhotos'
 import { StepSchool } from './StepSchool'
 import { StepDelivery } from './StepDelivery'
+import { StepMessage } from './StepMessage'
 import { StepReview } from './StepReview'
 import { PlumeLogo } from '@/app/_components/PlumeLogo'
 import type { ClientWing, PartnerSchool } from '../../queries'
@@ -111,6 +112,7 @@ export function TicketWizard({ wings = [], schools = [] }: TicketWizardProps) {
           {currentStepId === 'photos'           && <StepPhotos onNext={next} onBack={back} />}
           {currentStepId === 'school'           && <StepSchool schools={schools} onNext={next} onBack={back} />}
           {currentStepId === 'delivery'         && <StepDelivery schools={schools} onNext={next} onBack={back} />}
+          {currentStepId === 'message'          && <StepMessage onNext={next} onBack={back} />}
           {currentStepId === 'review'           && <StepReview schools={schools} onBack={back} />}
         </div>
       </main>

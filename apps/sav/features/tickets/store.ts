@@ -17,6 +17,7 @@ export type StepId =
   | 'photos'
   | 'school'
   | 'delivery'
+  | 'message'
   | 'review'
 
 export const STEP_LABELS: Record<StepId, string> = {
@@ -29,13 +30,14 @@ export const STEP_LABELS: Record<StepId, string> = {
   'photos':           'Photos',
   'school':           'École partenaire',
   'delivery':         "Remise de l'aile",
+  'message':          "Message à l'école",
   'review':           'Récapitulatif',
 }
 
 export function buildWizardFlow(problemCategory: string | undefined): StepId[] {
   const flow: StepId[] = ['wing', 'wing-history', 'problem-category']
   if (problemCategory === 'other') flow.push('behaviors')
-  flow.push('description', 'urgency', 'photos', 'school', 'delivery', 'review')
+  flow.push('description', 'urgency', 'photos', 'school', 'delivery', 'message', 'review')
   return flow
 }
 

@@ -2,6 +2,14 @@
 // Hardcoded for now; partner_schools comes from the live DB,
 // partner_workshops can move to a table later when the network grows.
 
+// Default text shown in the wizard's "Message à l'école" textarea.
+// The client can keep it as-is, edit it, or wipe it entirely.
+export const DEFAULT_CLIENT_MESSAGE = `Bonjour,
+
+Voici les informations concernant un problème sur mon aile.
+
+Cordialement`
+
 export type ChecklistItem = {
   id:    string
   label: string

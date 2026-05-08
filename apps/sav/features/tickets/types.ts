@@ -71,6 +71,7 @@ export interface WizardProblem {
   schoolChangeReasonCode?: SchoolChangeReasonCode // Set only when partnerSchoolId !== referentSchoolId
   schoolChangeReasonNote?: string                // Free text, required when reason code is 'other'
   deliveryMethod?: DeliveryMethod                // How the client gets the wing to the school
+  clientMessage?: string                          // Personal message to the school, posted as the first chat reply
 }
 
 export interface WizardPhoto {
