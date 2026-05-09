@@ -1,10 +1,28 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getTicketDetail, getPartnerSchoolById } from '@/features/tickets/queries'
+import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
+import type { ClientShippingAddress } from '@/features/tickets/types'
 
 interface PageProps { params: { id: string } }
 
 export const dynamic = 'force-dynamic'
+
+// Mirrors the parser used on the ticket detail page — pulls the JSONB address
+// out of the row so ShippingLabelButton can skip the address form when it's
+// already been captured on a previous label generation for this ticket.
+function readClientShippingAddress(raw: unknown): ClientShippingAddress | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  if (typeof r.street !== 'string' || typeof r.postalCode !== 'string') return null
+  if (typeof r.city !== 'string' || typeof r.country !== 'string') return null
+  return {
+    street:     r.street,
+    postalCode: r.postalCode,
+    city:       r.city,
+    country:    r.country,
+  }
+}
 
 export default async function TicketCreatedPage({ params }: PageProps) {
   const ticket = await getTicketDetail(params.id)
@@ -18,6 +36,8 @@ export default async function TicketCreatedPage({ params }: PageProps) {
   const ticketRef  = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
   const schoolName = school?.name ?? 'Votre école partenaire'
   const cityRegion = [school?.city, school?.region].filter(Boolean).join(' · ')
+
+  const initialClientAddress = readClientShippingAddress(ticket.client_shipping_address)
 
   return (
     <main className="mx-auto max-w-2xl space-y-5 px-4 py-8">
@@ -124,6 +144,26 @@ export default async function TicketCreatedPage({ params }: PageProps) {
         </section>
       )}
 
+      {/* ── Bon de transport GLS (postal uniquement) ────────────── */}
+      {isPostal && (
+        <section className="card p-5">
+          <h2 className="section-title mb-3">Bon de transport GLS</h2>
+          <p className="mb-4 text-sm text-slate-600">
+            {ticket.client_school_label_url
+              ? "Votre bon de transport est prêt — téléchargez-le et collez-le sur votre colis."
+              : "Générez votre bon de transport GLS prépayé. Le coût est pris en charge par Plume."}
+          </p>
+          <ShippingLabelButton
+            ticketId={ticket.id}
+            leg="client_to_school"
+            initialTracking={ticket.client_school_tracking}
+            initialLabelUrl={ticket.client_school_label_url}
+            initialAddress={initialClientAddress}
+            autoApproved={ticket.auto_approved_shipping !== false}
+          />
+        </section>
+      )}
+
       {/* ── Postal mode: shipping checklist ─────────────────────── */}
       {isPostal && (
         <section className="card p-5">
@@ -157,6 +197,20 @@ export default async function TicketCreatedPage({ params }: PageProps) {
               </span>
             </li>
           </ul>
+        </section>
+      )}
+
+      {/* ── Et ensuite ? (postal uniquement) — vue d'ensemble du process ── */}
+      {isPostal && (
+        <section className="rounded-card border border-brand-stone bg-brand-cream p-5">
+          <h2 className="section-title mb-3">Et ensuite ?</h2>
+          <ol className="list-decimal space-y-2 pl-5 text-sm leading-relaxed text-brand-ink marker:font-semibold marker:text-brand-gold">
+            <li>Envoyez votre aile à l&apos;adresse ci-dessus.</li>
+            <li>Communiquez le numéro de suivi à votre école via la messagerie de votre demande.</li>
+            <li>Votre école réceptionnera et inspectera votre aile.</li>
+            <li>Vous serez tenu informé de l&apos;avancement à chaque étape par email.</li>
+            <li>Une fois le problème résolu, votre aile vous sera retournée.</li>
+          </ol>
         </section>
       )}
 
