@@ -1,10 +1,12 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getSchoolTicketDetail } from '@/features/tickets/queries'
+import { getCurrentUserRoles } from '@/features/auth/queries'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { TicketTimeline } from '@/features/tickets/components/TicketTimeline'
 import { CommentThread } from '@/features/tickets/components/CommentThread'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
+import { PlumeNoteComposer } from '@/features/tickets/components/PlumeNoteComposer'
 import { formatDate, formatDateTime } from '@/features/tickets/utils'
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
 import { SchoolActions } from './SchoolActions'
@@ -21,15 +23,22 @@ export const dynamic = 'force-dynamic'
 type ChecklistJson = { checkedIds?: string[]; notes?: string | null } | null
 
 export default async function SchoolTicketDetailPage({ params }: PageProps) {
-  const ticket = await getSchoolTicketDetail(params.id)
+  const [ticket, currentRoles] = await Promise.all([
+    getSchoolTicketDetail(params.id),
+    getCurrentUserRoles(),
+  ])
   if (!ticket) notFound()
 
-  // School sees public messages + own internal notes + workshop-plume channel
+  const isPlumeAdmin = currentRoles.includes('plume_admin')
+
+  // School sees public messages + own internal notes + workshop-plume channel.
+  // Plume admins (en vue support) voient en plus les notes 'plume_only'.
   const visibleMessages = ticket.ticket_messages
     .filter((m) =>
       m.visibility_level === 'all' ||
       m.visibility_level === 'school_plume' ||
       m.visibility_level === 'workshop_plume' ||
+      (isPlumeAdmin && m.visibility_level === 'plume_only') ||
       m.sender_role === 'school'
     )
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
@@ -217,6 +226,9 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
 
       {/* Composer toujours visible */}
       <SchoolMessageComposer ticketId={ticket.id} />
+
+      {/* Composer Plume HQ — réservé aux plume_admin (vue support). */}
+      {isPlumeAdmin && <PlumeNoteComposer ticketId={ticket.id} />}
     </>
   )
 

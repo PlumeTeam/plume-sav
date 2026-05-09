@@ -1,10 +1,12 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getWorkshopTicketDetail } from '@/features/tickets/queries'
+import { getCurrentUserRoles } from '@/features/auth/queries'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { TicketTimeline } from '@/features/tickets/components/TicketTimeline'
 import { CommentThread } from '@/features/tickets/components/CommentThread'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
+import { PlumeNoteComposer } from '@/features/tickets/components/PlumeNoteComposer'
 import { DiagnosisChecklist } from '@/features/tickets/components/DiagnosisChecklist'
 import { WORKSHOP_TECHNICAL_CHECKLIST } from '@/features/tickets/constants'
 import { saveWorkshopChecklistAction } from '@/features/tickets/actions'
@@ -26,12 +28,28 @@ export const dynamic = 'force-dynamic'
 type ChecklistJson = { checkedIds?: string[]; notes?: string | null } | null
 
 export default async function WorkshopTicketDetailPage({ params }: PageProps) {
-  const ticket = await getWorkshopTicketDetail(params.id)
+  const [ticket, currentRoles] = await Promise.all([
+    getWorkshopTicketDetail(params.id),
+    getCurrentUserRoles(),
+  ])
   if (!ticket) notFound()
 
-  const allMessages = [...ticket.ticket_messages].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  )
+  const isPlumeAdmin = currentRoles.includes('plume_admin')
+
+  // Workshop sees:
+  //  - public messages (visibility 'all')
+  //  - the school↔workshop↔plume channel (visibility 'workshop_plume')
+  //  - their own messages
+  // Hides 'school_plume' (private school↔plume) and 'plume_only' (admin notes).
+  // Plume admins (en vue support) voient les notes 'plume_only' en plus.
+  const visibleMessages = ticket.ticket_messages
+    .filter((m) =>
+      m.visibility_level === 'all' ||
+      m.visibility_level === 'workshop_plume' ||
+      (isPlumeAdmin && (m.visibility_level === 'plume_only' || m.visibility_level === 'school_plume')) ||
+      m.sender_role === 'workshop'
+    )
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
   const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
 
   const stored: ChecklistJson = (ticket.workshop_checklist ?? null) as ChecklistJson
@@ -244,12 +262,19 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
         <section className="card p-5">
           <h2 className="section-title mb-4">Messages</h2>
           <CommentThread
-            messages={allMessages}
+            messages={visibleMessages}
             ownRoles={['workshop']}
             showInternalBadge
             emptyText="Aucun message."
           />
         </section>
+
+        {/* Composer Plume HQ — réservé aux plume_admin (vue support). */}
+        {isPlumeAdmin && (
+          <section>
+            <PlumeNoteComposer ticketId={ticket.id} />
+          </section>
+        )}
       </main>
     </div>
   )

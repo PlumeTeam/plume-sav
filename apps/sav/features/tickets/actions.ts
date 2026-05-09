@@ -498,7 +498,29 @@ export async function addRoleMessageAction(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: { _form: ['Non authentifié'] } }
 
-  const { ticketId, content, isInternal, senderRole, visibilityLevel } = parsed.data
+  const { ticketId, content, isInternal, senderRole: requestedRole, visibilityLevel } = parsed.data
+
+  // Trust the user's actual role(s), not the form payload, to prevent spoofing
+  // and to re-tag plume_admin messages correctly when an admin uses the school /
+  // workshop UI (the existing composers hardcode 'school' / 'workshop').
+  const userRoles = await getCurrentUserRoles()
+  const isAdmin   = userRoles.includes('plume_admin')
+
+  let senderRole: MessageSenderRole
+  if (isAdmin) {
+    // Plume admin always posts as 'plume_admin' regardless of which dashboard
+    // they're on. Their messages need to be unambiguously attributed for audit.
+    senderRole = 'plume_admin'
+  } else if (userRoles.includes(requestedRole)) {
+    // Non-admin: requested role must match a role they actually own.
+    senderRole = requestedRole
+  } else if (requestedRole === 'client') {
+    // Authenticated ticket owner without an explicit user_roles row — RLS still
+    // enforces ownership (client_insert_messages requires service_request.client_id = auth.uid()).
+    senderRole = 'client'
+  } else {
+    return { error: { _form: ["Vous n'avez pas le droit de poster avec ce rôle."] } }
+  }
 
   // Explicit visibility wins; otherwise fall back to a sender-role mapping.
   // Allowed values per CHECK constraint: 'all' | 'school_plume' | 'workshop_plume' | 'plume_only'.
@@ -514,7 +536,7 @@ export async function addRoleMessageAction(formData: FormData) {
   const { error } = await supabase.from('ticket_messages').insert({
     ticket_id:        ticketId,
     sender_id:        user.id,
-    sender_role:      senderRole as MessageSenderRole,
+    sender_role:      senderRole,
     content,
     is_internal:      isInternal,
     visibility_level: visibility,

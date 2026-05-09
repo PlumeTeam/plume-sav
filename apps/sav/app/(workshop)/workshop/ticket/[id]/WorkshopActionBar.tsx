@@ -5,7 +5,6 @@ import {
   addRoleMessageAction,
   saveDiagnosisAction,
 } from '@/features/tickets/actions'
-import type { RequestStatus } from '@/features/tickets/types'
 
 interface WorkshopActionBarProps {
   ticketId: string
@@ -14,6 +13,31 @@ interface WorkshopActionBarProps {
   estimatedHours: number | null
   partsNeeded:    string | null
 }
+
+// Niveau de visibilité d'un message atelier — détermine qui voit quoi.
+type MessageAudience = 'all' | 'workshop_plume' | 'plume_only'
+
+const AUDIENCE_OPTIONS: Array<{
+  value: MessageAudience
+  label: string
+  hint:  string
+}> = [
+  {
+    value: 'all',
+    label: 'Tout le monde',
+    hint:  "Visible par le client, l'école et Plume HQ.",
+  },
+  {
+    value: 'workshop_plume',
+    label: 'École & Plume HQ',
+    hint:  "Discussion technique interne — le client ne voit pas.",
+  },
+  {
+    value: 'plume_only',
+    label: 'Plume HQ uniquement',
+    hint:  "Note privée pour Plume — école et client ne voient pas.",
+  },
+]
 
 export function WorkshopActionBar({
   ticketId,
@@ -26,9 +50,9 @@ export function WorkshopActionBar({
   const [showMessage,   setShowMessage]   = useState(false)
   const [showDiagnosis, setShowDiagnosis] = useState(false)
   const [messageContent, setMessageContent] = useState('')
-  // Default = false : la majorité des messages atelier vont au client/école.
-  // Les notes purement internes restent un opt-in via la checkbox.
-  const [isInternal, setIsInternal] = useState(false)
+  // Par défaut, la majorité des messages atelier vont au client/école
+  // (mises à jour de progression). Les autres niveaux nécessitent un opt-in.
+  const [audience, setAudience] = useState<MessageAudience>('all')
   const [notes, setNotes] = useState(diagnosisNotes ?? '')
   const [cost,  setCost]  = useState(estimatedCost?.toString() ?? '')
   const [hours, setHours] = useState(estimatedHours?.toString() ?? '')
@@ -39,13 +63,17 @@ export function WorkshopActionBar({
     e.preventDefault()
     startTransition(async () => {
       const fd = new FormData()
-      fd.set('ticketId', ticketId)
-      fd.set('content', messageContent)
-      fd.set('isInternal', String(isInternal))
-      fd.set('senderRole', 'workshop')
+      fd.set('ticketId',        ticketId)
+      fd.set('content',         messageContent)
+      fd.set('isInternal',      String(audience !== 'all'))
+      fd.set('senderRole',      'workshop')
+      fd.set('visibilityLevel', audience)
       const result = await addRoleMessageAction(fd)
-      if (result?.error) setFeedback({ type: 'error', msg: "Erreur envoi." })
-      else {
+      if (result?.error) {
+        const err = result.error as Record<string, string[] | undefined>
+        const msg = err._form?.[0] ?? err.content?.[0] ?? "Erreur envoi."
+        setFeedback({ type: 'error', msg })
+      } else {
         setMessageContent('')
         setShowMessage(false)
         setFeedback({ type: 'ok', msg: 'Message envoyé.' })
@@ -145,21 +173,48 @@ export function WorkshopActionBar({
 
       {showMessage && (
         <form onSubmit={handleSendMessage} className="space-y-3 rounded-2xl bg-brand-cream p-4">
-          <label className="flex items-center gap-2 text-sm text-brand-ink">
-            <input
-              id="ws-internal"
-              type="checkbox"
-              checked={isInternal}
-              onChange={(e) => setIsInternal(e.target.checked)}
-              className="h-4 w-4 rounded border-brand-stone text-brand-gold focus:ring-brand-gold"
-            />
-            Commentaire interne
-          </label>
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+              Destinataires
+            </legend>
+            <div className="space-y-1.5">
+              {AUDIENCE_OPTIONS.map((opt) => (
+                <label
+                  key={opt.value}
+                  className={`flex cursor-pointer items-start gap-2 rounded-xl border p-2.5 transition-colors ${
+                    audience === opt.value
+                      ? 'border-brand-gold bg-brand-gold/10'
+                      : 'border-brand-stone bg-white hover:bg-brand-cream/40'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="ws-audience"
+                    value={opt.value}
+                    checked={audience === opt.value}
+                    onChange={() => setAudience(opt.value)}
+                    className="mt-0.5 h-4 w-4 border-brand-stone text-brand-gold focus:ring-brand-gold"
+                  />
+                  <span className="flex-1">
+                    <span className="block text-sm font-medium text-brand-ink">{opt.label}</span>
+                    <span className="block text-xs text-slate-500">{opt.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <textarea
             value={messageContent}
             onChange={(e) => setMessageContent(e.target.value)}
-            placeholder={isInternal ? 'Note interne atelier…' : 'Message au client ou à l’école…'}
+            placeholder={
+              audience === 'all'
+                ? 'Message visible par le client…'
+                : audience === 'workshop_plume'
+                ? "Discussion technique avec l'école et Plume…"
+                : 'Note interne pour Plume HQ…'
+            }
             rows={3}
+            maxLength={5000}
             className="field-input resize-none"
             required
           />
