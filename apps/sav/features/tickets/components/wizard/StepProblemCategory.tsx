@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useWizardStore } from '../../store'
 import { PROBLEM_CATEGORIES } from '../../types'
-import type { ProblemCategory } from '../../types'
+import type { WizardProblemCategory } from '../../types'
 import { StepLayout, StepNav } from './StepLayout'
 
 interface StepProblemCategoryProps {
@@ -11,7 +11,7 @@ interface StepProblemCategoryProps {
   onBack: () => void
 }
 
-type Choice = ProblemCategory | 'wing_behavior'
+type Choice = WizardProblemCategory | 'wing_behavior'
 
 export function StepProblemCategory({ onNext, onBack }: StepProblemCategoryProps) {
   const { problem, setProblem } = useWizardStore()
@@ -30,7 +30,7 @@ export function StepProblemCategory({ onNext, onBack }: StepProblemCategoryProps
       setProblem({ problemCategory: 'other' })
     } else {
       // Sortie du flow comportement → on vide les behaviors si présent
-      setProblem({ problemCategory: selected as ProblemCategory, wingBehaviors: [] })
+      setProblem({ problemCategory: selected, wingBehaviors: [] })
     }
     onNext()
   }

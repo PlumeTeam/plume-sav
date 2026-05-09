@@ -18,7 +18,7 @@ import {
   adminRemindSchoolSchema,
 } from './schemas'
 import { getCurrentUserRoles } from '@/features/auth/queries'
-import type { MessageSenderRole, TicketStatus, ServiceType, ProblemCategory, TicketUpdate } from './types'
+import type { MessageSenderRole, TicketStatus, ServiceType, ProblemCategory, TicketUpdate, WizardProblemCategory } from './types'
 import type { RequestStatus, SchoolResolution, ClientShippingAddress, ShipmentLeg } from './types'
 import { PARTNER_WORKSHOPS } from './constants'
 import { resolveClientIdentity } from '@/features/auth/identity'
@@ -50,9 +50,11 @@ function resolutionToRequestStatus(r: SchoolResolution): RequestStatus {
 
 // Maps SAV problem category to the shared-platform service_type enum.
 // 'porosity' is excluded from the client wizard (staff-only diagnosis), so
-// the wizard never reaches this function with that value.
-function deriveServiceType(category: ProblemCategory): ServiceType {
-  if (['tear', 'line_issue', 'riser_issue'].includes(category)) return 'repair'
+// the wizard never reaches this function with that value. 'fabric_issue'
+// is wizard-only ("Tissu") and behaves like the other physical-damage
+// categories — it routes to 'repair'.
+function deriveServiceType(category: WizardProblemCategory): ServiceType {
+  if (['tear', 'fabric_issue', 'line_issue', 'riser_issue'].includes(category)) return 'repair'
   return 'sav'
 }
 
@@ -80,8 +82,9 @@ function requestStatusToSavStatus(status: RequestStatus): TicketStatus {
   }
 }
 
-const PROBLEM_CATEGORY_LABELS: Record<ProblemCategory, string> = {
+const PROBLEM_CATEGORY_LABELS: Record<WizardProblemCategory, string> = {
   tear:         'Déchirure',
+  fabric_issue: 'Tissu',
   line_issue:   'Suspente',
   riser_issue:  'Élévateur',
   buckle_issue: 'Boucle',
@@ -171,7 +174,7 @@ function formatWingHistory(h: WingHistoryInput | undefined): string[] {
 // wizard metadata into a structured prefix the school can read, then append the
 // client's free text.
 function buildRichDescription(input: {
-  problemCategory: ProblemCategory
+  problemCategory: WizardProblemCategory
   urgency:         'normal' | 'urgent'
   freeText:        string
   wingBrand?:      string

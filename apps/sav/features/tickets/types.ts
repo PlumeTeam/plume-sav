@@ -80,7 +80,7 @@ export interface ClientShippingAddress {
 }
 
 export interface WizardProblem {
-  problemCategory: ProblemCategory | ''
+  problemCategory: WizardProblemCategory | ''
   problemDescription: string
   urgency: UrgencyLevel
   wingBehaviors?: string[]                       // IDs from WING_BEHAVIOR_TYPES, used when problemCategory is 'other'
@@ -104,6 +104,12 @@ export const WING_BRANDS = [
   'Skywalk', 'U-Turn', 'Gradient', 'Triple Seven', 'Sup Air', 'Autre',
 ] as const
 
+// Wizard-only category type. Extends the DB enum with 'fabric_issue', which
+// is shown to the client as "Tissu" but never written to the problem_category
+// column (the insert payload doesn't carry it — it's folded into the rich
+// description text + mapped to a service_type by deriveServiceType).
+export type WizardProblemCategory = ProblemCategory | 'fabric_issue'
+
 // Categories shown in the client wizard. 'porosity' and 'buckle_issue' sont
 // volontairement exclus :
 //  - porosity : un client ne peut pas l'auto-diagnostiquer — c'est l'atelier
@@ -112,12 +118,13 @@ export const WING_BRANDS = [
 //    relèvent d'un cas atelier traité hors wizard.
 // Le DB enum garde les deux pour les usages staff / historique.
 export const PROBLEM_CATEGORIES: Array<{
-  value: Exclude<ProblemCategory, 'porosity' | 'buckle_issue'>
+  value: Exclude<WizardProblemCategory, 'porosity' | 'buckle_issue'>
   label: string
   description: string
   emoji: string
 }> = [
   { value: 'tear',         label: 'Déchirure',  description: 'Accroc, coupure ou déchirure du tissu', emoji: '🪡' },
+  { value: 'fabric_issue', label: 'Tissu',      description: 'Usure, décoloration ou problème de tissu', emoji: '🧶' },
   { value: 'line_issue',   label: 'Suspente',   description: 'Suspente cassée, emmêlée ou usée',      emoji: '🧵' },
   { value: 'riser_issue',  label: 'Élévateur',  description: "Problème d'élévateur ou poulie",        emoji: '🔗' },
   { value: 'other',        label: 'Autre',      description: 'Autre problème non listé',              emoji: '❓' },
