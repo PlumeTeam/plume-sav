@@ -159,10 +159,40 @@ export type PartnerSchoolDetail = PartnerSchool & {
   address?: string | null
 }
 
+// Formats the JSONB `company_address` column into a multi-line string the
+// confirmation page can render with `whitespace-pre-line`. Falls back to a
+// legacy plain `address` string when the row only has the older column.
+// Shape (live DB): { street, city, postal_code, country } — country may be a
+// 2-letter code or a full name; we render it verbatim either way.
+function formatSchoolAddress(raw: Record<string, unknown>): string | null {
+  const ca = raw.company_address
+  if (ca && typeof ca === 'object' && !Array.isArray(ca)) {
+    const c = ca as Record<string, unknown>
+    const street  = typeof c.street      === 'string' ? c.street.trim()      : ''
+    const postal  = typeof c.postal_code === 'string' ? c.postal_code.trim() : ''
+    const city    = typeof c.city        === 'string' ? c.city.trim()        : ''
+    const country = typeof c.country     === 'string' ? c.country.trim()     : ''
+    const cityLine = [postal, city].filter(Boolean).join(' ')
+    const lines = [street, cityLine, country].filter(Boolean)
+    if (lines.length > 0) return lines.join('\n')
+  }
+  if (typeof raw.address === 'string' && raw.address.trim().length > 0) {
+    return raw.address.trim()
+  }
+  return null
+}
+
 /**
  * Best-effort lookup of one partner_schools row with contact fields.
  * Used by the post-creation confirmation page to tell the client who
  * to call / where to ship their wing.
+ *
+ * Resilience: the cascade drops *optional* columns (lat/lng, region, address)
+ * one tier at a time without ever giving up on the contact columns we
+ * actually need (email, phone, company_address). PostgREST fails the entire
+ * SELECT when any one column is missing, so a single rich attempt isn't
+ * enough — we add explicit no-lat/no-region variants that still keep the
+ * contact fields.
  */
 export async function getPartnerSchoolById(id: string): Promise<PartnerSchoolDetail | null> {
   const supabase = await createClient()
@@ -171,13 +201,20 @@ export async function getPartnerSchoolById(id: string): Promise<PartnerSchoolDet
   type Row = Record<string, unknown>
   type AttemptResult = { data: Row | null; error: { message: string; code?: string } | null }
 
-  // Try the richest select first; fall back as columns prove missing.
+  // Each attempt keeps the contact triplet (email, phone, company_address)
+  // and trims geo columns until one combination matches the live schema.
+  // The final two attempts drop the contact triplet so we still surface the
+  // school name even if the contact columns end up missing entirely.
   const attempts: Array<{ label: string; run: () => Promise<AttemptResult> }> = [
-    { label: 'rich',     run: () => db.from('partner_schools').select('id, name, city, region, lat, lng, email, phone, address').eq('id', id).maybeSingle() },
-    { label: 'noaddr',   run: () => db.from('partner_schools').select('id, name, city, region, lat, lng, email, phone').eq('id', id).maybeSingle() },
-    { label: 'noemail',  run: () => db.from('partner_schools').select('id, name, city, region, lat, lng').eq('id', id).maybeSingle() },
-    { label: 'noregion', run: () => db.from('partner_schools').select('id, name, city, lat, lng').eq('id', id).maybeSingle() },
-    { label: 'minimal',  run: () => db.from('partner_schools').select('id, name').eq('id', id).maybeSingle() },
+    { label: 'rich+geo',      run: () => db.from('partner_schools').select('id, name, city, region, lat, lng, email, phone, company_address, address').eq('id', id).maybeSingle() },
+    { label: 'rich-noaddr',   run: () => db.from('partner_schools').select('id, name, city, region, lat, lng, email, phone, company_address').eq('id', id).maybeSingle() },
+    { label: 'rich-nolatlng', run: () => db.from('partner_schools').select('id, name, city, region, email, phone, company_address').eq('id', id).maybeSingle() },
+    { label: 'rich-noregion', run: () => db.from('partner_schools').select('id, name, city, email, phone, company_address').eq('id', id).maybeSingle() },
+    { label: 'rich-nameonly', run: () => db.from('partner_schools').select('id, name, email, phone, company_address').eq('id', id).maybeSingle() },
+    { label: 'legacy-addr',   run: () => db.from('partner_schools').select('id, name, city, region, lat, lng, email, phone, address').eq('id', id).maybeSingle() },
+    { label: 'noemail',       run: () => db.from('partner_schools').select('id, name, city, region, lat, lng').eq('id', id).maybeSingle() },
+    { label: 'noregion',      run: () => db.from('partner_schools').select('id, name, city, lat, lng').eq('id', id).maybeSingle() },
+    { label: 'minimal',       run: () => db.from('partner_schools').select('id, name').eq('id', id).maybeSingle() },
   ]
 
   for (const { label, run } of attempts) {
@@ -186,11 +223,14 @@ export async function getPartnerSchoolById(id: string): Promise<PartnerSchoolDet
       if (!r.error && r.data) {
         const base = normaliseSchool(r.data)
         const enriched = enrichWithCoords(base)
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`[getPartnerSchoolById] using "${label}" for id=${id}`)
+        }
         return {
           ...enriched,
-          email:   typeof r.data.email   === 'string' ? r.data.email   : null,
-          phone:   typeof r.data.phone   === 'string' ? r.data.phone   : null,
-          address: typeof r.data.address === 'string' ? r.data.address : null,
+          email:   typeof r.data.email === 'string' ? r.data.email : null,
+          phone:   typeof r.data.phone === 'string' ? r.data.phone : null,
+          address: formatSchoolAddress(r.data),
         }
       }
       if (r.error) {
