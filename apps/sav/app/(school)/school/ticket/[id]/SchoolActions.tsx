@@ -23,12 +23,19 @@ const WorkshopMapPicker = dynamic(
 )
 
 type Channel = 'client' | 'workshop'
+type CardKey = 'client' | 'workshop' | 'check'
 
 interface SchoolActionsProps {
   ticketId:              string
   isCheckValidated:      boolean
   assignedWorkshopId:    string | null
   assignedWorkshopLabel: string | null
+  /**
+   * Which cards to render. Defaults to all three. Used by the tabbed page to
+   * show only the workshop+check pair in the "Check aile" tab — client comm
+   * lives in its own dedicated tab.
+   */
+  cards?:                CardKey[]
 }
 
 export function SchoolActions({
@@ -36,6 +43,7 @@ export function SchoolActions({
   isCheckValidated,
   assignedWorkshopId,
   assignedWorkshopLabel,
+  cards = ['client', 'workshop', 'check'],
 }: SchoolActionsProps) {
   const [open, setOpen] = useState<Channel | null>(null)
 
@@ -47,68 +55,86 @@ export function SchoolActions({
       : null
   )
 
+  const showClient   = cards.includes('client')
+  const showWorkshop = cards.includes('workshop')
+  const showCheck    = cards.includes('check')
+
+  // Auto-fit the grid to the number of visible cards so a 1- or 2-card
+  // layout doesn't leave empty columns.
+  const visibleCount = (showClient ? 1 : 0) + (showWorkshop ? 1 : 0) + (showCheck ? 1 : 0)
+  const gridCols =
+    visibleCount === 1 ? 'sm:grid-cols-1'
+    : visibleCount === 2 ? 'sm:grid-cols-2'
+    : 'sm:grid-cols-3'
+
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className={`grid grid-cols-1 gap-3 ${gridCols}`}>
         {/* Communiquer avec le client */}
-        <button
-          type="button"
-          onClick={() => setOpen(open === 'client' ? null : 'client')}
-          className={`card flex flex-col items-start gap-2 p-5 text-left transition-all hover:-translate-y-0.5 ${
-            open === 'client' ? 'border-2 border-brand-gold bg-brand-gold/5 shadow-plume' : ''
-          }`}
-        >
-          <span aria-hidden className="text-3xl">💬</span>
-          <p className="text-sm font-semibold text-brand-ink">Communiquer avec le client</p>
-          <p className="text-xs text-slate-500">
-            Message visible par le client (et par toute l&apos;équipe Plume).
-          </p>
-        </button>
+        {showClient && (
+          <button
+            type="button"
+            onClick={() => setOpen(open === 'client' ? null : 'client')}
+            className={`card flex flex-col items-start gap-2 p-5 text-left transition-all hover:-translate-y-0.5 ${
+              open === 'client' ? 'border-2 border-brand-gold bg-brand-gold/5 shadow-plume' : ''
+            }`}
+          >
+            <span aria-hidden className="text-3xl">💬</span>
+            <p className="text-sm font-semibold text-brand-ink">Communiquer avec le client</p>
+            <p className="text-xs text-slate-500">
+              Message visible par le client (et par toute l&apos;équipe Plume).
+            </p>
+          </button>
+        )}
 
         {/* Communiquer avec l'atelier */}
-        <button
-          type="button"
-          onClick={() => setOpen(open === 'workshop' ? null : 'workshop')}
-          className={`card flex flex-col items-start gap-2 p-5 text-left transition-all hover:-translate-y-0.5 ${
-            open === 'workshop' ? 'border-2 border-brand-gold bg-brand-gold/5 shadow-plume' : ''
-          }`}
-        >
-          <span aria-hidden className="text-3xl">🛠️</span>
-          <p className="text-sm font-semibold text-brand-ink">Communiquer avec l&apos;atelier</p>
-          <p className="text-xs text-slate-500">
-            {workshop
-              ? <>Atelier&nbsp;: <strong>{workshop.label}</strong></>
-              : 'Choisissez un atelier puis échangez. Le client ne voit pas.'}
-          </p>
-        </button>
+        {showWorkshop && (
+          <button
+            type="button"
+            onClick={() => setOpen(open === 'workshop' ? null : 'workshop')}
+            className={`card flex flex-col items-start gap-2 p-5 text-left transition-all hover:-translate-y-0.5 ${
+              open === 'workshop' ? 'border-2 border-brand-gold bg-brand-gold/5 shadow-plume' : ''
+            }`}
+          >
+            <span aria-hidden className="text-3xl">🛠️</span>
+            <p className="text-sm font-semibold text-brand-ink">Communiquer avec l&apos;atelier</p>
+            <p className="text-xs text-slate-500">
+              {workshop
+                ? <>Atelier&nbsp;: <strong>{workshop.label}</strong></>
+                : 'Choisissez un atelier puis échangez. Le client ne voit pas.'}
+            </p>
+          </button>
+        )}
 
         {/* Checker l'aile */}
-        <Link
-          href={`/school/ticket/${ticketId}/check`}
-          className="card flex flex-col items-start gap-2 p-5 text-left transition-all hover:-translate-y-0.5"
-        >
-          <div className="flex w-full items-start justify-between">
-            <span aria-hidden className="text-3xl">🔍</span>
-            {isCheckValidated && (
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                ✓ Check validé
-              </span>
-            )}
-          </div>
-          <p className="text-sm font-semibold text-brand-ink">Checker l&apos;aile</p>
-          <p className="text-xs text-slate-500">
-            {isCheckValidated
-              ? 'Diagnostic réalisé. Cliquez pour voir ou modifier.'
-              : 'Lancer la checklist de diagnostic.'}
-          </p>
-        </Link>
+        {showCheck && (
+          <Link
+            href={`/school/ticket/${ticketId}/check`}
+            className="card flex flex-col items-start gap-2 p-5 text-left transition-all hover:-translate-y-0.5"
+          >
+            <div className="flex w-full items-start justify-between">
+              <span aria-hidden className="text-3xl">🔍</span>
+              {isCheckValidated && (
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                  ✓ Check validé
+                </span>
+              )}
+            </div>
+            <p className="text-sm font-semibold text-brand-ink">Checker l&apos;aile</p>
+            <p className="text-xs text-slate-500">
+              {isCheckValidated
+                ? 'Diagnostic réalisé. Cliquez pour voir ou modifier.'
+                : 'Lancer la checklist de diagnostic.'}
+            </p>
+          </Link>
+        )}
       </div>
 
-      {open === 'client' && (
+      {showClient && open === 'client' && (
         <ClientComposer ticketId={ticketId} onClose={() => setOpen(null)} />
       )}
 
-      {open === 'workshop' && (
+      {showWorkshop && open === 'workshop' && (
         <WorkshopComposer
           ticketId={ticketId}
           workshop={workshop}
