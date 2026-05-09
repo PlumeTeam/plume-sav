@@ -164,42 +164,6 @@ export default async function TicketCreatedPage({ params }: PageProps) {
         </section>
       )}
 
-      {/* ── Postal mode: shipping checklist ─────────────────────── */}
-      {isPostal && (
-        <section className="card p-5">
-          <h2 className="section-title mb-3">Avant d&apos;expédier</h2>
-          <ul className="space-y-2 text-sm text-brand-ink">
-            <li className="flex items-start gap-2">
-              <span aria-hidden className="mt-0.5">📦</span>
-              <span>
-                Emballez soigneusement votre aile dans son sac d&apos;origine ou un
-                sac rembourré. Évitez de la compresser inutilement.
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span aria-hidden className="mt-0.5">🔢</span>
-              <span>
-                Utilisez un transporteur avec suivi (Colissimo, Chronopost, Mondial Relay…)
-                et conservez précieusement le numéro de suivi.
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span aria-hidden className="mt-0.5">💬</span>
-              <span>
-                Communiquez le numéro de suivi à l&apos;école via la messagerie de
-                la demande dès que le colis est expédié.
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span aria-hidden className="mt-0.5">🛡️</span>
-              <span>
-                Pensez à assurer le colis selon la valeur de votre aile.
-              </span>
-            </li>
-          </ul>
-        </section>
-      )}
-
       {/* ── Et ensuite ? (postal uniquement) — vue d'ensemble du process ── */}
       {isPostal && (
         <section className="rounded-card border border-brand-stone bg-brand-cream p-5">
