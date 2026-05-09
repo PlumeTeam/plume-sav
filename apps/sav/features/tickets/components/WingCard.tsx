@@ -10,7 +10,7 @@ interface WingCardProps {
 
 export function WingCard({ wing }: WingCardProps) {
   const router = useRouter()
-  const { reset, setWingInfo } = useWizardStore()
+  const { reset, setWingInfo, setProblem } = useWizardStore()
 
   function handleCreateTicket() {
     const modelName = (wing.product_model || '')
@@ -31,6 +31,17 @@ export function WingCard({ wing }: WingCardProps) {
       wingColor:    wing.color_name ?? '',
       purchaseDate,
       flightHours:  '',
+    })
+    // Seed the referent school from the wing so StepSchool can default to
+    // "Envoi à votre école" instead of dropping the user on the map.
+    // StepWingInfo doesn't re-fire its own selectWing() when the wing is
+    // already auto-selected via wingInfo.wingSerial, so this is the only
+    // place this gets set on the WingCard → wizard path.
+    setProblem({
+      referentSchoolId:       wing.partner_school_id ?? null,
+      partnerSchoolId:        undefined,
+      schoolChangeReasonCode: undefined,
+      schoolChangeReasonNote: undefined,
     })
     router.push('/client/new-ticket')
   }
