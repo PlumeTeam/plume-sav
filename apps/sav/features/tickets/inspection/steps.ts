@@ -1,74 +1,133 @@
-// School inspection wizard — step definitions.
-// Each step asks a single yes/no/na question (or a 3-choice severity, or a free-text)
-// and is rendered on its own screen. Mirrors the client wizard's "one question per page" UX.
+// School inspection wizard — payload schema V2.
+// Persisted as JSON inside service_requests.school_checklist.notes with the
+// __wizard__ marker. The page-side guard (`isCheckValidated`) only checks
+// notes.length > 0, so a saved payload counts as validated regardless of
+// schema details — keeping the contract back-compat.
 
-export type InspectionStepKind = 'yesno' | 'severity' | 'freetext'
+export type FabricCondition  = 'good' | 'worn' | 'damaged'
+export type LinesCondition   = 'good' | 'worn' | 'broken'
+export type RisersCondition  = 'good' | 'worn' | 'damaged'
+export type YesNo            = 'yes' | 'no'
+export type YesNoIdk         = 'yes' | 'no' | 'idk'
+export type InflationSymmetry = 'yes' | 'no' | 'unsure'
+export type TearSize         = 'lt5' | '5to10' | '10to15' | 'gt15'
+export type SeamDistance     = 'close' | 'far'
 
-export type InspectionStep = {
-  id:    string
-  kind:  InspectionStepKind
-  title: string
-  hint?: string
-  /** For yesno: hint shown below if the answer is "yes" */
-  yesHint?: string
-  /** For freetext: placeholder of the textarea */
-  placeholder?: string
+export type Phase1 = {
+  // Écran 1 — Inspection visuelle générale
+  visibleDamage?:      YesNo
+  damageDescription?:  string
+
+  // Écran 2 — Tissu
+  fabricCondition?:    FabricCondition
+  visibleTears?:       YesNo
+  tearSize?:           TearSize
+  seamDistance?:       SeamDistance
+
+  // Écran 3 — Coutures et structure
+  openSeams?:          YesNo
+  linesCondition?:     LinesCondition
+  maillonsInverted?:   YesNoIdk
+  risersCondition?:    RisersCondition
 }
 
-export const VISUAL_INSPECTION_STEPS: InspectionStep[] = [
-  { id: 'damage_located',  kind: 'yesno',
-    title: "Avez-vous identifié la localisation du dommage ?",
-    hint:  "Repérez précisément l'endroit affecté." },
-  { id: 'small_tear',      kind: 'yesno',
-    title: "La déchirure mesure-t-elle entre 3 et 15 cm, à plus de 3 cm d'une couture ?",
-    yesHint: "Réparable par l'école avec du ripstop." },
-  { id: 'open_seam',       kind: 'yesno',
-    title: "Y a-t-il une couture ouverte ?" },
-  { id: 'lines_check',     kind: 'yesno',
-    title: "Maillon inversé ou suspente mal placée constatés ?" },
-  { id: 'severity',        kind: 'severity',
-    title: "Comment évaluez-vous la gravité du dommage ?" },
-]
+export type Phase2 =
+  | { skipped: true }
+  | {
+      skipped:                  false
+      inflationSymmetry?:       InflationSymmetry
+      inflationNormalBehavior?: YesNo
+      inflationNotes?:          string
+    }
 
-export const BEHAVIOR_INSPECTION_STEPS: InspectionStep[] = [
-  { id: 'behavior_verified', kind: 'yesno',
-    title: "Comportement vérifié en vol ou au sol ?" },
-  { id: 'symmetry_check',    kind: 'yesno',
-    title: "La symétrie visuelle de l'aile est-elle correcte ?" },
-  { id: 'inflation_test',    kind: 'yesno',
-    title: "Avez-vous testé le gonflage ?",
-    hint:  "Lourd ? Asymétrique ? Hésitant ?" },
-  { id: 'pilot_level_check', kind: 'yesno',
-    title: "Comportement cohérent avec le niveau du pilote ?",
-    hint:  "Aile pas adaptée, ou réellement anormale ?" },
-  { id: 'client_advised',    kind: 'freetext',
-    title: "Quel conseil / information avez-vous donné au client ?",
-    placeholder: "Synthèse de l'échange (ce qui a été expliqué, accord trouvé…)" },
-]
+export type Phase3 =
+  | { skipped: true }
+  | {
+      skipped:                false
+      flightStraight?:        YesNo
+      flightTurnNormal?:      YesNo
+      flightBrakesSymmetric?: YesNo
+      flightNotes?:           string
+    }
 
-export const SEVERITY_OPTIONS = [
-  { value: 'minor',    emoji: '🟢', label: 'Mineur',  description: "Réparation rapide, peu d'impact sur la sécurité." },
-  { value: 'moderate', emoji: '🟡', label: 'Modéré',  description: "Réparation possible mais l'aile doit être inspectée." },
-  { value: 'severe',   emoji: '🔴', label: 'Grave',   description: "Sécurité compromise — escalade atelier nécessaire." },
-] as const
-
-// Schema persisted in service_requests.school_checklist (JSONB).
-// We extend the legacy { checkedIds, notes } shape so the existing flat-checklist
-// page keeps reading old data, while the wizard writes the richer { answers } map.
-export type InspectionAnswer = {
-  value: string  // 'yes' | 'no' | 'na' | 'minor' | 'moderate' | 'severe' | free text
-  note?: string
+export type SchoolCheckPayload = {
+  __wizard__:        true
+  version:           2
+  inspectorName:     string
+  completedAt:       string
+  /** Best-effort copy of the [Catégorie] tag the client wrote at submission. */
+  reportedCategory?: string
+  phase1:            Phase1
+  phase2:            Phase2
+  phase3:            Phase3
+  /** Free-form synthesis the school types on the review screen. */
+  globalNote?:       string
+  /** Legacy bridge — derived ids of "positive findings" so the school detail
+   *  page's `isCheckValidated = checkedIds.length > 0 || notes.length > 0`
+   *  stays truthy with the new schema. */
+  checkedIds:        string[]
 }
 
-export type InspectionPayload = {
-  /** Map keyed by step id. */
-  answers:    Record<string, InspectionAnswer>
-  /** Name of the school staff who performed the check (asked at step 0). */
-  inspectorName?: string
-  /** ISO timestamp of the last save. */
-  completedAt?: string
-  /** Free-form global note. */
-  notes?:     string
-  /** Legacy compatibility for the flat checklist UI. */
-  checkedIds?: string[]
+// ─────────────────────────────────────────────────────────────────────────────
+// Constants — wording centralized so the review screen can reuse it
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const FABRIC_CONDITION_LABELS: Record<FabricCondition, string> = {
+  good:    'Bon',
+  worn:    'Usé',
+  damaged: 'Abîmé',
+}
+
+export const LINES_CONDITION_LABELS: Record<LinesCondition, string> = {
+  good:   'Bon',
+  worn:   'Usé',
+  broken: 'Suspente cassée ou abîmée',
+}
+
+export const RISERS_CONDITION_LABELS: Record<RisersCondition, string> = {
+  good:    'Bon',
+  worn:    'Usé',
+  damaged: 'Abîmé',
+}
+
+export const TEAR_SIZE_LABELS: Record<TearSize, string> = {
+  lt5:     '< 5 cm',
+  '5to10': '5 – 10 cm',
+  '10to15':'10 – 15 cm',
+  gt15:    '> 15 cm',
+}
+
+export const SEAM_DISTANCE_LABELS: Record<SeamDistance, string> = {
+  close: '< 3 cm d’une couture',
+  far:   '> 3 cm d’une couture',
+}
+
+export const YESNO_LABELS: Record<YesNo, string> = { yes: 'Oui', no: 'Non' }
+export const YESNOIDK_LABELS: Record<YesNoIdk, string> = {
+  yes: 'Oui', no: 'Non', idk: 'Je ne sais pas',
+}
+export const INFLATION_SYMMETRY_LABELS: Record<InflationSymmetry, string> = {
+  yes: 'Oui', no: 'Non', unsure: 'Difficile à dire',
+}
+
+/**
+ * Extracts the `[Catégorie] X` tag from the rich description the client
+ * wizard writes via buildRichDescription(). Returns null if absent so the
+ * UI can fall back to a generic banner.
+ */
+export function extractReportedCategory(description: string | null | undefined): string | null {
+  if (!description) return null
+  const m = description.match(/^\s*\[Catégorie\]\s*(.+)$/m)
+  return m && m[1] ? m[1].trim() : null
+}
+
+/**
+ * The ripstop hint surfaces when the tear is small enough to repair on-site
+ * AND far enough from a seam. Anything closer to a seam, or larger than
+ * 15 cm, escalates to the workshop.
+ */
+export function showRipstopHint(p: Phase1): boolean {
+  if (p.visibleTears !== 'yes') return false
+  if (!p.tearSize || !p.seamDistance) return false
+  return p.tearSize !== 'gt15' && p.seamDistance === 'far'
 }

@@ -1,117 +1,165 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
+import { useMemo, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import {
-  type InspectionStep,
-  type InspectionAnswer,
-  type InspectionPayload,
-  SEVERITY_OPTIONS,
-} from './steps'
 import { saveSchoolChecklistAction } from '@/features/tickets/actions'
+import {
+  type SchoolCheckPayload,
+  type Phase1,
+  type Phase2,
+  type Phase3,
+  type FabricCondition,
+  type LinesCondition,
+  type RisersCondition,
+  type YesNo,
+  type YesNoIdk,
+  type InflationSymmetry,
+  type TearSize,
+  type SeamDistance,
+  FABRIC_CONDITION_LABELS,
+  LINES_CONDITION_LABELS,
+  RISERS_CONDITION_LABELS,
+  TEAR_SIZE_LABELS,
+  SEAM_DISTANCE_LABELS,
+  YESNO_LABELS,
+  YESNOIDK_LABELS,
+  INFLATION_SYMMETRY_LABELS,
+  showRipstopHint,
+} from './steps'
 
 interface CheckWizardProps {
-  ticketId:    string
-  ticketHref:  string
-  flowKind:    'visual' | 'behavior'
-  steps:       InspectionStep[]
-  initial:     InspectionPayload | null
+  ticketId:          string
+  ticketHref:        string
+  reportedCategory:  string | null
+  initial:           SchoolCheckPayload | null
 }
 
-type WizardScreen = 'inspector' | 'step' | 'review'
+// 7 screens total — names kept short for the URL-less navigation.
+type Screen =
+  | 'inspector'
+  | 'visual_general'
+  | 'fabric'
+  | 'seams_structure'
+  | 'inflation'
+  | 'flight'
+  | 'review'
 
-export function CheckWizard({
-  ticketId,
-  ticketHref,
-  flowKind,
-  steps,
-  initial,
-}: CheckWizardProps) {
+const ORDER: Screen[] = [
+  'inspector',
+  'visual_general',
+  'fabric',
+  'seams_structure',
+  'inflation',
+  'flight',
+  'review',
+]
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Root wizard component
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }: CheckWizardProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
   const [inspectorName, setInspectorName] = useState<string>(initial?.inspectorName ?? '')
-  const [answers, setAnswers] = useState<Record<string, InspectionAnswer>>(() => initial?.answers ?? {})
-  const [stepIdx, setStepIdx] = useState<number>(0)
+  const [phase1, setPhase1] = useState<Phase1>(initial?.phase1 ?? {})
+  const [phase2, setPhase2] = useState<Phase2>(initial?.phase2 ?? { skipped: false })
+  const [phase3, setPhase3] = useState<Phase3>(initial?.phase3 ?? { skipped: false })
+  const [globalNote, setGlobalNote] = useState<string>(initial?.globalNote ?? '')
+
   // Skip the inspector screen if the school already filled it on a previous visit.
-  const [screen, setScreen] = useState<WizardScreen>(() =>
-    initial?.inspectorName?.trim() ? 'step' : 'inspector'
+  const [screen, setScreen] = useState<Screen>(() =>
+    initial?.inspectorName?.trim() ? 'visual_general' : 'inspector'
   )
-  const [globalNote, setGlobalNote] = useState<string>(initial?.notes ?? '')
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'error'; msg: string } | null>(null)
 
-  const totalSteps = steps.length
-  // +1 inspector screen, +1 review screen
-  const totalScreens = totalSteps + 2
-  const currentScreen =
-    screen === 'inspector' ? 1 :
-    screen === 'review'    ? totalScreens :
-                              stepIdx + 2  // inspector took position 1
-  const pct = (currentScreen / totalScreens) * 100
+  const screenIdx = ORDER.indexOf(screen)
+  const totalScreens = ORDER.length
+  const pct = ((screenIdx + 1) / totalScreens) * 100
 
-  const currentStep = steps[stepIdx]
-
-  function setAnswer(stepId: string, partial: Partial<InspectionAnswer>) {
-    setAnswers((prev) => ({
-      ...prev,
-      [stepId]: { value: partial.value ?? prev[stepId]?.value ?? '', note: partial.note ?? prev[stepId]?.note },
-    }))
-  }
-
-  function next() {
-    if (screen === 'inspector') {
-      setScreen('step')
-      setStepIdx(0)
-    } else if (screen === 'step') {
-      if (stepIdx < totalSteps - 1) {
-        setStepIdx(stepIdx + 1)
-      } else {
-        setScreen('review')
-      }
-    }
+  function go(direction: 'next' | 'back') {
+    const target = ORDER[screenIdx + (direction === 'next' ? 1 : -1)]
+    if (!target) return
+    setScreen(target)
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  function back() {
-    if (screen === 'review') {
-      setScreen('step')
-      setStepIdx(totalSteps - 1)
-    } else if (screen === 'step') {
-      if (stepIdx > 0) {
-        setStepIdx(stepIdx - 1)
-      } else {
-        setScreen('inspector')
-      }
-    } else {
-      // screen === 'inspector' — first screen, abort wizard
-      router.push(ticketHref)
-    }
-    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
+  function abort() { router.push(ticketHref) }
+
+  function skipPhase2() {
+    setPhase2({ skipped: true })
+    go('next')
   }
+  function skipPhase3() {
+    setPhase3({ skipped: true })
+    go('next')
+  }
+
+  // Validation per screen (used to gate the "Continuer" button).
+  const visualGeneralValid = useMemo(() => {
+    if (phase1.visibleDamage === 'no') return true
+    if (phase1.visibleDamage === 'yes') {
+      return !!phase1.damageDescription?.trim()
+    }
+    return false
+  }, [phase1.visibleDamage, phase1.damageDescription])
+
+  const fabricValid = useMemo(() => {
+    if (!phase1.fabricCondition || !phase1.visibleTears) return false
+    if (phase1.visibleTears === 'no') return true
+    return !!phase1.tearSize && !!phase1.seamDistance
+  }, [phase1.fabricCondition, phase1.visibleTears, phase1.tearSize, phase1.seamDistance])
+
+  const seamsValid = useMemo(() => (
+    !!phase1.openSeams && !!phase1.linesCondition && !!phase1.maillonsInverted && !!phase1.risersCondition
+  ), [phase1.openSeams, phase1.linesCondition, phase1.maillonsInverted, phase1.risersCondition])
+
+  const inflationValid = useMemo(() => {
+    if (phase2.skipped) return true
+    return !!phase2.inflationSymmetry && !!phase2.inflationNormalBehavior
+  }, [phase2])
+
+  const flightValid = useMemo(() => {
+    if (phase3.skipped) return true
+    return !!phase3.flightStraight && !!phase3.flightTurnNormal && !!phase3.flightBrakesSymmetric
+  }, [phase3])
+
+  const inspectorValid = inspectorName.trim().length >= 2
 
   function handleSubmit() {
     startTransition(async () => {
-      const payload: InspectionPayload = {
-        answers,
-        inspectorName: inspectorName.trim() || undefined,
-        completedAt: new Date().toISOString(),
-        notes: globalNote.trim() || undefined,
-        // Legacy "checkedIds" derived from yes-answers so the old flat UI still
-        // shows ticks if anyone reverts to it.
-        checkedIds: Object.entries(answers)
-          .filter(([, a]) => a.value === 'yes')
-          .map(([id]) => id),
+      const checkedIds: string[] = []
+      if (phase1.visibleDamage === 'yes')           checkedIds.push('visible_damage')
+      if (phase1.fabricCondition === 'damaged')     checkedIds.push('fabric_damaged')
+      if (phase1.visibleTears === 'yes')            checkedIds.push('tears')
+      if (phase1.openSeams === 'yes')               checkedIds.push('open_seams')
+      if (phase1.linesCondition === 'broken')       checkedIds.push('lines_broken')
+      if (phase1.maillonsInverted === 'yes')        checkedIds.push('maillons_inverted')
+      if (phase1.risersCondition === 'damaged')     checkedIds.push('risers_damaged')
+      if (!phase2.skipped && phase2.inflationNormalBehavior === 'no') checkedIds.push('inflation_abnormal')
+      if (!phase3.skipped && phase3.flightStraight === 'no')          checkedIds.push('flight_not_straight')
+      // Always include a sentinel so isCheckValidated stays truthy even if
+      // every answer happens to be "all good".
+      checkedIds.push('check_completed')
+
+      const payload: SchoolCheckPayload = {
+        __wizard__:    true,
+        version:       2,
+        inspectorName: inspectorName.trim(),
+        completedAt:   new Date().toISOString(),
+        ...(reportedCategory ? { reportedCategory } : {}),
+        phase1,
+        phase2,
+        phase3,
+        ...(globalNote.trim() ? { globalNote: globalNote.trim() } : {}),
+        checkedIds,
       }
 
-      // The action expects FormData with checkedIds[] and a notes string.
-      // We stuff the structured payload into the notes field as JSON to keep a
-      // single source of truth in school_checklist column without changing the action.
-      // (Better: extend the action to accept a JSON body — TODO once ship pressure drops.)
       const fd = new FormData()
       fd.set('ticketId', ticketId)
-      ;(payload.checkedIds ?? []).forEach((id) => fd.append('checkedIds', id))
-      // Embed structured payload in the note field so reads can recover it.
-      fd.set('notes', JSON.stringify({ __wizard__: true, ...payload }))
+      checkedIds.forEach((id) => fd.append('checkedIds', id))
+      fd.set('notes', JSON.stringify(payload))
 
       const r = await saveSchoolChecklistAction(fd)
       if (r?.error) {
@@ -131,11 +179,13 @@ export function CheckWizard({
       <div>
         <div className="mb-2 flex items-baseline justify-between">
           <p className="text-xs font-semibold uppercase tracking-wider text-brand-navy/60">
-            Étape {currentScreen}/{totalScreens}
+            Étape {screenIdx + 1} / {totalScreens}
           </p>
-          <p className="text-sm font-semibold text-brand-ink">
-            {screen === 'review' ? 'Récapitulatif' : `Question ${stepIdx + 1}`}
-          </p>
+          {reportedCategory && (
+            <p className="rounded-full bg-brand-cream px-2.5 py-0.5 text-[11px] font-medium text-brand-navy ring-1 ring-brand-stone">
+              Client a signalé : {reportedCategory}
+            </p>
+          )}
         </div>
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-brand-stone">
           <div
@@ -144,41 +194,356 @@ export function CheckWizard({
             role="progressbar"
             aria-valuemin={1}
             aria-valuemax={totalScreens}
-            aria-valuenow={currentScreen}
+            aria-valuenow={screenIdx + 1}
           />
         </div>
       </div>
 
       {screen === 'inspector' && (
-        <InspectorCard
-          value={inspectorName}
-          onChange={setInspectorName}
-          onBack={back}
-          onNext={next}
-        />
+        <ScreenLayout
+          title="Qui effectue le contrôle ?"
+          subtitle="Cette information est conservée avec le diagnostic pour la traçabilité."
+          footer={
+            <NavButtons
+              backLabel="← Annuler"
+              onBack={abort}
+              onNext={() => go('next')}
+              nextDisabled={!inspectorValid}
+              nextLabel="Commencer le check"
+            />
+          }
+        >
+          <label htmlFor="inspector-name" className="mb-1.5 block text-sm font-medium text-brand-ink">
+            Nom et prénom
+          </label>
+          <input
+            id="inspector-name"
+            type="text"
+            value={inspectorName}
+            onChange={(e) => setInspectorName(e.target.value)}
+            placeholder="Ex : Pierre Durand"
+            className="field-input"
+            autoFocus
+            autoComplete="name"
+            maxLength={120}
+          />
+        </ScreenLayout>
       )}
 
-      {screen === 'step' && currentStep && (
-        <StepCard
-          step={currentStep}
-          answer={answers[currentStep.id]}
-          onChange={(partial) => setAnswer(currentStep.id, partial)}
-          onBack={back}
-          onNext={next}
-          stepIdx={stepIdx}
-          totalSteps={totalSteps}
-        />
+      {screen === 'visual_general' && (
+        <ScreenLayout
+          phase="Phase 1 — Inspection visuelle"
+          title="Inspection visuelle générale"
+          subtitle="Sortez l'aile et examinez-la sur toute sa surface, des suspentes au tissu."
+          footer={
+            <NavButtons
+              onBack={() => go('back')}
+              onNext={() => go('next')}
+              nextDisabled={!visualGeneralValid}
+            />
+          }
+        >
+          <Field label="L'aile présente-t-elle des dommages visibles ?">
+            <YesNoSelector
+              value={phase1.visibleDamage}
+              onChange={(v) => setPhase1({ ...phase1, visibleDamage: v })}
+            />
+          </Field>
+
+          {phase1.visibleDamage === 'yes' && (
+            <Field label="Décrivez ce que vous voyez">
+              <textarea
+                value={phase1.damageDescription ?? ''}
+                onChange={(e) => setPhase1({ ...phase1, damageDescription: e.target.value })}
+                rows={4}
+                maxLength={2000}
+                autoFocus
+                placeholder="Localisation, taille approximative, type de dommage…"
+                className="field-input resize-y"
+              />
+            </Field>
+          )}
+        </ScreenLayout>
+      )}
+
+      {screen === 'fabric' && (
+        <ScreenLayout
+          phase="Phase 1 — Inspection visuelle"
+          title="Tissu"
+          subtitle="Inspectez la voile sur l'extrados et l'intrados."
+          footer={
+            <NavButtons
+              onBack={() => go('back')}
+              onNext={() => go('next')}
+              nextDisabled={!fabricValid}
+            />
+          }
+        >
+          <Field label="État du tissu">
+            <SegmentedChoice<FabricCondition>
+              options={[
+                { value: 'good',    label: FABRIC_CONDITION_LABELS.good,    tone: 'emerald' },
+                { value: 'worn',    label: FABRIC_CONDITION_LABELS.worn,    tone: 'amber'   },
+                { value: 'damaged', label: FABRIC_CONDITION_LABELS.damaged, tone: 'red'     },
+              ]}
+              value={phase1.fabricCondition}
+              onChange={(v) => setPhase1({ ...phase1, fabricCondition: v })}
+            />
+          </Field>
+
+          <Field label="Déchirures visibles ?">
+            <YesNoSelector
+              value={phase1.visibleTears}
+              onChange={(v) => setPhase1({ ...phase1, visibleTears: v, ...(v === 'no' ? { tearSize: undefined, seamDistance: undefined } : {}) })}
+            />
+          </Field>
+
+          {phase1.visibleTears === 'yes' && (
+            <>
+              <Field label="Taille estimée de la déchirure">
+                <SegmentedChoice<TearSize>
+                  options={[
+                    { value: 'lt5',     label: TEAR_SIZE_LABELS.lt5     },
+                    { value: '5to10',   label: TEAR_SIZE_LABELS['5to10'] },
+                    { value: '10to15',  label: TEAR_SIZE_LABELS['10to15']},
+                    { value: 'gt15',    label: TEAR_SIZE_LABELS.gt15,   tone: 'red' },
+                  ]}
+                  value={phase1.tearSize}
+                  onChange={(v) => setPhase1({ ...phase1, tearSize: v })}
+                />
+              </Field>
+
+              <Field label="Distance de la couture la plus proche">
+                <SegmentedChoice<SeamDistance>
+                  options={[
+                    { value: 'close', label: SEAM_DISTANCE_LABELS.close, tone: 'red' },
+                    { value: 'far',   label: SEAM_DISTANCE_LABELS.far               },
+                  ]}
+                  value={phase1.seamDistance}
+                  onChange={(v) => setPhase1({ ...phase1, seamDistance: v })}
+                />
+              </Field>
+
+              {showRipstopHint(phase1) && (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-xs leading-relaxed text-emerald-900">
+                  💡 <strong>Réparable avec du ripstop</strong> (Porcher Sport).{' '}
+                  Pour les tissus Dominico, demandez conseil à l&apos;atelier avant intervention.
+                </div>
+              )}
+              {phase1.tearSize === 'gt15' && (
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-xs leading-relaxed text-red-900">
+                  ⚠️ Déchirure {'>'} 15 cm — escalade atelier recommandée. Notez-le dans la décision finale.
+                </div>
+              )}
+              {phase1.seamDistance === 'close' && phase1.tearSize && phase1.tearSize !== 'gt15' && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
+                  ⚠️ Déchirure proche d&apos;une couture — l&apos;atelier doit valider la réparabilité.
+                </div>
+              )}
+            </>
+          )}
+        </ScreenLayout>
+      )}
+
+      {screen === 'seams_structure' && (
+        <ScreenLayout
+          phase="Phase 1 — Inspection visuelle"
+          title="Coutures et structure"
+          subtitle="Vérifiez les points porteurs : coutures, suspentes, maillons, élévateurs."
+          footer={
+            <NavButtons
+              onBack={() => go('back')}
+              onNext={() => go('next')}
+              nextDisabled={!seamsValid}
+            />
+          }
+        >
+          <Field label="Coutures ouvertes ?">
+            <YesNoSelector
+              value={phase1.openSeams}
+              onChange={(v) => setPhase1({ ...phase1, openSeams: v })}
+            />
+          </Field>
+
+          <Field label="Suspentes — état visible">
+            <SegmentedChoice<LinesCondition>
+              options={[
+                { value: 'good',   label: LINES_CONDITION_LABELS.good,   tone: 'emerald' },
+                { value: 'worn',   label: LINES_CONDITION_LABELS.worn,   tone: 'amber'   },
+                { value: 'broken', label: LINES_CONDITION_LABELS.broken, tone: 'red'     },
+              ]}
+              value={phase1.linesCondition}
+              onChange={(v) => setPhase1({ ...phase1, linesCondition: v })}
+            />
+          </Field>
+
+          <Field label="Maillons — inversés ou mal positionnés ?">
+            <SegmentedChoice<YesNoIdk>
+              options={[
+                { value: 'yes', label: YESNOIDK_LABELS.yes, tone: 'red'     },
+                { value: 'no',  label: YESNOIDK_LABELS.no,  tone: 'emerald' },
+                { value: 'idk', label: YESNOIDK_LABELS.idk, tone: 'slate'   },
+              ]}
+              value={phase1.maillonsInverted}
+              onChange={(v) => setPhase1({ ...phase1, maillonsInverted: v })}
+            />
+          </Field>
+
+          <Field label="Élévateurs — état visible">
+            <SegmentedChoice<RisersCondition>
+              options={[
+                { value: 'good',    label: RISERS_CONDITION_LABELS.good,    tone: 'emerald' },
+                { value: 'worn',    label: RISERS_CONDITION_LABELS.worn,    tone: 'amber'   },
+                { value: 'damaged', label: RISERS_CONDITION_LABELS.damaged, tone: 'red'     },
+              ]}
+              value={phase1.risersCondition}
+              onChange={(v) => setPhase1({ ...phase1, risersCondition: v })}
+            />
+          </Field>
+        </ScreenLayout>
+      )}
+
+      {screen === 'inflation' && (
+        <ScreenLayout
+          phase="Phase 2 — Check gonflage (optionnel)"
+          title="Avez-vous pu gonfler l'aile ?"
+          subtitle="Test au sol (gonflage/marche) — optionnel mais utile pour repérer une asymétrie."
+          footer={
+            <NavButtons
+              onBack={() => go('back')}
+              onNext={() => go('next')}
+              nextDisabled={!inflationValid}
+              tertiaryLabel="Passer cette phase →"
+              onTertiary={skipPhase2}
+            />
+          }
+        >
+          <Field label="Test au sol effectué ?">
+            <SegmentedChoice<'yes' | 'no'>
+              options={[
+                { value: 'yes', label: "Oui, j'ai fait un check au sol" },
+                { value: 'no',  label: 'Non, pas possible'              },
+              ]}
+              value={phase2.skipped ? 'no' : (phase2.inflationSymmetry || phase2.inflationNormalBehavior ? 'yes' : undefined)}
+              onChange={(v) => {
+                if (v === 'no') setPhase2({ skipped: true })
+                else            setPhase2({ skipped: false })
+              }}
+            />
+          </Field>
+
+          {!phase2.skipped && (
+            <>
+              <Field label="Gonflage symétrique ?">
+                <SegmentedChoice<InflationSymmetry>
+                  options={[
+                    { value: 'yes',    label: INFLATION_SYMMETRY_LABELS.yes,    tone: 'emerald' },
+                    { value: 'no',     label: INFLATION_SYMMETRY_LABELS.no,     tone: 'red'     },
+                    { value: 'unsure', label: INFLATION_SYMMETRY_LABELS.unsure, tone: 'slate'   },
+                  ]}
+                  value={phase2.inflationSymmetry}
+                  onChange={(v) => setPhase2({ ...phase2, inflationSymmetry: v })}
+                />
+              </Field>
+
+              <Field label="L'aile se comporte normalement au gonflage ?">
+                <YesNoSelector
+                  value={phase2.inflationNormalBehavior}
+                  onChange={(v) => setPhase2({ ...phase2, inflationNormalBehavior: v })}
+                />
+              </Field>
+
+              <Field label="Remarques au gonflage (optionnel)">
+                <textarea
+                  value={phase2.inflationNotes ?? ''}
+                  onChange={(e) => setPhase2({ ...phase2, inflationNotes: e.target.value })}
+                  rows={3}
+                  maxLength={2000}
+                  placeholder="Comportement noté, ressenti…"
+                  className="field-input resize-y"
+                />
+              </Field>
+            </>
+          )}
+        </ScreenLayout>
+      )}
+
+      {screen === 'flight' && (
+        <ScreenLayout
+          phase="Phase 3 — Check en vol (optionnel)"
+          title="Avez-vous pu faire un test en vol ?"
+          subtitle="Test en vol — utile pour valider un comportement ressenti par le client."
+          footer={
+            <NavButtons
+              onBack={() => go('back')}
+              onNext={() => go('next')}
+              nextDisabled={!flightValid}
+              tertiaryLabel="Passer cette phase →"
+              onTertiary={skipPhase3}
+            />
+          }
+        >
+          <Field label="Test en vol effectué ?">
+            <SegmentedChoice<'yes' | 'no'>
+              options={[
+                { value: 'yes', label: 'Oui'  },
+                { value: 'no',  label: 'Non'  },
+              ]}
+              value={phase3.skipped ? 'no' : (phase3.flightStraight || phase3.flightTurnNormal || phase3.flightBrakesSymmetric ? 'yes' : undefined)}
+              onChange={(v) => {
+                if (v === 'no') setPhase3({ skipped: true })
+                else            setPhase3({ skipped: false })
+              }}
+            />
+          </Field>
+
+          {!phase3.skipped && (
+            <>
+              <Field label="Vol droit ?">
+                <YesNoSelector
+                  value={phase3.flightStraight}
+                  onChange={(v) => setPhase3({ ...phase3, flightStraight: v })}
+                />
+              </Field>
+
+              <Field label="Comportement normal en virage ?">
+                <YesNoSelector
+                  value={phase3.flightTurnNormal}
+                  onChange={(v) => setPhase3({ ...phase3, flightTurnNormal: v })}
+                />
+              </Field>
+
+              <Field label="Freins symétriques ?">
+                <YesNoSelector
+                  value={phase3.flightBrakesSymmetric}
+                  onChange={(v) => setPhase3({ ...phase3, flightBrakesSymmetric: v })}
+                />
+              </Field>
+
+              <Field label="Remarques en vol (optionnel)">
+                <textarea
+                  value={phase3.flightNotes ?? ''}
+                  onChange={(e) => setPhase3({ ...phase3, flightNotes: e.target.value })}
+                  rows={3}
+                  maxLength={2000}
+                  placeholder="Sensations, comportements observés…"
+                  className="field-input resize-y"
+                />
+              </Field>
+            </>
+          )}
+        </ScreenLayout>
       )}
 
       {screen === 'review' && (
-        <ReviewCard
-          flowKind={flowKind}
+        <ReviewScreen
           inspectorName={inspectorName}
-          steps={steps}
-          answers={answers}
+          phase1={phase1}
+          phase2={phase2}
+          phase3={phase3}
           globalNote={globalNote}
           onGlobalNoteChange={setGlobalNote}
-          onBack={back}
+          onBack={() => go('back')}
           onSubmit={handleSubmit}
           isPending={isPending}
           feedback={feedback}
@@ -189,209 +554,158 @@ export function CheckWizard({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Inspector identity (first screen)
+// Layout primitives
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface InspectorCardProps {
-  value:    string
-  onChange: (s: string) => void
-  onBack:   () => void
-  onNext:   () => void
-}
-
-function InspectorCard({ value, onChange, onBack, onNext }: InspectorCardProps) {
-  const valid = value.trim().length >= 2
-
+function ScreenLayout({
+  phase, title, subtitle, children, footer,
+}: {
+  phase?:    string
+  title:     string
+  subtitle?: string
+  children:  ReactNode
+  footer:    ReactNode
+}) {
   return (
     <div className="card animate-slide-up p-5">
-      <h2 className="font-display text-xl font-bold text-brand-ink">
-        Qui effectue le contrôle&nbsp;?
-      </h2>
-      <p className="mt-2 text-sm text-slate-500">
-        Cette information est conservée avec le diagnostic pour la traçabilité.
-      </p>
+      {phase && (
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-gold">
+          {phase}
+        </p>
+      )}
+      <h2 className="mt-1 font-display text-xl font-bold text-brand-ink">{title}</h2>
+      {subtitle && <p className="mt-2 text-sm text-slate-500">{subtitle}</p>}
 
-      <div className="mt-5">
-        <label htmlFor="inspector-name" className="mb-1.5 block text-sm font-medium text-brand-ink">
-          Nom et prénom
-        </label>
-        <input
-          id="inspector-name"
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="Ex : Pierre Durand"
-          className="field-input"
-          autoFocus
-          autoComplete="name"
-          maxLength={120}
-        />
+      <div className="mt-5 space-y-5">
+        {children}
       </div>
 
-      <div className="mt-6 flex gap-3">
+      <div className="mt-6">{footer}</div>
+    </div>
+  )
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div>
+      <p className="mb-2 text-sm font-medium text-brand-ink">{label}</p>
+      {children}
+    </div>
+  )
+}
+
+function NavButtons({
+  onBack, onNext, nextDisabled, backLabel = '← Précédent', nextLabel = 'Continuer',
+  tertiaryLabel, onTertiary,
+}: {
+  onBack:       () => void
+  onNext:       () => void
+  nextDisabled?: boolean
+  backLabel?:   string
+  nextLabel?:   string
+  tertiaryLabel?: string
+  onTertiary?:    () => void
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-3">
         <button type="button" onClick={onBack} className="btn-secondary flex-1">
-          ← Annuler
+          {backLabel}
         </button>
         <button
           type="button"
           onClick={onNext}
-          disabled={!valid}
+          disabled={nextDisabled}
           className="btn-primary flex-[2]"
         >
-          Commencer le check
+          {nextLabel}
         </button>
       </div>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Per-step screen
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface StepCardProps {
-  step:       InspectionStep
-  answer:     InspectionAnswer | undefined
-  onChange:   (partial: Partial<InspectionAnswer>) => void
-  onBack:     () => void
-  onNext:     () => void
-  stepIdx:    number
-  totalSteps: number
-}
-
-function StepCard({ step, answer, onChange, onBack, onNext, stepIdx, totalSteps }: StepCardProps) {
-  const value = answer?.value ?? ''
-  const note  = answer?.note  ?? ''
-
-  // Validation for "next" — every step requires an answer
-  const valid = step.kind === 'freetext'
-    ? value.trim().length > 0
-    : value.length > 0
-
-  return (
-    <div className="card animate-slide-up p-5">
-      <h2 className="font-display text-xl font-bold text-brand-ink">{step.title}</h2>
-      {step.hint && <p className="mt-2 text-sm text-slate-500">{step.hint}</p>}
-
-      <div className="mt-5 space-y-3">
-        {step.kind === 'yesno' && (
-          <YesNoNa value={value} onChange={(v) => onChange({ value: v })} yesHint={step.yesHint} />
-        )}
-
-        {step.kind === 'severity' && (
-          <SeverityChoice value={value} onChange={(v) => onChange({ value: v })} />
-        )}
-
-        {step.kind === 'freetext' && (
-          <textarea
-            value={value}
-            onChange={(e) => onChange({ value: e.target.value })}
-            rows={5}
-            maxLength={2000}
-            autoFocus
-            placeholder={step.placeholder ?? 'Votre réponse…'}
-            className="field-input resize-y"
-          />
-        )}
-
-        {/* Optional note for yesno / severity */}
-        {step.kind !== 'freetext' && (
-          <details className="rounded-xl bg-brand-cream p-3 text-sm text-slate-600">
-            <summary className="cursor-pointer text-xs font-medium text-brand-ink">
-              + Ajouter une note (optionnel)
-            </summary>
-            <textarea
-              value={note}
-              onChange={(e) => onChange({ note: e.target.value })}
-              rows={3}
-              maxLength={1000}
-              placeholder="Précisions, mesures, contexte…"
-              className="field-input mt-2 resize-none"
-            />
-          </details>
-        )}
-      </div>
-
-      <div className="mt-6 flex gap-3">
-        <button type="button" onClick={onBack} className="btn-secondary flex-1">
-          {stepIdx === 0 ? '← Annuler' : '← Précédent'}
+      {tertiaryLabel && onTertiary && (
+        <button
+          type="button"
+          onClick={onTertiary}
+          className="block w-full text-center text-xs font-medium text-slate-500 underline underline-offset-4 hover:text-brand-gold"
+        >
+          {tertiaryLabel}
         </button>
-        <button type="button" onClick={onNext} disabled={!valid} className="btn-primary flex-[2]">
-          {stepIdx === totalSteps - 1 ? 'Récapitulatif' : 'Continuer'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// YES / NO / N/A selector
-// ─────────────────────────────────────────────────────────────────────────────
-
-const YESNO_OPTIONS = [
-  { value: 'yes', emoji: '✓', label: 'Oui',     tone: 'emerald' },
-  { value: 'no',  emoji: '✕', label: 'Non',     tone: 'red'     },
-  { value: 'na',  emoji: '—', label: 'N/A',     tone: 'slate'   },
-] as const
-
-function YesNoNa({ value, onChange, yesHint }: { value: string; onChange: (v: string) => void; yesHint?: string }) {
-  return (
-    <div className="space-y-2">
-      <div className="grid grid-cols-3 gap-2">
-        {YESNO_OPTIONS.map((opt) => {
-          const isSelected = value === opt.value
-          const tone = isSelected
-            ? opt.tone === 'emerald' ? 'border-emerald-500 bg-emerald-50 text-emerald-900'
-            : opt.tone === 'red'     ? 'border-red-500 bg-red-50 text-red-900'
-            :                          'border-slate-500 bg-slate-50 text-slate-900'
-            : 'border-brand-stone bg-white text-brand-ink hover:border-brand-gold/40'
-          return (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => onChange(opt.value)}
-              className={`flex flex-col items-center gap-1 rounded-2xl border-2 py-4 text-sm font-semibold transition-all active:scale-[0.97] ${tone}`}
-            >
-              <span className="text-2xl" aria-hidden>{opt.emoji}</span>
-              {opt.label}
-            </button>
-          )
-        })}
-      </div>
-      {value === 'yes' && yesHint && (
-        <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-          💡 {yesHint}
-        </p>
       )}
     </div>
   )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Severity 3-choice
+// Yes / No selector — used for binary visual checks
 // ─────────────────────────────────────────────────────────────────────────────
 
-function SeverityChoice({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function YesNoSelector({ value, onChange }: { value: YesNo | undefined; onChange: (v: YesNo) => void }) {
   return (
-    <div className="space-y-2">
-      {SEVERITY_OPTIONS.map((opt) => {
-        const isSelected = value === opt.value
+    <div className="grid grid-cols-2 gap-2">
+      <button
+        type="button"
+        onClick={() => onChange('yes')}
+        className={`flex flex-col items-center gap-1 rounded-2xl border-2 py-4 text-sm font-semibold transition-all active:scale-[0.97] ${
+          value === 'yes'
+            ? 'border-emerald-500 bg-emerald-50 text-emerald-900'
+            : 'border-brand-stone bg-white text-brand-ink hover:border-brand-gold/40'
+        }`}
+      >
+        <span className="text-2xl" aria-hidden>✓</span>
+        Oui
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange('no')}
+        className={`flex flex-col items-center gap-1 rounded-2xl border-2 py-4 text-sm font-semibold transition-all active:scale-[0.97] ${
+          value === 'no'
+            ? 'border-red-500 bg-red-50 text-red-900'
+            : 'border-brand-stone bg-white text-brand-ink hover:border-brand-gold/40'
+        }`}
+      >
+        <span className="text-2xl" aria-hidden>✕</span>
+        Non
+      </button>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Segmented choice — generic n-way picker with optional tone
+// ─────────────────────────────────────────────────────────────────────────────
+
+type Tone = 'emerald' | 'amber' | 'red' | 'slate' | 'gold'
+
+function toneClasses(tone: Tone | undefined, selected: boolean): string {
+  if (!selected) return 'border-brand-stone bg-white text-brand-ink hover:border-brand-gold/40'
+  switch (tone) {
+    case 'emerald': return 'border-emerald-500 bg-emerald-50 text-emerald-900'
+    case 'amber':   return 'border-amber-500 bg-amber-50 text-amber-900'
+    case 'red':     return 'border-red-500 bg-red-50 text-red-900'
+    case 'slate':   return 'border-slate-500 bg-slate-50 text-slate-900'
+    case 'gold':
+    default:        return 'border-brand-gold bg-brand-gold/10 text-brand-ink shadow-plume'
+  }
+}
+
+interface SegmentedChoiceProps<T extends string> {
+  options:  Array<{ value: T; label: string; tone?: Tone }>
+  value:    T | undefined
+  onChange: (v: T) => void
+}
+
+function SegmentedChoice<T extends string>({ options, value, onChange }: SegmentedChoiceProps<T>) {
+  return (
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      {options.map((opt) => {
+        const selected = value === opt.value
         return (
           <button
             key={opt.value}
             type="button"
             onClick={() => onChange(opt.value)}
-            className={`flex w-full items-start gap-3 rounded-2xl border-2 p-4 text-left transition-all active:scale-[0.99] ${
-              isSelected
-                ? 'border-brand-gold bg-brand-gold/10 shadow-plume'
-                : 'border-brand-stone bg-white hover:border-brand-gold/40'
-            }`}
+            className={`rounded-2xl border-2 px-3 py-3 text-left text-sm font-semibold transition-all active:scale-[0.99] ${toneClasses(opt.tone, selected)}`}
           >
-            <span aria-hidden className="text-2xl">{opt.emoji}</span>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-brand-ink">{opt.label}</p>
-              <p className="mt-0.5 text-xs text-slate-500">{opt.description}</p>
-            </div>
+            {opt.label}
           </button>
         )
       })}
@@ -400,14 +714,14 @@ function SeverityChoice({ value, onChange }: { value: string; onChange: (v: stri
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Review screen
+// Review screen — synthesis of every answer + global note + submit
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface ReviewCardProps {
-  flowKind:           'visual' | 'behavior'
+interface ReviewScreenProps {
   inspectorName:      string
-  steps:              InspectionStep[]
-  answers:            Record<string, InspectionAnswer>
+  phase1:             Phase1
+  phase2:             Phase2
+  phase3:             Phase3
   globalNote:         string
   onGlobalNoteChange: (s: string) => void
   onBack:             () => void
@@ -416,23 +730,15 @@ interface ReviewCardProps {
   feedback:           { type: 'ok' | 'error'; msg: string } | null
 }
 
-function ReviewCard({
-  flowKind, inspectorName, steps, answers, globalNote, onGlobalNoteChange,
+function ReviewScreen({
+  inspectorName, phase1, phase2, phase3, globalNote, onGlobalNoteChange,
   onBack, onSubmit, isPending, feedback,
-}: ReviewCardProps) {
-  const allAnswered = useMemo(
-    () => steps.every((s) => {
-      const v = answers[s.id]?.value
-      return s.kind === 'freetext' ? !!v?.trim() : !!v
-    }),
-    [steps, answers]
-  )
-
+}: ReviewScreenProps) {
   return (
     <div className="card animate-slide-up p-5">
-      <h2 className="font-display text-xl font-bold text-brand-ink">Récapitulatif du check</h2>
+      <h2 className="font-display text-xl font-bold text-brand-ink">Synthèse</h2>
       <p className="mt-1 text-sm text-slate-500">
-        Diagnostic {flowKind === 'visual' ? 'visuel' : 'comportement'} — vérifiez vos réponses puis validez.
+        Relisez vos observations puis validez. Vous pouvez revenir en arrière pour corriger.
       </p>
 
       {inspectorName.trim() && (
@@ -442,41 +748,71 @@ function ReviewCard({
         </div>
       )}
 
-      <ul className="mt-4 divide-y divide-brand-stone/50">
-        {steps.map((step) => (
-          <li key={step.id} className="flex items-start justify-between gap-4 py-3">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-brand-ink">{step.title}</p>
-              {answers[step.id]?.note && (
-                <p className="mt-1 text-xs text-slate-500">{answers[step.id]?.note}</p>
-              )}
-            </div>
-            <span className="shrink-0 text-sm font-semibold text-brand-gold">
-              {formatAnswer(step, answers[step.id])}
-            </span>
-          </li>
-        ))}
-      </ul>
+      {/* Phase 1 */}
+      <ReviewSection title="Inspection visuelle générale">
+        <ReviewRow label="Dommages visibles" value={phase1.visibleDamage ? YESNO_LABELS[phase1.visibleDamage] : '—'} />
+        {phase1.damageDescription && (
+          <ReviewRow label="Description" value={phase1.damageDescription} multiline />
+        )}
+      </ReviewSection>
+
+      <ReviewSection title="Tissu">
+        <ReviewRow label="État" value={phase1.fabricCondition ? FABRIC_CONDITION_LABELS[phase1.fabricCondition] : '—'} />
+        <ReviewRow label="Déchirures visibles" value={phase1.visibleTears ? YESNO_LABELS[phase1.visibleTears] : '—'} />
+        {phase1.visibleTears === 'yes' && (
+          <>
+            <ReviewRow label="Taille" value={phase1.tearSize ? TEAR_SIZE_LABELS[phase1.tearSize] : '—'} />
+            <ReviewRow label="Couture" value={phase1.seamDistance ? SEAM_DISTANCE_LABELS[phase1.seamDistance] : '—'} />
+          </>
+        )}
+      </ReviewSection>
+
+      <ReviewSection title="Coutures et structure">
+        <ReviewRow label="Coutures ouvertes" value={phase1.openSeams ? YESNO_LABELS[phase1.openSeams] : '—'} />
+        <ReviewRow label="Suspentes" value={phase1.linesCondition ? LINES_CONDITION_LABELS[phase1.linesCondition] : '—'} />
+        <ReviewRow label="Maillons inversés" value={phase1.maillonsInverted ? YESNOIDK_LABELS[phase1.maillonsInverted] : '—'} />
+        <ReviewRow label="Élévateurs" value={phase1.risersCondition ? RISERS_CONDITION_LABELS[phase1.risersCondition] : '—'} />
+      </ReviewSection>
+
+      <ReviewSection title="Check gonflage" skipped={phase2.skipped}>
+        {!phase2.skipped && (
+          <>
+            <ReviewRow label="Symétrie" value={phase2.inflationSymmetry ? INFLATION_SYMMETRY_LABELS[phase2.inflationSymmetry] : '—'} />
+            <ReviewRow label="Comportement normal" value={phase2.inflationNormalBehavior ? YESNO_LABELS[phase2.inflationNormalBehavior] : '—'} />
+            {phase2.inflationNotes && <ReviewRow label="Remarques" value={phase2.inflationNotes} multiline />}
+          </>
+        )}
+      </ReviewSection>
+
+      <ReviewSection title="Check en vol" skipped={phase3.skipped}>
+        {!phase3.skipped && (
+          <>
+            <ReviewRow label="Vol droit" value={phase3.flightStraight ? YESNO_LABELS[phase3.flightStraight] : '—'} />
+            <ReviewRow label="Virage normal" value={phase3.flightTurnNormal ? YESNO_LABELS[phase3.flightTurnNormal] : '—'} />
+            <ReviewRow label="Freins symétriques" value={phase3.flightBrakesSymmetric ? YESNO_LABELS[phase3.flightBrakesSymmetric] : '—'} />
+            {phase3.flightNotes && <ReviewRow label="Remarques" value={phase3.flightNotes} multiline />}
+          </>
+        )}
+      </ReviewSection>
 
       <div className="mt-5">
         <label className="mb-1.5 block text-sm font-medium text-brand-ink">
-          Synthèse globale (optionnel)
+          Votre avis global (optionnel)
         </label>
         <textarea
           value={globalNote}
           onChange={(e) => onGlobalNoteChange(e.target.value)}
-          rows={3}
+          rows={4}
           maxLength={2000}
-          placeholder="Résumé pour l'atelier ou pour vos archives…"
-          className="field-input resize-none"
+          placeholder="Synthèse pour l'atelier ou pour vos archives…"
+          className="field-input resize-y"
         />
       </div>
 
-      {!allAnswered && (
-        <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          ⚠️ Certaines questions n&apos;ont pas de réponse. Revenez en arrière pour compléter avant de valider.
-        </p>
-      )}
+      <p className="mt-4 rounded-xl bg-brand-cream px-3 py-2 text-xs leading-relaxed text-slate-600">
+        💡 Vous constatez ce que vous voyez — vous ne certifiez rien. La décision finale
+        (réparation école, escalade atelier…) se fait dans le panneau Décision.
+      </p>
 
       {feedback && (
         <p className={`mt-4 rounded-xl px-3 py-2 text-sm ${
@@ -493,7 +829,7 @@ function ReviewCard({
         <button
           type="button"
           onClick={onSubmit}
-          disabled={isPending || !allAnswered}
+          disabled={isPending}
           className="btn-primary flex-[2]"
         >
           {isPending ? 'Sauvegarde…' : 'Valider le check'}
@@ -503,15 +839,29 @@ function ReviewCard({
   )
 }
 
-function formatAnswer(step: InspectionStep, a: InspectionAnswer | undefined): string {
-  if (!a?.value) return '—'
-  if (step.kind === 'yesno') {
-    return a.value === 'yes' ? '✓ Oui' : a.value === 'no' ? '✕ Non' : '— N/A'
-  }
-  if (step.kind === 'severity') {
-    const opt = SEVERITY_OPTIONS.find((o) => o.value === a.value)
-    return opt ? `${opt.emoji} ${opt.label}` : a.value
-  }
-  // freetext — show truncated
-  return a.value.length > 30 ? `"${a.value.slice(0, 30)}…"` : `"${a.value}"`
+function ReviewSection({ title, children, skipped }: { title: string; children?: ReactNode; skipped?: boolean }) {
+  return (
+    <section className="mt-5 rounded-2xl border border-brand-stone bg-brand-cream/50 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wider text-brand-navy/70">{title}</p>
+        {skipped && (
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+            phase passée
+          </span>
+        )}
+      </div>
+      {!skipped && <div className="mt-3 space-y-1.5">{children}</div>}
+    </section>
+  )
+}
+
+function ReviewRow({ label, value, multiline }: { label: string; value: string; multiline?: boolean }) {
+  return (
+    <div className={`flex ${multiline ? 'flex-col gap-1' : 'items-baseline justify-between gap-3'}`}>
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className={`text-sm text-brand-ink ${multiline ? 'whitespace-pre-line' : 'text-right font-semibold'}`}>
+        {value}
+      </p>
+    </div>
+  )
 }

@@ -3,21 +3,17 @@ import Link from 'next/link'
 import { getSchoolTicketDetail } from '@/features/tickets/queries'
 import { PlumeLogo } from '@/app/_components/PlumeLogo'
 import { CheckWizard } from '@/features/tickets/inspection/CheckWizard'
-import {
-  VISUAL_INSPECTION_STEPS,
-  BEHAVIOR_INSPECTION_STEPS,
-  type InspectionPayload,
-} from '@/features/tickets/inspection/steps'
+import { extractReportedCategory, type SchoolCheckPayload } from '@/features/tickets/inspection/steps'
 
 interface PageProps { params: { id: string } }
 
 export const dynamic = 'force-dynamic'
 
-// The school_checklist column stores either:
-// (a) the new wizard payload, JSON-encoded inside the `notes` field with a
-//     __wizard__ marker so we can recover it, or
-// (b) the legacy { checkedIds, notes } shape.
-function readWizardPayload(raw: unknown): InspectionPayload | null {
+// service_requests.school_checklist stores either:
+// (a) the V2 wizard payload, JSON-encoded inside the `notes` field with a
+//     __wizard__ marker so we can recover it across reloads, or
+// (b) the legacy { checkedIds, notes } shape — read as-is, ignored here.
+function readWizardPayload(raw: unknown): SchoolCheckPayload | null {
   if (!raw || typeof raw !== 'object') return null
   const obj = raw as Record<string, unknown>
   const notes = obj.notes
@@ -25,9 +21,9 @@ function readWizardPayload(raw: unknown): InspectionPayload | null {
   try {
     const parsed = JSON.parse(notes)
     if (parsed && typeof parsed === 'object' && parsed.__wizard__ === true) {
-      return parsed as InspectionPayload
+      return parsed as SchoolCheckPayload
     }
-  } catch { /* not JSON, treat as plain note */ }
+  } catch { /* not JSON — was a plain text note in the legacy shape */ }
   return null
 }
 
@@ -40,14 +36,8 @@ export default async function SchoolTicketCheckPage({ params }: PageProps) {
     redirect(`/school/ticket/${params.id}`)
   }
 
-  const isBehavior =
-    ticket.service_type === 'sav' ||
-    /^\s*\[Comportements\]/m.test(ticket.description ?? '')
-  const flowKind = isBehavior ? 'behavior' : 'visual'
-  const steps = isBehavior ? BEHAVIOR_INSPECTION_STEPS : VISUAL_INSPECTION_STEPS
-
+  const reportedCategory = extractReportedCategory(ticket.description)
   const initial = readWizardPayload(ticket.school_checklist)
-
   const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
 
   return (
@@ -64,7 +54,7 @@ export default async function SchoolTicketCheckPage({ params }: PageProps) {
           <div className="min-w-0 flex-1 text-center">
             <p className="font-mono text-xs text-slate-500">{ticketRef}</p>
             <p className="truncate text-sm font-semibold text-brand-ink">
-              🔍 Check de l&apos;aile — {flowKind === 'visual' ? 'visuel' : 'comportement'}
+              🔍 Check de l&apos;aile
             </p>
           </div>
           <span aria-hidden className="flex h-10 w-10 items-center justify-center">
@@ -77,8 +67,7 @@ export default async function SchoolTicketCheckPage({ params }: PageProps) {
         <CheckWizard
           ticketId={ticket.id}
           ticketHref={`/school/ticket/${ticket.id}`}
-          flowKind={flowKind}
-          steps={steps}
+          reportedCategory={reportedCategory}
           initial={initial}
         />
       </main>
