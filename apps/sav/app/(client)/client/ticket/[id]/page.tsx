@@ -69,6 +69,8 @@ export default async function TicketDetailPage({ params }: PageProps) {
       initialLabelUrl={ticket.client_school_label_url}
       initialAddress={initialClientAddress}
       autoApproved={ticket.auto_approved_shipping !== false}
+      requireScan
+      wingSerial={ticket.serial_number ?? null}
     />
   ) : null
 
