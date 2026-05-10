@@ -44,3 +44,4 @@ supabase/.branches/
 supabase/.temp/
 
 .vercel
+.gitnexus
