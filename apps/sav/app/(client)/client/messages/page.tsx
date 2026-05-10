@@ -73,7 +73,7 @@ function ThreadRow({ thread }: { thread: InboxThread }) {
 
   return (
     <Link
-      href={`/client/ticket/${thread.ticketId}#chat`}
+      href={`/client/messages/${thread.ticketId}`}
       className={`card group relative flex items-start gap-3 p-4 transition-all hover:-translate-y-0.5 active:scale-[0.99] ${
         isUnread ? 'ring-2 ring-brand-gold/40' : ''
       }`}

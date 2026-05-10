@@ -49,11 +49,10 @@ export default async function PlumeMessagesPage() {
   )
 }
 
-// Plume admin opens tickets from the school view by default — that's the
-// most complete UI and the school-side actions matter most. If a ticket is
-// escalated to the workshop, the school view still shows everything.
+// Plume admin's conversation view is its own dedicated page (sees all
+// visibility levels, includes PlumeNoteComposer with channel picker).
 function plumeTargetUrl(_thread: PlumeInboxThread): string {
-  return `/school/ticket/${_thread.ticketId}`
+  return `/plume/messages/${_thread.ticketId}`
 }
 
 function PlumeThreadRow({ thread }: { thread: PlumeInboxThread }) {

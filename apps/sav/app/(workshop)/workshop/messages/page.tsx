@@ -71,7 +71,7 @@ function WorkshopThreadRow({ thread }: { thread: WorkshopInboxThread }) {
 
   return (
     <Link
-      href={`/workshop/ticket/${thread.ticketId}`}
+      href={`/workshop/messages/${thread.ticketId}`}
       className={`card group relative flex items-start gap-3 p-4 transition-all hover:-translate-y-0.5 active:scale-[0.99] ${
         isUnread ? 'ring-2 ring-brand-gold/40' : ''
       }`}
