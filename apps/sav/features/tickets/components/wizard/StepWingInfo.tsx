@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useWizardStore } from '../../store'
 import type { ClientWing } from '../../queries'
 import { StepLayout, StepNav } from './StepLayout'
+import { WingScanCard } from './WingScanCard'
 
 interface StepWingInfoProps {
   wings: ClientWing[]
@@ -50,6 +51,13 @@ export function StepWingInfo({ wings, onNext }: StepWingInfoProps) {
     })
   }
 
+  // Module Flashcode v1 — vue client : scan QR / mode démo / saisie manuelle
+  // pré-sélectionnent l'aile correspondante automatiquement. La méthode est
+  // tracée pour persistance future dans la table wing_scans (PR à venir).
+  function handleScanResolved(wing: ClientWing, _method: 'camera' | 'demo' | 'manual') {
+    selectWing(wing)
+  }
+
   function handleNext() {
     if (!selectedId) return
     onNext()
@@ -80,7 +88,7 @@ export function StepWingInfo({ wings, onNext }: StepWingInfoProps) {
   return (
     <StepLayout
       title="Quelle aile ?"
-      subtitle="Sélectionnez l'aile concernée par votre demande SAV."
+      subtitle="Scannez le flashcode de votre aile pour l'identifier sans erreur, ou sélectionnez-la dans la liste."
       footer={
         <StepNav
           onNext={handleNext}
@@ -90,6 +98,18 @@ export function StepWingInfo({ wings, onNext }: StepWingInfoProps) {
         />
       }
     >
+      <WingScanCard
+        wings={wings}
+        selectedSerial={wingInfo.wingSerial || null}
+        onScanResolved={handleScanResolved}
+      />
+
+      <div className="my-4 flex items-center gap-3 text-xs uppercase tracking-wide text-slate-400">
+        <span className="h-px flex-1 bg-slate-200" />
+        <span>ou choisir dans la liste</span>
+        <span className="h-px flex-1 bg-slate-200" />
+      </div>
+
       <div className="space-y-2">
         {wings.map((wing) => {
           const isSelected = selectedId === wing.id
