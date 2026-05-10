@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { buildJourneySteps } from '../utils'
 import { formatDateTime } from '../utils'
 import type { Ticket } from '../types'
@@ -16,7 +17,12 @@ interface ClientJourneyTimelineProps {
     | 'workshop_diagnosis_at'
     | 'workshop_repair_done_at'
     | 'wing_returned_at'
+    | 'delivery_method'
   >
+  /** Optional inline UI rendered under a specific step's content. Keyed by
+   *  step id (e.g. 'to_school' for the shipping label generator). Only shown
+   *  when that step is the current one. */
+  actions?: Record<string, ReactNode>
 }
 
 /**
@@ -27,7 +33,7 @@ interface ClientJourneyTimelineProps {
  * Étapes done = vertes, current = surlignée gold + dot animé, upcoming = grises.
  * La branche atelier n'apparaît que si le ticket a été escaladé.
  */
-export function ClientJourneyTimeline({ ticket }: ClientJourneyTimelineProps) {
+export function ClientJourneyTimeline({ ticket, actions }: ClientJourneyTimelineProps) {
   const steps = buildJourneySteps(ticket)
 
   return (
@@ -64,7 +70,7 @@ export function ClientJourneyTimeline({ ticket }: ClientJourneyTimelineProps) {
 
             <div className="min-w-0 flex-1 pt-1">
               <p className={`text-sm ${labelClass}`}>{step.label}</p>
-              {step.at && step.state !== 'upcoming' && (
+              {step.at && step.state !== 'upcoming' && !step.hideTimestamp && (
                 <p className="mt-0.5 text-[11px] text-slate-400">
                   {formatDateTime(step.at)}
                 </p>
@@ -74,6 +80,9 @@ export function ClientJourneyTimeline({ ticket }: ClientJourneyTimelineProps) {
                   <span className="h-1.5 w-1.5 rounded-full bg-brand-gold animate-pulse-dot" aria-hidden />
                   En cours
                 </p>
+              )}
+              {actions?.[step.id] && step.state === 'current' && (
+                <div className="mt-3">{actions[step.id]}</div>
               )}
             </div>
           </li>

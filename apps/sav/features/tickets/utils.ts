@@ -115,6 +115,7 @@ type TicketTimestamps = Pick<
   | 'workshop_diagnosis_at'
   | 'workshop_repair_done_at'
   | 'wing_returned_at'
+  | 'delivery_method'
 > & { status: RequestStatus; school_resolution: Ticket['school_resolution'] }
 
 export type JourneyState = 'done' | 'current' | 'upcoming'
@@ -127,6 +128,9 @@ export interface JourneyStep {
   /** Timestamp ISO si l'étape est franchie, null sinon. */
   at:        string | null
   state:     JourneyState
+  /** Some steps share their timestamp with the next one (e.g. "Envoi" /
+   *  "Aile reçue") — hiding the date avoids visual redundancy. */
+  hideTimestamp?: boolean
 }
 
 // Construit la liste des étapes effectivement applicables au ticket.
@@ -145,10 +149,18 @@ export function buildJourneySteps(t: TicketTimestamps): JourneyStep[] {
     t.status === 'school_resolved'
 
   const steps: Array<{
-    id: string; label: string; helpText?: string; emoji: string; at: string | null;
+    id: string; label: string; helpText?: string; emoji: string; at: string | null; hideTimestamp?: boolean;
   }> = []
 
+  const isPostal = t.delivery_method === 'postal'
+
   steps.push({ id: 'sent',                 label: 'Demande envoyée',          emoji: '📨', at: t.created_at })
+  // Postal-only: extra "in transit" step between sent and reception. Same
+  // timestamp as `wing_received_school` (we don't have a distinct shipped_at
+  // column), but we hide the date here so the user doesn't see it twice.
+  if (isPostal) {
+    steps.push({ id: 'to_school',          label: 'Envoi de l\'aile',         emoji: '🚚', at: t.wing_received_school_at, hideTimestamp: true })
+  }
   steps.push({ id: 'school_acknowledged',  label: 'Vue par l\'école',         emoji: '👀', at: t.school_acknowledged_at })
   steps.push({ id: 'wing_received_school', label: 'Aile reçue par l\'école',  emoji: '📥', at: t.wing_received_school_at })
   steps.push({
@@ -185,11 +197,33 @@ export function buildJourneySteps(t: TicketTimestamps): JourneyStep[] {
     return last
   })()
 
-  return steps.map((s, i) => ({
+  const result: JourneyStep[] = steps.map((s, i) => ({
     ...s,
     state:
       i < lastDoneIdx                ? 'done'    :
       i === lastDoneIdx              ? (isClosed ? 'done' : 'current') :
       'upcoming',
   }))
+
+  // Override: `to_school` (postal-only step) shares its timestamp with
+  // `wing_received_school`, but the standard lastDoneIdx algo can't tell
+  // that "no timestamp = in transit" — it would either mark it done (when a
+  // later step has a timestamp) or upcoming (when nothing later has one).
+  // Force the right state from the actual reception column.
+  const toSchoolIdx = result.findIndex((s) => s.id === 'to_school')
+  if (toSchoolIdx !== -1) {
+    const isReceived = !!t.wing_received_school_at
+    if (isReceived) {
+      result[toSchoolIdx]!.state = 'done'
+    } else {
+      result[toSchoolIdx]!.state = 'current'
+      // The step right before (sent) was 'current' by default — promote it
+      // to 'done' so the timeline shows a single in-progress step.
+      if (toSchoolIdx > 0 && result[toSchoolIdx - 1]!.state === 'current') {
+        result[toSchoolIdx - 1]!.state = 'done'
+      }
+    }
+  }
+
+  return result
 }

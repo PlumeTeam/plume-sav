@@ -9,6 +9,7 @@ import { ClientJourneyTimeline } from '@/features/tickets/components/ClientJourn
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
 import { CommentThread } from '@/features/tickets/components/CommentThread'
 import { ClientDeclarationView } from '@/features/tickets/components/ClientDeclarationView'
+import { WingLocationCard } from '@/features/tickets/components/WingLocationCard'
 import { formatDate } from '@/features/tickets/utils'
 import type { ClientShippingAddress } from '@/features/tickets/types'
 import { MessageForm } from './MessageForm'
@@ -58,26 +59,21 @@ export default async function TicketDetailPage({ params }: PageProps) {
 
   // ── Tab content ────────────────────────────────────────────────────────────
 
+  // Inline shipping label generator, attached to the "Envoi de l'aile" step
+  // when it's the current one. Only built if the ticket actually needs it.
+  const shippingAction = shouldOfferClientShipping ? (
+    <ShippingLabelButton
+      ticketId={ticket.id}
+      leg="client_to_school"
+      initialTracking={ticket.client_school_tracking}
+      initialLabelUrl={ticket.client_school_label_url}
+      initialAddress={initialClientAddress}
+      autoApproved={ticket.auto_approved_shipping !== false}
+    />
+  ) : null
+
   const stateNode = (
     <>
-      {shouldOfferClientShipping && (
-        <section className="card p-5">
-          <h2 className="section-title mb-3">Envoi postal vers l&apos;école</h2>
-          <p className="mb-4 text-sm text-slate-600">
-            {ticket.client_school_label_url
-              ? "Votre bon de transport GLS est prêt — téléchargez-le et collez-le sur votre colis."
-              : "Cliquez ici pour générer votre bon de transport GLS prépayé. Le coût est pris en charge par Plume."}
-          </p>
-          <ShippingLabelButton
-            ticketId={ticket.id}
-            leg="client_to_school"
-            initialTracking={ticket.client_school_tracking}
-            initialLabelUrl={ticket.client_school_label_url}
-            initialAddress={initialClientAddress}
-            autoApproved={ticket.auto_approved_shipping !== false}
-          />
-        </section>
-      )}
       <section className="card p-5">
         <h2 className="section-title mb-4">Suivi de votre demande</h2>
         {isRejected ? (
@@ -85,9 +81,13 @@ export default async function TicketDetailPage({ params }: PageProps) {
             {ticket.status === 'rejected' ? 'Demande rejetée' : 'Demande annulée'}
           </div>
         ) : (
-          <ClientJourneyTimeline ticket={ticket} />
+          <ClientJourneyTimeline
+            ticket={ticket}
+            actions={shippingAction ? { to_school: shippingAction } : undefined}
+          />
         )}
       </section>
+      <WingLocationCard ticket={ticket} schoolName={school?.name ?? null} />
     </>
   )
 
