@@ -10,6 +10,7 @@ import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabel
 import { formatDate, formatDateTime } from '@/features/tickets/utils'
 import type { ClientShippingAddress } from '@/features/tickets/types'
 import { MessageForm } from './MessageForm'
+import { TicketSectionNav } from './TicketSectionNav'
 
 function readClientShippingAddress(raw: unknown): ClientShippingAddress | null {
   if (!raw || typeof raw !== 'object') return null
@@ -77,7 +78,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
   return (
     <div className="min-h-screen">
       {/* Contextual sub-header — sits on the cream background, no double bar */}
-      <header className="bg-brand-cream">
+      <header className="sticky top-[64px] z-10 bg-brand-cream/95 backdrop-blur supports-[backdrop-filter]:bg-brand-cream/85">
         <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 pt-4 pb-2">
           <Link
             href="/client"
@@ -94,6 +95,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
           </div>
           <StatusBadge status={ticket.status} size="sm" />
         </div>
+        <TicketSectionNav ticketId={ticket.id} />
       </header>
 
       <main className="mx-auto max-w-2xl space-y-3 p-4 pb-12">
@@ -118,7 +120,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
         )}
 
         {/* Timeline verticale — toutes les étapes du parcours SAV */}
-        <section className="card p-5">
+        <section id="etat" className="card scroll-mt-40 p-5">
           <h2 className="section-title mb-4">Suivi de votre demande</h2>
           {isRejected ? (
             <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
@@ -131,7 +133,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
 
         {/* Votre école — contact + chat shortcut */}
         {school && (
-          <section className="card p-5">
+          <section id="contact" className="card scroll-mt-40 p-5">
             <h2 className="section-title mb-3">Votre école</h2>
             <div className="flex items-start gap-3">
               <span aria-hidden className="text-3xl">🏫</span>
@@ -181,8 +183,8 @@ export default async function TicketDetailPage({ params }: PageProps) {
           </section>
         )}
 
-        {/* Product info */}
-        <section className="card p-5">
+        {/* Product info — premier bloc du groupe "Mes infos" */}
+        <section id="infos" className="card scroll-mt-40 p-5">
           <h2 className="section-title mb-3">Produit</h2>
           <div className="space-y-2">
             <InfoRow label="Marque / Modèle" value={`${ticket.product_brand ?? '—'} ${ticket.product_model ?? '—'}`} />
