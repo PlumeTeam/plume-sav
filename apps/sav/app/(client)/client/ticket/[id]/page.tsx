@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getTicketDetail, getPartnerSchoolById } from '@/features/tickets/queries'
 import { markTicketReadByClientAction } from '@/features/tickets/messages-actions'
+import { markTicketReadByPlumeAction } from '@/features/tickets/messages-actions-plume'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { ClientJourneyTimeline } from '@/features/tickets/components/ClientJourneyTimeline'
@@ -37,7 +38,12 @@ export default async function TicketDetailPage({ params }: PageProps) {
   // enforces ownership, so calling on a ticket the user doesn't own is a no-op.
   // We don't await its result for the page render — failure just leaves the
   // badge in place until next visit.
-  await markTicketReadByClientAction(ticket.id)
+  // Plume admins can also land here in support mode — markPlume is no-op for
+  // non-admins, so we call both unconditionally.
+  await Promise.all([
+    markTicketReadByClientAction(ticket.id),
+    markTicketReadByPlumeAction(ticket.id),
+  ])
 
   const school = ticket.referent_school_id
     ? await getPartnerSchoolById(ticket.referent_school_id)

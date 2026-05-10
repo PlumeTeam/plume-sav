@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { RoleHeader } from '@/app/_components/RoleHeader'
 import { getCurrentUser, getCurrentUserRoles } from '@/features/auth/queries'
+import { PlumeMessagesNavButton } from './_components/PlumeMessagesNavButton'
 
 export default async function PlumeLayout({ children }: { children: React.ReactNode }) {
   const [user, roles] = await Promise.all([getCurrentUser(), getCurrentUserRoles()])
@@ -23,6 +24,7 @@ export default async function PlumeLayout({ children }: { children: React.ReactN
         ]}
         userEmail={user?.email}
         multiRole
+        extraActions={<PlumeMessagesNavButton />}
       />
       <div className="mx-auto w-full max-w-6xl flex-1">{children}</div>
     </div>

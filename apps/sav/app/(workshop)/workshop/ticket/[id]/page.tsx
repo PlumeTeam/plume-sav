@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getWorkshopTicketDetail } from '@/features/tickets/queries'
 import { markTicketReadByWorkshopAction } from '@/features/tickets/messages-actions-workshop'
+import { markTicketReadByPlumeAction } from '@/features/tickets/messages-actions-plume'
 import { getCurrentUserRoles } from '@/features/auth/queries'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { TicketTimeline } from '@/features/tickets/components/TicketTimeline'
@@ -37,7 +38,11 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
 
   // Best-effort: mark this ticket as read for the current workshop user.
   // The RPC checks role + assignment server-side.
-  await markTicketReadByWorkshopAction(ticket.id)
+  // Plume admins use this view too — markPlume is no-op for non-admins.
+  await Promise.all([
+    markTicketReadByWorkshopAction(ticket.id),
+    markTicketReadByPlumeAction(ticket.id),
+  ])
 
   const isPlumeAdmin = currentRoles.includes('plume_admin')
 

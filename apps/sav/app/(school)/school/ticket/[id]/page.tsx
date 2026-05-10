@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getSchoolTicketDetail } from '@/features/tickets/queries'
 import { markTicketReadBySchoolAction } from '@/features/tickets/messages-actions-school'
+import { markTicketReadByPlumeAction } from '@/features/tickets/messages-actions-plume'
 import { getCurrentUserRoles } from '@/features/auth/queries'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { TicketTimeline } from '@/features/tickets/components/TicketTimeline'
@@ -32,7 +33,11 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
 
   // Best-effort: mark this ticket as read for the current school user. The RPC
   // checks ownership via current_user_partner_school_ids() server-side.
-  await markTicketReadBySchoolAction(ticket.id)
+  // Plume admins use this view too — markPlume is no-op for non-admins.
+  await Promise.all([
+    markTicketReadBySchoolAction(ticket.id),
+    markTicketReadByPlumeAction(ticket.id),
+  ])
 
   const isPlumeAdmin = currentRoles.includes('plume_admin')
 
