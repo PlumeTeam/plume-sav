@@ -21,6 +21,8 @@ export default async function ClientPage() {
     (t) => t.status !== 'completed' && t.status !== 'cancelled' && t.status !== 'rejected'
   ).length
 
+  const totalUnread = tickets.reduce((sum, t) => sum + (t.unread_count ?? 0), 0)
+
   const firstName = identity?.firstName ?? 'Pilote'
 
   const wingsSection = (
@@ -70,7 +72,7 @@ export default async function ClientPage() {
       ) : (
         <div className="space-y-3">
           {tickets.map((ticket) => (
-            <TicketCard key={ticket.id} ticket={ticket} />
+            <TicketCard key={ticket.id} ticket={ticket} unreadCount={ticket.unread_count ?? 0} />
           ))}
         </div>
       )}
@@ -88,10 +90,20 @@ export default async function ClientPage() {
             ? 'Aucune demande en cours pour le moment.'
             : `${activeCount} demande${activeCount > 1 ? 's' : ''} en cours.`}
         </p>
+        {totalUnread > 0 && (
+          <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-brand-gold/20 px-3 py-1 text-xs font-semibold text-brand-gold ring-1 ring-brand-gold/40">
+            <span aria-hidden>💬</span>
+            {totalUnread} nouveau{totalUnread > 1 ? 'x' : ''} message{totalUnread > 1 ? 's' : ''} à lire
+          </p>
+        )}
       </section>
 
       {/* ── Toggle Mes ailes / Historique ───────────────────────── */}
-      <ClientHomeTabs wingsSection={wingsSection} ticketsSection={ticketsSection} />
+      <ClientHomeTabs
+        wingsSection={wingsSection}
+        ticketsSection={ticketsSection}
+        historyBadge={totalUnread}
+      />
     </main>
   )
 }

@@ -7,9 +7,11 @@ type Tab = 'wings' | 'history'
 interface ClientHomeTabsProps {
   wingsSection: ReactNode
   ticketsSection: ReactNode
+  /** When > 0, shows a small red pill next to "Historique" with the count. */
+  historyBadge?: number
 }
 
-export function ClientHomeTabs({ wingsSection, ticketsSection }: ClientHomeTabsProps) {
+export function ClientHomeTabs({ wingsSection, ticketsSection, historyBadge = 0 }: ClientHomeTabsProps) {
   const [tab, setTab] = useState<Tab>('wings')
 
   const baseBtn =
@@ -43,9 +45,17 @@ export function ClientHomeTabs({ wingsSection, ticketsSection }: ClientHomeTabsP
           aria-controls="panel-history"
           id="tab-history"
           onClick={() => setTab('history')}
-          className={`${baseBtn} ${tab === 'history' ? activeBtn : idleBtn}`}
+          className={`${baseBtn} relative inline-flex items-center justify-center gap-2 ${tab === 'history' ? activeBtn : idleBtn}`}
         >
-          Historique
+          <span>Historique</span>
+          {historyBadge > 0 && (
+            <span
+              aria-label={`${historyBadge} message${historyBadge > 1 ? 's' : ''} non lu${historyBadge > 1 ? 's' : ''}`}
+              className="inline-flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white"
+            >
+              {historyBadge > 9 ? '9+' : historyBadge}
+            </span>
+          )}
         </button>
       </div>
 

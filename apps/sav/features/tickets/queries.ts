@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import type { TicketWithPhotos, TicketDetail, TicketStatus, RequestStatus } from './types'
+import { attachUnreadCounts, type TicketWithUnread } from './messages-unread'
 
 export type ClientWing = {
   id: string
@@ -370,7 +371,7 @@ export async function getClientWings(): Promise<ClientWing[]> {
   return rows ?? []
 }
 
-export async function getClientTickets(): Promise<TicketWithPhotos[]> {
+export async function getClientTickets(): Promise<TicketWithUnread[]> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
@@ -385,7 +386,8 @@ export async function getClientTickets(): Promise<TicketWithPhotos[]> {
     console.error('getClientTickets error:', error.message)
     return []
   }
-  return attachPhotosToList(supabase, (data ?? []) as Array<Record<string, unknown>>)
+  const withPhotos = await attachPhotosToList(supabase, (data ?? []) as Array<Record<string, unknown>>)
+  return attachUnreadCounts(supabase, withPhotos)
 }
 
 export async function getTicketDetail(ticketId: string): Promise<TicketDetail | null> {

@@ -8,9 +8,11 @@ interface TicketCardProps {
   ticket: TicketWithPhotos
   basePath?: string
   showUrgency?: boolean
+  /** Visible "N nouveaux" badge if > 0. Optional — old call-sites stay valid. */
+  unreadCount?: number
 }
 
-export function TicketCard({ ticket, basePath = '/client', showUrgency = false }: TicketCardProps) {
+export function TicketCard({ ticket, basePath = '/client', showUrgency = false, unreadCount = 0 }: TicketCardProps) {
   const firstPhoto = [...ticket.ticket_photos].sort((a, b) => a.sort_order - b.sort_order)[0]
   const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
   const productLine = [ticket.product_brand, ticket.product_model].filter(Boolean).join(' ') || 'Aile'
@@ -18,7 +20,7 @@ export function TicketCard({ ticket, basePath = '/client', showUrgency = false }
   return (
     <Link
       href={`${basePath}/ticket/${ticket.id}`}
-      className="card group flex items-center gap-4 p-4 transition-all hover:-translate-y-0.5 active:scale-[0.99]"
+      className="card group relative flex items-center gap-4 p-4 transition-all hover:-translate-y-0.5 active:scale-[0.99]"
     >
       {/* Thumbnail */}
       <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-2xl bg-brand-cream ring-1 ring-brand-stone">
@@ -32,6 +34,14 @@ export function TicketCard({ ticket, basePath = '/client', showUrgency = false }
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-2xl" aria-hidden>🪂</div>
+        )}
+        {unreadCount > 0 && (
+          <span
+            aria-label={`${unreadCount} nouveau${unreadCount > 1 ? 'x' : ''} message${unreadCount > 1 ? 's' : ''}`}
+            className="absolute -right-1 -top-1 flex min-h-[20px] min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-bold text-white shadow-sm ring-2 ring-white"
+          >
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
         )}
       </div>
 

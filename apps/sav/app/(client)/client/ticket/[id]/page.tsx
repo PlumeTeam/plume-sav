@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getTicketDetail, getPartnerSchoolById } from '@/features/tickets/queries'
+import { markTicketReadByClientAction } from '@/features/tickets/messages-actions'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { ClientJourneyTimeline } from '@/features/tickets/components/ClientJourneyTimeline'
@@ -31,6 +32,12 @@ export const dynamic = 'force-dynamic'
 export default async function TicketDetailPage({ params }: PageProps) {
   const ticket = await getTicketDetail(params.id)
   if (!ticket) notFound()
+
+  // Best-effort: mark this ticket as read for the current client. The RPC
+  // enforces ownership, so calling on a ticket the user doesn't own is a no-op.
+  // We don't await its result for the page render — failure just leaves the
+  // badge in place until next visit.
+  await markTicketReadByClientAction(ticket.id)
 
   const school = ticket.referent_school_id
     ? await getPartnerSchoolById(ticket.referent_school_id)
