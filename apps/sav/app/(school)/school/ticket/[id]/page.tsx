@@ -139,6 +139,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           schoolAcknowledgedAt={ticket.school_acknowledged_at}
           wingReceivedSchoolAt={ticket.wing_received_school_at}
           isCheckValidated={isCheckValidated}
+          wingSerial={ticket.serial_number ?? null}
         />
       </section>
 
@@ -268,6 +269,8 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
             leg="school_to_workshop"
             initialTracking={ticket.school_workshop_tracking}
             initialLabelUrl={ticket.school_workshop_label_url}
+            requireScan
+            wingSerial={ticket.serial_number ?? null}
           />
         </section>
       )}

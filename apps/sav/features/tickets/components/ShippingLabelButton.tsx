@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { generateSavShippingLabelAction } from '../actions'
 import type { ClientShippingAddress, ShipmentLeg, WorkshopReturnDestination } from '../types'
+import { ScanGateModal } from './ScanGateModal'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Bouton "Générer mon bon de transport" — réutilisé sur les 3 legs.
@@ -35,6 +36,11 @@ interface ShippingLabelButtonProps {
   triggerLabel?:             string
   /** Sous-titre explicatif sous le bouton. */
   hint?:                     string
+  /** Module Flashcode v1 — exige un scan QR de l'aile avant la génération.
+   *  À activer pour les legs pros (school_to_workshop, workshop_to_return). */
+  requireScan?:              boolean
+  /** N° de série de l'aile, pour vérification au scan. */
+  wingSerial?:               string | null
 }
 
 const DEFAULT_TRIGGER_LABEL: Record<ShipmentLeg, string> = {
@@ -53,6 +59,8 @@ export function ShippingLabelButton({
   defaultReturnDestination = null,
   triggerLabel,
   hint,
+  requireScan = false,
+  wingSerial = null,
 }: ShippingLabelButtonProps) {
   const [isPending, startTransition] = useTransition()
   const [tracking,  setTracking]  = useState<string | null>(initialTracking)
@@ -62,6 +70,7 @@ export function ShippingLabelButton({
   const [showAddressForm, setShowAddressForm] = useState(false)
   const [pendingApproval, setPendingApproval] = useState(!autoApproved && !initialLabelUrl)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [scanGateOpen, setScanGateOpen] = useState(false)
 
   // Form fields (shown when needsAddress)
   const [street,     setStreet]     = useState(address?.street     ?? '')
@@ -283,11 +292,16 @@ export function ShippingLabelButton({
 
       <button
         type="button"
-        onClick={() => handleGenerate()}
+        onClick={() => requireScan ? setScanGateOpen(true) : handleGenerate()}
         disabled={isPending}
         className="btn-primary inline-flex w-full items-center justify-center gap-2 sm:w-auto"
       >
         {isPending ? 'Génération…' : `📦 ${label}`}
+        {requireScan && (
+          <span className="ml-1 inline-flex items-center rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+            📷 Scan
+          </span>
+        )}
       </button>
 
       {hint && <p className="text-xs text-slate-500">{hint}</p>}
@@ -295,6 +309,18 @@ export function ShippingLabelButton({
       {errorMsg && (
         <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{errorMsg}</p>
       )}
+
+      <ScanGateModal
+        open={scanGateOpen}
+        onClose={() => setScanGateOpen(false)}
+        onScanSuccess={(_method: 'camera' | 'demo' | 'manual') => {
+          setScanGateOpen(false)
+          handleGenerate()
+        }}
+        expectedSerial={wingSerial}
+        title="Bon d'envoi — confirmer l'aile"
+        subtitle="Scannez le QR cousu sur l'aile avant de générer l'étiquette de transport."
+      />
     </div>
   )
 }
