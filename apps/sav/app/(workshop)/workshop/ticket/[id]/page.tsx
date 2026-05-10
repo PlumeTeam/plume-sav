@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getWorkshopTicketDetail } from '@/features/tickets/queries'
+import { markTicketReadByWorkshopAction } from '@/features/tickets/messages-actions-workshop'
 import { getCurrentUserRoles } from '@/features/auth/queries'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { TicketTimeline } from '@/features/tickets/components/TicketTimeline'
@@ -33,6 +34,10 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
     getCurrentUserRoles(),
   ])
   if (!ticket) notFound()
+
+  // Best-effort: mark this ticket as read for the current workshop user.
+  // The RPC checks role + assignment server-side.
+  await markTicketReadByWorkshopAction(ticket.id)
 
   const isPlumeAdmin = currentRoles.includes('plume_admin')
 

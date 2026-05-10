@@ -5,6 +5,7 @@ import {
   getCurrentUserRoles,
   getCurrentUserWorkshop,
 } from '@/features/auth/queries'
+import { WorkshopMessagesNavButton } from './_components/WorkshopMessagesNavButton'
 
 export default async function WorkshopLayout({ children }: { children: React.ReactNode }) {
   const [user, roles, workshop] = await Promise.all([
@@ -29,6 +30,7 @@ export default async function WorkshopLayout({ children }: { children: React.Rea
         links={[{ href: '/workshop', label: 'Tickets' }]}
         userEmail={user?.email}
         multiRole={roles.length > 1 || roles.includes('plume_admin')}
+        extraActions={<WorkshopMessagesNavButton />}
       />
       <div className="mx-auto w-full max-w-6xl flex-1">{children}</div>
     </div>
