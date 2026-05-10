@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getSchoolTicketDetail } from '@/features/tickets/queries'
+import { markTicketReadBySchoolAction } from '@/features/tickets/messages-actions-school'
 import { getCurrentUserRoles } from '@/features/auth/queries'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { TicketTimeline } from '@/features/tickets/components/TicketTimeline'
@@ -28,6 +29,10 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
     getCurrentUserRoles(),
   ])
   if (!ticket) notFound()
+
+  // Best-effort: mark this ticket as read for the current school user. The RPC
+  // checks ownership via current_user_partner_school_ids() server-side.
+  await markTicketReadBySchoolAction(ticket.id)
 
   const isPlumeAdmin = currentRoles.includes('plume_admin')
 

@@ -5,6 +5,7 @@ import {
   getCurrentUserRoles,
   getCurrentUserSchool,
 } from '@/features/auth/queries'
+import { SchoolMessagesNavButton } from './_components/SchoolMessagesNavButton'
 
 export default async function SchoolLayout({ children }: { children: React.ReactNode }) {
   const [user, roles, school] = await Promise.all([
@@ -31,6 +32,7 @@ export default async function SchoolLayout({ children }: { children: React.React
         links={[{ href: '/school', label: 'Tickets' }]}
         userEmail={user?.email}
         multiRole={roles.length > 1 || roles.includes('plume_admin')}
+        extraActions={<SchoolMessagesNavButton />}
       />
       <div className="mx-auto w-full max-w-4xl flex-1">{children}</div>
     </div>

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 import { logoutAction } from '@/features/auth/actions'
 import { PlumeLogo } from './PlumeLogo'
 
@@ -8,6 +9,8 @@ interface RoleHeaderProps {
   links?: Array<{ href: string; label: string }>
   userEmail?: string | null
   multiRole?: boolean
+  /** Optional slot rendered at the start of the nav (used for the messaging button). */
+  extraActions?: ReactNode
 }
 
 // Pastilles d'espace — couleurs douces lisibles sur le fond Plume Black du header.
@@ -19,7 +22,7 @@ const SPACE_BADGE: Record<RoleHeaderProps['spaceColor'], string> = {
   purple: 'bg-violet-500/90 text-white',
 }
 
-export function RoleHeader({ spaceLabel, spaceColor, links = [], userEmail, multiRole }: RoleHeaderProps) {
+export function RoleHeader({ spaceLabel, spaceColor, links = [], userEmail, multiRole, extraActions }: RoleHeaderProps) {
   return (
     <header className="sticky top-0 z-20 bg-brand-navy/95 backdrop-blur supports-[backdrop-filter]:bg-brand-navy/85">
       <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
@@ -32,6 +35,7 @@ export function RoleHeader({ spaceLabel, spaceColor, links = [], userEmail, mult
         <span className="sm:hidden text-sm font-semibold text-white">{spaceLabel}</span>
 
         <nav className="ml-auto flex items-center gap-1">
+          {extraActions}
           {links.map(({ href, label }) => (
             <Link
               key={href}
