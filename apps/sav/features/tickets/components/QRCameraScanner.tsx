@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Html5Qrcode } from 'html5-qrcode'
 
 interface QRCameraScannerProps {
   /** Callback quand un QR code est décodé avec succès. */
@@ -22,26 +21,39 @@ const REGION_ID = 'qr-camera-region'
 /**
  * Vrai scanner caméra QR code via html5-qrcode.
  *
- * Module Traçabilité Flashcode v2 — caméra réelle.
- * Utilise la caméra arrière (facingMode: 'environment') par défaut, fallback
- * caméra front si pas dispo. Affiche un viewport vidéo + overlay de cadrage.
- * Au scan réussi, stoppe automatiquement la caméra et appelle onDecode.
+ * Module Traçabilité Flashcode v3 — caméra réelle.
+ *
+ * Important — chargement dynamique :
+ *   html5-qrcode est importé dynamiquement dans le useEffect pour éviter tout
+ *   problème SSR / build-time : la lib touche navigator.mediaDevices au
+ *   chargement, ce qui crash si elle est évaluée côté serveur ou pendant le
+ *   prerender Next.js. Avec un dynamic import au runtime client uniquement,
+ *   c'est garanti safe.
  *
  * Limitations :
  *  - Nécessite HTTPS (sauf localhost) — la caméra est bloquée par le browser
  *    sur HTTP standard. Vercel sert tout en HTTPS donc OK en prod/preview.
- *  - L'utilisateur doit autoriser l'accès caméra. Refus → onCancel + message.
+ *  - L'utilisateur doit autoriser l'accès caméra. Refus → message dédié.
  */
 export function QRCameraScanner({ onDecode, onCancel }: QRCameraScannerProps) {
   const [state, setState] = useState<CamState>({ kind: 'starting' })
-  const scannerRef = useRef<Html5Qrcode | null>(null)
+  // Le scanner instance est typé `any` car on l'importe dynamiquement.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const scannerRef = useRef<any>(null)
   const decodedRef = useRef(false) // anti double-decode pendant l'arrêt
+  const mountedRef = useRef(true)
 
   useEffect(() => {
-    let cancelled = false
+    mountedRef.current = true
 
     async function start() {
       try {
+        // Dynamic import : html5-qrcode est chargé UNIQUEMENT côté client,
+        // au moment où l'utilisateur clique "Activer la caméra".
+        const mod = await import('html5-qrcode')
+        if (!mountedRef.current) return
+
+        const Html5Qrcode = mod.Html5Qrcode
         const scanner = new Html5Qrcode(REGION_ID, /* verbose */ false)
         scannerRef.current = scanner
 
@@ -52,7 +64,7 @@ export function QRCameraScanner({ onDecode, onCancel }: QRCameraScannerProps) {
             qrbox: { width: 250, height: 250 },
             aspectRatio: 1.333,
           },
-          (decodedText) => {
+          (decodedText: string) => {
             if (decodedRef.current) return
             decodedRef.current = true
             scanner
@@ -62,14 +74,15 @@ export function QRCameraScanner({ onDecode, onCancel }: QRCameraScannerProps) {
           },
           () => { /* frames sans QR — ignorer */ },
         )
-        if (!cancelled) setState({ kind: 'running' })
+        if (!mountedRef.current) return
+        setState({ kind: 'running' })
       } catch (err) {
-        if (cancelled) return
+        if (!mountedRef.current) return
         const msg = err instanceof Error ? err.message : String(err)
         // Détection des cas usuels
         if (/permission|denied|notallowed/i.test(msg)) {
           setState({ kind: 'denied' })
-        } else if (/notfound|nodevice|notreadable/i.test(msg)) {
+        } else if (/notfound|nodevice|notreadable|navigator|mediaDevices/i.test(msg)) {
           setState({ kind: 'unavailable' })
         } else {
           setState({ kind: 'error', message: msg })
@@ -80,9 +93,9 @@ export function QRCameraScanner({ onDecode, onCancel }: QRCameraScannerProps) {
     start()
 
     return () => {
-      cancelled = true
+      mountedRef.current = false
       const s = scannerRef.current
-      if (s && s.isScanning) {
+      if (s && typeof s.isScanning === 'boolean' && s.isScanning) {
         s.stop().catch(() => { /* ignore */ })
       }
       scannerRef.current = null
@@ -116,7 +129,7 @@ export function QRCameraScanner({ onDecode, onCancel }: QRCameraScannerProps) {
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-brand-ink/95 p-4 text-center text-sm text-white">
             <p className="font-semibold">📵 Caméra indisponible</p>
             <p className="text-xs text-white/70">
-              Aucune caméra détectée, ou le site doit être en HTTPS pour y accéder.
+              Aucune caméra détectée sur cet appareil, ou le browser ne donne pas accès. Sur ordinateur, essayez avec votre webcam ou ouvrez le site sur votre téléphone.
             </p>
           </div>
         )}
@@ -131,7 +144,9 @@ export function QRCameraScanner({ onDecode, onCancel }: QRCameraScannerProps) {
       <p className="text-center text-xs text-slate-500">
         {state.kind === 'running'
           ? 'Cadrez le QR cousu sur l\'aile ou sur le sac — détection automatique.'
-          : 'Préparation du scanner…'}
+          : state.kind === 'starting'
+            ? 'Préparation du scanner…'
+            : 'Vous pouvez fermer ce scanner et tenter une saisie manuelle.'}
       </p>
 
       <button
