@@ -1,5 +1,3 @@
-'use server'
-
 export { createTicketAction } from './creation'
 export {
   addMessageAction,
