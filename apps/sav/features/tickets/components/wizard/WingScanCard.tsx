@@ -1,8 +1,24 @@
 'use client'
 
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import type { ClientWing } from '../../queries'
-import { QRCameraScanner } from '../QRCameraScanner'
+
+// Chargement dynamique avec ssr: false — html5-qrcode touche navigator au top
+// du module, donc impossible à évaluer côté serveur. Le module est préchargé
+// dès le mount de la WingScanCard pour que le clic "Activer la caméra"
+// préserve le user gesture (sinon Safari refuse la perm caméra).
+const QRCameraScanner = dynamic(
+  () => import('../QRCameraScanner').then((m) => m.QRCameraScanner),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="aspect-[4/3] flex items-center justify-center rounded-xl bg-brand-ink text-sm text-brand-gold">
+        Chargement du scanner…
+      </div>
+    ),
+  },
+)
 
 type ScanState =
   | { status: 'idle' }

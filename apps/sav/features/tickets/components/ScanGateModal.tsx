@@ -1,7 +1,21 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { QRCameraScanner } from './QRCameraScanner'
+import dynamic from 'next/dynamic'
+
+// Chargement dynamique avec ssr: false — html5-qrcode touche navigator au top
+// du module, impossible à évaluer côté serveur. Voir QRCameraScanner.tsx.
+const QRCameraScanner = dynamic(
+  () => import('./QRCameraScanner').then((m) => m.QRCameraScanner),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="aspect-[4/3] flex items-center justify-center rounded-xl bg-brand-ink text-sm text-brand-gold">
+        Chargement du scanner…
+      </div>
+    ),
+  },
+)
 
 type ScanState =
   | { status: 'idle' }
