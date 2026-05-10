@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useWizardStore } from '../../store'
 import type { ClientWing } from '../../queries'
 import { StepLayout, StepNav } from './StepLayout'
+import { WingScanCard } from './WingScanCard'
 
 interface StepWingInfoProps {
   wings: ClientWing[]
@@ -50,29 +51,38 @@ export function StepWingInfo({ wings, onNext }: StepWingInfoProps) {
     })
   }
 
+  // Module Flashcode v1 — vue client : scan QR / mode démo / saisie manuelle
+  // pré-sélectionnent l'aile correspondante automatiquement. La méthode est
+  // tracée pour persistance future dans la table wing_scans (PR à venir).
+  function handleScanResolved(wing: ClientWing, _method: 'camera' | 'demo' | 'manual') {
+    selectWing(wing)
+  }
+
   function handleNext() {
     if (!selectedId) return
     onNext()
   }
 
   // ── Empty state: no registered wings ────────────────────────────────────
+  // Le scan flashcode est aussi visible ici — c'est le cas d'usage principal :
+  // rattacher une aile fraîchement déballée à son compte client.
   if (wings.length === 0) {
     return (
       <StepLayout
-        title="Aucune aile enregistrée"
-        subtitle="Le SAV Plume couvre uniquement les ailes achetées chez nous, donc forcément enregistrées sur votre compte."
+        title="Rattacher votre aile"
+        subtitle="Scannez le flashcode cousu sur votre aile pour la rattacher à votre compte Plume."
       >
-        <div className="card flex flex-col items-center gap-4 p-6 text-center">
-          <span aria-hidden className="text-4xl">🪂</span>
-          <p className="text-sm text-brand-ink">
-            Aucune aile n&apos;est enregistrée sur votre compte pour l&apos;instant.
-          </p>
-          <p className="text-xs text-slate-500">
-            Si votre aile n&apos;apparaît pas, pensez à l&apos;associer à votre
-            compte en flashant le QR code situé à l&apos;intérieur de votre
-            parapente.
-          </p>
-        </div>
+        <WingScanCard
+          wings={wings}
+          selectedSerial={null}
+          onScanResolved={handleScanResolved}
+        />
+        <p className="mt-4 rounded-2xl bg-brand-cream p-3 text-xs text-slate-500">
+          Le SAV Plume couvre uniquement les ailes achetées chez nous, donc
+          forcément enregistrées sur votre compte. Si vous n&apos;avez pas
+          encore d&apos;aile rattachée, le scan QR ci-dessus vous permet de
+          l&apos;ajouter en quelques secondes.
+        </p>
       </StepLayout>
     )
   }
@@ -80,7 +90,7 @@ export function StepWingInfo({ wings, onNext }: StepWingInfoProps) {
   return (
     <StepLayout
       title="Quelle aile ?"
-      subtitle="Sélectionnez l'aile concernée par votre demande SAV."
+      subtitle="Scannez le flashcode de votre aile pour l'identifier sans erreur, ou sélectionnez-la dans la liste."
       footer={
         <StepNav
           onNext={handleNext}
@@ -90,6 +100,18 @@ export function StepWingInfo({ wings, onNext }: StepWingInfoProps) {
         />
       }
     >
+      <WingScanCard
+        wings={wings}
+        selectedSerial={wingInfo.wingSerial || null}
+        onScanResolved={handleScanResolved}
+      />
+
+      <div className="my-4 flex items-center gap-3 text-xs uppercase tracking-wide text-slate-400">
+        <span className="h-px flex-1 bg-slate-200" />
+        <span>ou choisir dans la liste</span>
+        <span className="h-px flex-1 bg-slate-200" />
+      </div>
+
       <div className="space-y-2">
         {wings.map((wing) => {
           const isSelected = selectedId === wing.id
