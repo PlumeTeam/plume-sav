@@ -103,9 +103,7 @@ export function StepDelivery({ schools, onNext, onBack }: StepDeliveryProps) {
           <p className="font-semibold">📦 Conseils pour l&apos;envoi</p>
           <ul className="mt-2 space-y-1 text-xs text-slate-600">
             <li>• Emballez l&apos;aile dans son sac d&apos;origine ou un sac rembourré</li>
-            <li>• Utilisez un transporteur avec suivi (Colissimo, Chronopost…)</li>
-            <li>• Conservez le numéro de suivi et communiquez-le à l&apos;école</li>
-            <li>• Pensez à assurer le colis selon la valeur de l&apos;aile</li>
+
           </ul>
           {targetSchool && (
             <p className="mt-3 border-t border-brand-stone/60 pt-3 text-xs text-slate-600">
