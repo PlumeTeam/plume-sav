@@ -106,7 +106,7 @@ export function ClientTicketTabs({
           className={`${baseBtn} ${tab === 'infos' ? activeBtn : idleBtn}`}
         >
           <span aria-hidden>📋</span>
-          <span>Ma déclaration</span>
+          <span>Déclaration</span>
         </button>
       </div>
 
