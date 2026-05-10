@@ -2,12 +2,67 @@
 
 > 🚨 **AVANT TOUTE RECHERCHE / EXPLORATION DU CODE — LIS [`./.claude/PRE-SEARCH.md`](.claude/PRE-SEARCH.md)** 🚨
 >
-> Ce repo est indexé par **GitNexus** (knowledge graph : 887 symboles, 1 749 relations, 60 flux d'exécution). Avant de `grep`, `glob`, `find` ou `Read` au hasard, tu dois interroger GitNexus — c'est plus rapide, plus précis, et ça allège ton contexte de 10× à 100×. Le protocole détaillé est dans `.claude/PRE-SEARCH.md`. La référence complète des outils GitNexus est plus bas dans ce fichier (section « GitNexus — Code Intelligence »).
+> Ce repo est indexé par **GitNexus** (knowledge graph : ~930 symboles, ~1 920 relations, ~70 flux d'exécution). Avant de `grep`, `glob`, `find` ou `Read` au hasard, tu dois interroger GitNexus — c'est plus rapide, plus précis, et ça allège ton contexte de 10× à 100×. Le protocole détaillé est dans `.claude/PRE-SEARCH.md`. La référence complète des outils GitNexus est plus bas dans ce fichier (section « GitNexus — Code Intelligence »).
+
+> 🧪 **MODE DÉMO** (état au 2026-05-10) — ce site n'est **pas encore en ligne pour les vrais clients**. URL prod : https://plume-sav.vercel.app, mais c'est un environnement de pré-production utilisé pour valider l'UX/le flux avant le go-live. Tu peux casser des choses et itérer rapidement sans bloquer d'utilisateurs réels. Conséquence pratique : on push directement sur `main` au lieu de faire des branches de preview, sauf si JB demande explicitement le contraire.
+
+> 📔 **JOURNAL D'INTERVENTIONS** — à la fin de chaque session non triviale, ajoute une entrée dans **[`docs/INTERVENTIONS-LOG.md`](docs/INTERVENTIONS-LOG.md)** : date, intent, commits, ce qui a été modifié, ce qui reste à faire. Ce journal est la mémoire long-terme entre sessions, complémentaire à la mémoire automatique Claude.
 
 > **Application Next.js 14 qui gère le SAV des parapentes Plume Paragliders.**
 > Domaine cible : `sav.plumeparagliders.com`. Backend mutualisé avec le site principal (Supabase `gxighesxbavnzzyngjaz`).
 
 Le contexte métier complet (vision, architecture 4 niveaux, QCM, scénarios, KPIs, financier, anti-fraude) est dans **[`docs/SAV-Plume-Bible.md`](docs/SAV-Plume-Bible.md)**. Lis-la quand tu manques de contexte sur le métier ou les décisions prises. Ne la duplique jamais ici.
+
+---
+
+## 🌐 Infrastructure cloud (état actuel)
+
+### Vercel
+- **Team** : Plume's projects (`plumes-projects-32ca7a67`)
+- **Projet** : `plume-sav` (Next.js, Node 24.x)
+- **URL prod** : https://plume-sav.vercel.app — alias `main` branch
+- **URL preview branche** : `plume-sav-git-<branch-slug>-plumes-projects-32ca7a67.vercel.app` (auto-généré pour chaque branche poussée)
+- **Auto-deploy** : push sur `main` → prod ; push sur autre branche → preview
+- **Runtime logs** dispos via le MCP Vercel (`get_runtime_logs`) pour debugger les Server Components / Server Actions en prod
+
+### GitHub
+- **Repo** : `PlumeTeam/plume-sav` (visibilité publique)
+- **Branche par défaut** : `main`
+- **Workflow** : commits directs sur `main` en mode démo (cf. ci-dessus). Si JB demande une branche `feat/*` pour un preview isolé, on la merge sur main une fois validé.
+- **Commits attribués au bot** : `PlumeTeam <plumeparagliders@gmail.com>` quand le commit vient de Claude/agent ; à `jbchandelier <jbchandelier@gmail.com>` quand JB pousse à la main.
+
+### Supabase
+- Détails dans la section « Projet Supabase » plus bas. MCP Supabase disponible pour `execute_sql`, `apply_migration`, `list_tables`, `get_advisors`.
+
+---
+
+## 📏 Limites de taille des fichiers (stratégie anti-spaghetti)
+
+Les fichiers qui grossissent sans limite deviennent des bombes à retardement pour le contexte Claude (à 1 500 lignes, on charge tout pour modifier 3 lignes). On vise donc une discipline ferme :
+
+| Lignes | État | Action |
+|---|---|---|
+| **< 300** | ✅ OK | Continue normalement. |
+| **300–500** | 🟡 Surveillance | Quand tu ajoutes du code à ce fichier, demande-toi : « est-ce que ça appartient vraiment ici, ou ça mérite un nouveau fichier ? ». Préfère un nouveau fichier en cas de doute. |
+| **500–800** | 🟠 Refactor recommandé | Avant d'ajouter une feature dans ce fichier, propose un split logique. Pas obligatoire mais à signaler à JB. |
+| **> 800** | 🔴 Refactor obligatoire | Ne pas grossir ce fichier davantage. Avant tout ajout, splitter par domaine/responsabilité. Utiliser un dossier `<base>/<aspect>.ts` + `index.ts` pour la backward compat. |
+
+**Règle de conception** : avant d'écrire un nouveau fichier, anticipe sa taille à 6 mois. Si ça risque de dépasser 500 lignes, structure-le dès le départ en plusieurs fichiers cohérents (ex: pas un seul `actions.ts` pour 22 actions, mais `actions/{creation,messaging,school,workshop,…}.ts`).
+
+**Audit rapide** : `find apps/sav -name "*.ts*" -exec wc -l {} + | sort -rn | head -20` te donne les 20 plus gros fichiers. Refais-le périodiquement.
+
+**Précédent** : `apps/sav/features/tickets/actions.ts` faisait 1 712 lignes en mai 2026, splitté en 9 sous-fichiers (commit `4c80970` puis fix `756163e`). Plus aucun fichier applicatif > 800 lignes aujourd'hui.
+
+---
+
+## 🔄 GitNexus — re-index permanent
+
+Le knowledge graph doit refléter en temps réel l'état du repo. Sinon les réponses « impact analysis », « find code by concept », etc. sont basées sur du code obsolète.
+
+- Le **hook PostToolUse** GitNexus déclenche automatiquement un re-index après chaque `git commit` ou `git merge`. Tu n'as donc rien à faire dans le cas standard.
+- Si une session a fait beaucoup de modifs sans commit (rare), force un re-index : `npx gitnexus analyze --skills`
+- Si l'index a des embeddings (vérifier `.gitnexus/meta.json` → `stats.embeddings > 0`), utilise `npx gitnexus analyze --embeddings` pour ne pas les perdre.
+- Après un re-index manuel, **commit** les changements de `CLAUDE.md` / `AGENTS.md` / `.claude/skills/generated/` qui en résultent — c'est ce qui propage les nouvelles stats à la prochaine session.
 
 ---
 
