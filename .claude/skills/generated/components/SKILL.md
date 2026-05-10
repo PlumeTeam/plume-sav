@@ -1,11 +1,11 @@
 ---
 name: components
-description: "Skill for the Components area of 15_Plume_SAV. 12 symbols across 7 files."
+description: "Skill for the Components area of 15_Plume_SAV. 18 symbols across 9 files."
 ---
 
 # Components
 
-12 symbols | 7 files | Cohesion: 92%
+18 symbols | 9 files | Cohesion: 94%
 
 ## When to Use
 
@@ -17,8 +17,10 @@ description: "Skill for the Components area of 15_Plume_SAV. 12 symbols across 7
 
 | File | Symbols |
 |------|---------|
+| `apps/sav/features/tickets/components/ScanGateModal.tsx` | ScanGateModal, checkSerial, handleCameraDecode, handleManualConfirm |
 | `apps/sav/features/tickets/components/ClientDeclarationView.tsx` | parseDescription, urgencyTone, ClientDeclarationView |
 | `apps/sav/app/(plume)/plume/AdminTicketActions.tsx` | AdminTicketActions, close |
+| `apps/sav/features/tickets/components/QRCameraScanner.tsx` | QRCameraScanner, start |
 | `apps/sav/features/tickets/components/PhotoCapture.tsx` | handleFile, handleInputChange |
 | `apps/sav/features/tickets/components/DiagnosisChecklist.tsx` | DiagnosisChecklist, toggle |
 | `apps/sav/features/tickets/utils.ts` | getSupabasePublicUrl |
@@ -44,7 +46,13 @@ Start here when exploring this area:
 | `PhotoLightbox` | Function | `apps/sav/features/tickets/components/PhotoLightbox.tsx` | 11 |
 | `AdminTicketActions` | Function | `apps/sav/app/(plume)/plume/AdminTicketActions.tsx` | 20 |
 | `close` | Function | `apps/sav/app/(plume)/plume/AdminTicketActions.tsx` | 39 |
+| `ScanGateModal` | Function | `apps/sav/features/tickets/components/ScanGateModal.tsx` | 47 |
+| `checkSerial` | Function | `apps/sav/features/tickets/components/ScanGateModal.tsx` | 64 |
+| `handleCameraDecode` | Function | `apps/sav/features/tickets/components/ScanGateModal.tsx` | 69 |
+| `handleManualConfirm` | Function | `apps/sav/features/tickets/components/ScanGateModal.tsx` | 82 |
 | `ClientDeclarationView` | Function | `apps/sav/features/tickets/components/ClientDeclarationView.tsx` | 110 |
+| `QRCameraScanner` | Function | `apps/sav/features/tickets/components/QRCameraScanner.tsx` | 37 |
+| `start` | Function | `apps/sav/features/tickets/components/QRCameraScanner.tsx` | 48 |
 | `handleFile` | Function | `apps/sav/features/tickets/components/PhotoCapture.tsx` | 22 |
 | `handleInputChange` | Function | `apps/sav/features/tickets/components/PhotoCapture.tsx` | 63 |
 | `DiagnosisChecklist` | Function | `apps/sav/features/tickets/components/DiagnosisChecklist.tsx` | 22 |

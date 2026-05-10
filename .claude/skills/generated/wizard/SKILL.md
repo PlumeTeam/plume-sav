@@ -1,69 +1,88 @@
 ---
 name: wizard
-description: "Skill for the Wizard area of 15_Plume_SAV. 15 symbols across 8 files."
+description: "Skill for the Wizard area of 15_Plume_SAV. 29 symbols across 15 files."
 ---
 
 # Wizard
 
-15 symbols | 8 files | Cohesion: 96%
+29 symbols | 15 files | Cohesion: 95%
 
 ## When to Use
 
 - Working with code in `apps/`
-- Understanding how middleware, updateSession, onKey work
+- Understanding how createClient, handleCreateTicket, addMessageAction work
 - Modifying wizard-related functionality
 
 ## Key Files
 
 | File | Symbols |
 |------|---------|
-| `apps/sav/features/tickets/components/wizard/TicketWizard.tsx` | go, next, back |
-| `apps/sav/features/tickets/components/wizard/StepWingInfo.tsx` | formatModelName, StepWingInfo, selectWing |
+| `apps/sav/features/tickets/components/wizard/WingScanCard.tsx` | reset, WingScanCard, findWingBySerial, resolveSerial, handleCameraDecode (+1) |
+| `apps/sav/features/tickets/components/wizard/TicketWizard.tsx` | cancel, go, next, back |
+| `apps/sav/features/tickets/components/wizard/StepWingInfo.tsx` | formatModelName, StepWingInfo, selectWing, handleScanResolved |
 | `apps/sav/features/tickets/components/wizard/StepPhotos.tsx` | StepPhotos, handlePhoto |
 | `apps/sav/features/tickets/components/wizard/StepDescription.tsx` | StepDescription, stripBehaviorPrefix |
 | `apps/sav/features/tickets/components/wizard/StepBehaviors.tsx` | StepBehaviors, toggle |
-| `apps/sav/middleware.ts` | middleware |
-| `apps/sav/lib/supabase/middleware.ts` | updateSession |
-| `apps/sav/features/tickets/components/PhotoLightbox.tsx` | onKey |
+| `apps/sav/lib/supabase/client.ts` | createClient |
+| `apps/sav/features/tickets/components/WingCard.tsx` | handleCreateTicket |
+| `apps/sav/features/tickets/actions/messaging.ts` | addMessageAction |
+| `apps/sav/features/auth/components/LoginForm.tsx` | LoginForm |
 
 ## Entry Points
 
 Start here when exploring this area:
 
-- **`middleware`** (Function) — `apps/sav/middleware.ts:3`
-- **`updateSession`** (Function) — `apps/sav/lib/supabase/middleware.ts:4`
-- **`onKey`** (Function) — `apps/sav/features/tickets/components/PhotoLightbox.tsx:25`
-- **`go`** (Function) — `apps/sav/features/tickets/components/wizard/TicketWizard.tsx:47`
-- **`next`** (Function) — `apps/sav/features/tickets/components/wizard/TicketWizard.tsx:57`
+- **`createClient`** (Function) — `apps/sav/lib/supabase/client.ts:4`
+- **`handleCreateTicket`** (Function) — `apps/sav/features/tickets/components/WingCard.tsx:14`
+- **`addMessageAction`** (Function) — `apps/sav/features/tickets/actions/messaging.ts:27`
+- **`LoginForm`** (Function) — `apps/sav/features/auth/components/LoginForm.tsx:12`
+- **`reset`** (Function) — `apps/sav/features/tickets/components/wizard/WingScanCard.tsx:79`
 
 ## Key Symbols
 
 | Symbol | Type | File | Line |
 |--------|------|------|------|
+| `createClient` | Function | `apps/sav/lib/supabase/client.ts` | 4 |
+| `handleCreateTicket` | Function | `apps/sav/features/tickets/components/WingCard.tsx` | 14 |
+| `addMessageAction` | Function | `apps/sav/features/tickets/actions/messaging.ts` | 27 |
+| `LoginForm` | Function | `apps/sav/features/auth/components/LoginForm.tsx` | 12 |
+| `reset` | Function | `apps/sav/features/tickets/components/wizard/WingScanCard.tsx` | 79 |
+| `cancel` | Function | `apps/sav/features/tickets/components/wizard/TicketWizard.tsx` | 60 |
+| `handleSubmit` | Function | `apps/sav/features/tickets/components/wizard/StepReview.tsx` | 31 |
+| `action` | Function | `apps/sav/app/(client)/client/ticket/[id]/MessageForm.tsx` | 17 |
 | `middleware` | Function | `apps/sav/middleware.ts` | 3 |
 | `updateSession` | Function | `apps/sav/lib/supabase/middleware.ts` | 4 |
 | `onKey` | Function | `apps/sav/features/tickets/components/PhotoLightbox.tsx` | 25 |
 | `go` | Function | `apps/sav/features/tickets/components/wizard/TicketWizard.tsx` | 47 |
 | `next` | Function | `apps/sav/features/tickets/components/wizard/TicketWizard.tsx` | 57 |
 | `back` | Function | `apps/sav/features/tickets/components/wizard/TicketWizard.tsx` | 58 |
-| `StepWingInfo` | Function | `apps/sav/features/tickets/components/wizard/StepWingInfo.tsx` | 20 |
-| `selectWing` | Function | `apps/sav/features/tickets/components/wizard/StepWingInfo.tsx` | 27 |
-| `StepPhotos` | Function | `apps/sav/features/tickets/components/wizard/StepPhotos.tsx` | 13 |
-| `handlePhoto` | Function | `apps/sav/features/tickets/components/wizard/StepPhotos.tsx` | 17 |
-| `StepDescription` | Function | `apps/sav/features/tickets/components/wizard/StepDescription.tsx` | 15 |
-| `StepBehaviors` | Function | `apps/sav/features/tickets/components/wizard/StepBehaviors.tsx` | 12 |
-| `toggle` | Function | `apps/sav/features/tickets/components/wizard/StepBehaviors.tsx` | 16 |
-| `formatModelName` | Function | `apps/sav/features/tickets/components/wizard/StepWingInfo.tsx` | 12 |
-| `stripBehaviorPrefix` | Function | `apps/sav/features/tickets/components/wizard/StepDescription.tsx` | 81 |
+| `WingScanCard` | Function | `apps/sav/features/tickets/components/wizard/WingScanCard.tsx` | 45 |
+| `findWingBySerial` | Function | `apps/sav/features/tickets/components/wizard/WingScanCard.tsx` | 48 |
+| `resolveSerial` | Function | `apps/sav/features/tickets/components/wizard/WingScanCard.tsx` | 53 |
+| `handleCameraDecode` | Function | `apps/sav/features/tickets/components/wizard/WingScanCard.tsx` | 66 |
+| `runDemoScan` | Function | `apps/sav/features/tickets/components/wizard/WingScanCard.tsx` | 73 |
+| `StepWingInfo` | Function | `apps/sav/features/tickets/components/wizard/StepWingInfo.tsx` | 21 |
+
+## Execution Flows
+
+| Flow | Type | Steps |
+|------|------|-------|
+| `HandleSubmit → StringOrNull` | cross_community | 4 |
+| `HandleSubmit → FormatWingHistory` | cross_community | 4 |
+| `Action → CreateClient` | cross_community | 3 |
+| `HandleSubmit → CreateClient` | cross_community | 3 |
+| `HandleSubmit → DeriveServiceType` | cross_community | 3 |
 
 ## Connected Areas
 
 | Area | Connections |
 |------|-------------|
+| Actions | 1 calls |
 | Components | 1 calls |
+| Tickets | 1 calls |
 
 ## How to Explore
 
-1. `gitnexus_context({name: "middleware"})` — see callers and callees
+1. `gitnexus_context({name: "createClient"})` — see callers and callees
 2. `gitnexus_query({query: "wizard"})` — find related execution flows
 3. Read key files listed above for implementation details
