@@ -8,6 +8,7 @@ import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { ClientJourneyTimeline } from '@/features/tickets/components/ClientJourneyTimeline'
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
 import { CommentThread } from '@/features/tickets/components/CommentThread'
+import { ClientDeclarationView } from '@/features/tickets/components/ClientDeclarationView'
 import { formatDate } from '@/features/tickets/utils'
 import type { ClientShippingAddress } from '@/features/tickets/types'
 import { MessageForm } from './MessageForm'
@@ -153,15 +154,8 @@ export default async function TicketDetailPage({ params }: PageProps) {
         </div>
       </section>
       <section className="card p-5">
-        <h2 className="section-title mb-3">Demande</h2>
-        {ticket.description && (
-          <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">{ticket.description}</p>
-        )}
-        {ticket.urgency_level === 2 && (
-          <p className="mt-3 rounded-2xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
-            🚨 Signalé comme urgent
-          </p>
-        )}
+        <h2 className="section-title mb-4">Demande</h2>
+        <ClientDeclarationView description={ticket.description} urgencyLevel={ticket.urgency_level} />
       </section>
       {sortedPhotos.length > 0 && (
         <section className="card p-5">
