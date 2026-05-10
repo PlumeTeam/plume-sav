@@ -52,17 +52,16 @@ Start here when exploring this area:
 |------|------|-------|
 | `HandleReassign → CreateClient` | cross_community | 5 |
 | `HandleClose → CreateClient` | cross_community | 5 |
+| `HandleRemind → CreateClient` | cross_community | 5 |
 | `WorkshopLayout → CreateClient` | cross_community | 3 |
 | `SchoolLayout → CreateClient` | cross_community | 3 |
 | `SelectDashboardPage → CreateClient` | cross_community | 3 |
-| `PlumeLayout → CreateClient` | cross_community | 3 |
 
 ## Connected Areas
 
 | Area | Connections |
 |------|-------------|
-| Actions | 2 calls |
-| Tickets | 2 calls |
+| Tickets | 4 calls |
 
 ## How to Explore
 

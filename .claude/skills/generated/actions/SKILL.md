@@ -1,16 +1,16 @@
 ---
 name: actions
-description: "Skill for the Actions area of 15_Plume_SAV. 48 symbols across 25 files."
+description: "Skill for the Actions area of 15_Plume_SAV. 24 symbols across 10 files."
 ---
 
 # Actions
 
-48 symbols | 25 files | Cohesion: 74%
+24 symbols | 10 files | Cohesion: 77%
 
 ## When to Use
 
 - Working with code in `apps/`
-- Understanding how createClient, getClientUnreadTotal, getClientInboxThreads work
+- Understanding how generateSavShippingLabelAction, ShippingLabelButton, buildFormData work
 - Modifying actions-related functionality
 
 ## Key Files
@@ -18,50 +18,50 @@ description: "Skill for the Actions area of 15_Plume_SAV. 48 symbols across 25 f
 | File | Symbols |
 |------|---------|
 | `apps/sav/features/tickets/actions/shipping.ts` | clientShippingAddressOrNull, generatePlaceholderLabel, resolveSchoolAddress, resolveWorkshopAddress, resolveClientAddress (+1) |
-| `apps/sav/features/tickets/actions/workshop.ts` | saveWorkshopChecklistAction, markWingReceivedWorkshopAction, startWorkshopDiagnosisAction, startWorkshopRepairAction, markWorkshopDoneAction |
-| `apps/sav/features/tickets/actions/admin.ts` | assignWorkshopForCommunicationAction, ensurePlumeAdmin, adminReassignSchoolAction, adminCloseTicketAction, adminRemindSchoolAction |
-| `apps/sav/app/(plume)/plume/AdminTicketActions.tsx` | handleReassign, handleClose, handleRemind |
+| `apps/sav/features/tickets/actions/workshop.ts` | markWingReceivedWorkshopAction, startWorkshopDiagnosisAction, startWorkshopRepairAction, markWorkshopDoneAction |
 | `apps/sav/features/tickets/components/ShippingLabelButton.tsx` | ShippingLabelButton, buildFormData, handleGenerate |
-| `apps/sav/features/tickets/messages-unread.ts` | getClientUnreadTotal, getClientInboxThreads |
-| `apps/sav/features/tickets/messages-unread-workshop.ts` | getWorkshopUnreadTotal, getWorkshopInboxThreads |
-| `apps/sav/features/tickets/messages-unread-school.ts` | getSchoolUnreadTotal, getSchoolInboxThreads |
-| `apps/sav/features/auth/actions.ts` | loginAction, logoutAction |
-| `apps/sav/features/tickets/actions/school.ts` | saveDiagnosisAction, saveSchoolChecklistAction |
+| `apps/sav/features/tickets/actions/_helpers.ts` | deriveServiceType, formatWingHistory, buildRichDescription |
+| `apps/sav/features/tickets/actions/lifecycle.ts` | markWingReturnedAction, markTicketCompletedAction |
+| `apps/sav/features/auth/identity.ts` | stringOrNull, resolveClientIdentity |
+| `apps/sav/features/tickets/actions/_step-advance.ts` | advanceTicketStep |
+| `apps/sav/app/(workshop)/workshop/ticket/[id]/WorkshopStepPanel.tsx` | handleStep |
+| `apps/sav/features/tickets/email.ts` | sendSchoolNotificationEmail |
+| `apps/sav/features/tickets/actions/creation.ts` | createTicketAction |
 
 ## Entry Points
 
 Start here when exploring this area:
 
-- **`createClient`** (Function) — `apps/sav/lib/supabase/server.ts:10`
-- **`getClientUnreadTotal`** (Function) — `apps/sav/features/tickets/messages-unread.ts:72`
-- **`getClientInboxThreads`** (Function) — `apps/sav/features/tickets/messages-unread.ts:121`
-- **`getWorkshopUnreadTotal`** (Function) — `apps/sav/features/tickets/messages-unread-workshop.ts:27`
-- **`getWorkshopInboxThreads`** (Function) — `apps/sav/features/tickets/messages-unread-workshop.ts:58`
+- **`generateSavShippingLabelAction`** (Function) — `apps/sav/features/tickets/actions/shipping.ts:153`
+- **`ShippingLabelButton`** (Function) — `apps/sav/features/tickets/components/ShippingLabelButton.tsx:51`
+- **`buildFormData`** (Function) — `apps/sav/features/tickets/components/ShippingLabelButton.tsx:84`
+- **`handleGenerate`** (Function) — `apps/sav/features/tickets/components/ShippingLabelButton.tsx:97`
+- **`advanceTicketStep`** (Function) — `apps/sav/features/tickets/actions/_step-advance.ts:36`
 
 ## Key Symbols
 
 | Symbol | Type | File | Line |
 |--------|------|------|------|
-| `createClient` | Function | `apps/sav/lib/supabase/server.ts` | 10 |
-| `getClientUnreadTotal` | Function | `apps/sav/features/tickets/messages-unread.ts` | 72 |
-| `getClientInboxThreads` | Function | `apps/sav/features/tickets/messages-unread.ts` | 121 |
-| `getWorkshopUnreadTotal` | Function | `apps/sav/features/tickets/messages-unread-workshop.ts` | 27 |
-| `getWorkshopInboxThreads` | Function | `apps/sav/features/tickets/messages-unread-workshop.ts` | 58 |
-| `getSchoolUnreadTotal` | Function | `apps/sav/features/tickets/messages-unread-school.ts` | 23 |
-| `getSchoolInboxThreads` | Function | `apps/sav/features/tickets/messages-unread-school.ts` | 55 |
-| `loginAction` | Function | `apps/sav/features/auth/actions.ts` | 15 |
-| `logoutAction` | Function | `apps/sav/features/auth/actions.ts` | 45 |
-| `handleSubmit` | Function | `apps/sav/features/tickets/inspection/CheckWizard.tsx` | 129 |
-| `requestStatusToSavStatus` | Function | `apps/sav/features/tickets/actions/_helpers.ts` | 37 |
-| `saveWorkshopChecklistAction` | Function | `apps/sav/features/tickets/actions/workshop.ts` | 24 |
-| `saveDiagnosisAction` | Function | `apps/sav/features/tickets/actions/school.ts` | 31 |
-| `saveSchoolChecklistAction` | Function | `apps/sav/features/tickets/actions/school.ts` | 69 |
-| `updateTicketStatusAction` | Function | `apps/sav/features/tickets/actions/messaging.ts` | 55 |
-| `assignWorkshopForCommunicationAction` | Function | `apps/sav/features/tickets/actions/admin.ts` | 28 |
-| `adminReassignSchoolAction` | Function | `apps/sav/features/tickets/actions/admin.ts` | 86 |
-| `adminCloseTicketAction` | Function | `apps/sav/features/tickets/actions/admin.ts` | 130 |
-| `adminRemindSchoolAction` | Function | `apps/sav/features/tickets/actions/admin.ts` | 194 |
-| `WorkshopMessagesNavButton` | Function | `apps/sav/app/(workshop)/_components/WorkshopMessagesNavButton.tsx` | 4 |
+| `generateSavShippingLabelAction` | Function | `apps/sav/features/tickets/actions/shipping.ts` | 153 |
+| `ShippingLabelButton` | Function | `apps/sav/features/tickets/components/ShippingLabelButton.tsx` | 51 |
+| `buildFormData` | Function | `apps/sav/features/tickets/components/ShippingLabelButton.tsx` | 84 |
+| `handleGenerate` | Function | `apps/sav/features/tickets/components/ShippingLabelButton.tsx` | 97 |
+| `advanceTicketStep` | Function | `apps/sav/features/tickets/actions/_step-advance.ts` | 36 |
+| `markWingReceivedWorkshopAction` | Function | `apps/sav/features/tickets/actions/workshop.ts` | 50 |
+| `startWorkshopDiagnosisAction` | Function | `apps/sav/features/tickets/actions/workshop.ts` | 66 |
+| `startWorkshopRepairAction` | Function | `apps/sav/features/tickets/actions/workshop.ts` | 82 |
+| `markWorkshopDoneAction` | Function | `apps/sav/features/tickets/actions/workshop.ts` | 97 |
+| `markWingReturnedAction` | Function | `apps/sav/features/tickets/actions/lifecycle.ts` | 40 |
+| `markTicketCompletedAction` | Function | `apps/sav/features/tickets/actions/lifecycle.ts` | 67 |
+| `handleStep` | Function | `apps/sav/app/(workshop)/workshop/ticket/[id]/WorkshopStepPanel.tsx` | 93 |
+| `resolveClientIdentity` | Function | `apps/sav/features/auth/identity.ts` | 33 |
+| `sendSchoolNotificationEmail` | Function | `apps/sav/features/tickets/email.ts` | 242 |
+| `deriveServiceType` | Function | `apps/sav/features/tickets/actions/_helpers.ts` | 30 |
+| `formatWingHistory` | Function | `apps/sav/features/tickets/actions/_helpers.ts` | 112 |
+| `buildRichDescription` | Function | `apps/sav/features/tickets/actions/_helpers.ts` | 150 |
+| `createTicketAction` | Function | `apps/sav/features/tickets/actions/creation.ts` | 33 |
+| `clientShippingAddressOrNull` | Function | `apps/sav/features/tickets/actions/shipping.ts` | 61 |
+| `generatePlaceholderLabel` | Function | `apps/sav/features/tickets/actions/shipping.ts` | 77 |
 
 ## Execution Flows
 
@@ -75,18 +75,18 @@ Start here when exploring this area:
 | `WorkshopStepPanel → EnrichWithCoords` | cross_community | 6 |
 | `WorkshopStepPanel → FormatSchoolAddress` | cross_community | 6 |
 | `WorkshopStepPanel → RequestStatusToSavStatus` | cross_community | 5 |
-| `HandleReassign → CreateClient` | cross_community | 5 |
-| `HandleClose → CreateClient` | cross_community | 5 |
+| `HandleSubmit → StringOrNull` | cross_community | 4 |
+| `HandleSubmit → FormatWingHistory` | cross_community | 4 |
 
 ## Connected Areas
 
 | Area | Connections |
 |------|-------------|
-| Tickets | 4 calls |
-| Auth | 1 calls |
+| Tickets | 9 calls |
+| [id] | 1 calls |
 
 ## How to Explore
 
-1. `gitnexus_context({name: "createClient"})` — see callers and callees
+1. `gitnexus_context({name: "generateSavShippingLabelAction"})` — see callers and callees
 2. `gitnexus_query({query: "actions"})` — find related execution flows
 3. Read key files listed above for implementation details

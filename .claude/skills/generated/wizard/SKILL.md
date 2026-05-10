@@ -10,7 +10,7 @@ description: "Skill for the Wizard area of 15_Plume_SAV. 29 symbols across 15 fi
 ## When to Use
 
 - Working with code in `apps/`
-- Understanding how createClient, handleCreateTicket, addMessageAction work
+- Understanding how createClient, LoginForm, handleCreateTicket work
 - Modifying wizard-related functionality
 
 ## Key Files
@@ -24,29 +24,29 @@ description: "Skill for the Wizard area of 15_Plume_SAV. 29 symbols across 15 fi
 | `apps/sav/features/tickets/components/wizard/StepDescription.tsx` | StepDescription, stripBehaviorPrefix |
 | `apps/sav/features/tickets/components/wizard/StepBehaviors.tsx` | StepBehaviors, toggle |
 | `apps/sav/lib/supabase/client.ts` | createClient |
+| `apps/sav/features/auth/components/LoginForm.tsx` | LoginForm |
 | `apps/sav/features/tickets/components/WingCard.tsx` | handleCreateTicket |
 | `apps/sav/features/tickets/actions/messaging.ts` | addMessageAction |
-| `apps/sav/features/auth/components/LoginForm.tsx` | LoginForm |
 
 ## Entry Points
 
 Start here when exploring this area:
 
 - **`createClient`** (Function) — `apps/sav/lib/supabase/client.ts:4`
+- **`LoginForm`** (Function) — `apps/sav/features/auth/components/LoginForm.tsx:12`
 - **`handleCreateTicket`** (Function) — `apps/sav/features/tickets/components/WingCard.tsx:14`
 - **`addMessageAction`** (Function) — `apps/sav/features/tickets/actions/messaging.ts:27`
-- **`LoginForm`** (Function) — `apps/sav/features/auth/components/LoginForm.tsx:12`
-- **`reset`** (Function) — `apps/sav/features/tickets/components/wizard/WingScanCard.tsx:79`
+- **`reset`** (Function) — `apps/sav/features/tickets/components/wizard/WingScanCard.tsx:95`
 
 ## Key Symbols
 
 | Symbol | Type | File | Line |
 |--------|------|------|------|
 | `createClient` | Function | `apps/sav/lib/supabase/client.ts` | 4 |
+| `LoginForm` | Function | `apps/sav/features/auth/components/LoginForm.tsx` | 12 |
 | `handleCreateTicket` | Function | `apps/sav/features/tickets/components/WingCard.tsx` | 14 |
 | `addMessageAction` | Function | `apps/sav/features/tickets/actions/messaging.ts` | 27 |
-| `LoginForm` | Function | `apps/sav/features/auth/components/LoginForm.tsx` | 12 |
-| `reset` | Function | `apps/sav/features/tickets/components/wizard/WingScanCard.tsx` | 79 |
+| `reset` | Function | `apps/sav/features/tickets/components/wizard/WingScanCard.tsx` | 95 |
 | `cancel` | Function | `apps/sav/features/tickets/components/wizard/TicketWizard.tsx` | 60 |
 | `handleSubmit` | Function | `apps/sav/features/tickets/components/wizard/StepReview.tsx` | 31 |
 | `action` | Function | `apps/sav/app/(client)/client/ticket/[id]/MessageForm.tsx` | 17 |
@@ -56,11 +56,11 @@ Start here when exploring this area:
 | `go` | Function | `apps/sav/features/tickets/components/wizard/TicketWizard.tsx` | 47 |
 | `next` | Function | `apps/sav/features/tickets/components/wizard/TicketWizard.tsx` | 57 |
 | `back` | Function | `apps/sav/features/tickets/components/wizard/TicketWizard.tsx` | 58 |
-| `WingScanCard` | Function | `apps/sav/features/tickets/components/wizard/WingScanCard.tsx` | 45 |
-| `findWingBySerial` | Function | `apps/sav/features/tickets/components/wizard/WingScanCard.tsx` | 48 |
-| `resolveSerial` | Function | `apps/sav/features/tickets/components/wizard/WingScanCard.tsx` | 53 |
-| `handleCameraDecode` | Function | `apps/sav/features/tickets/components/wizard/WingScanCard.tsx` | 66 |
-| `runDemoScan` | Function | `apps/sav/features/tickets/components/wizard/WingScanCard.tsx` | 73 |
+| `WingScanCard` | Function | `apps/sav/features/tickets/components/wizard/WingScanCard.tsx` | 61 |
+| `findWingBySerial` | Function | `apps/sav/features/tickets/components/wizard/WingScanCard.tsx` | 64 |
+| `resolveSerial` | Function | `apps/sav/features/tickets/components/wizard/WingScanCard.tsx` | 69 |
+| `handleCameraDecode` | Function | `apps/sav/features/tickets/components/wizard/WingScanCard.tsx` | 82 |
+| `runDemoScan` | Function | `apps/sav/features/tickets/components/wizard/WingScanCard.tsx` | 89 |
 | `StepWingInfo` | Function | `apps/sav/features/tickets/components/wizard/StepWingInfo.tsx` | 21 |
 
 ## Execution Flows
@@ -71,15 +71,14 @@ Start here when exploring this area:
 | `HandleSubmit → FormatWingHistory` | cross_community | 4 |
 | `Action → CreateClient` | cross_community | 3 |
 | `HandleSubmit → CreateClient` | cross_community | 3 |
-| `HandleSubmit → DeriveServiceType` | cross_community | 3 |
 
 ## Connected Areas
 
 | Area | Connections |
 |------|-------------|
-| Actions | 1 calls |
-| Components | 1 calls |
 | Tickets | 1 calls |
+| Components | 1 calls |
+| Actions | 1 calls |
 
 ## How to Explore
 
