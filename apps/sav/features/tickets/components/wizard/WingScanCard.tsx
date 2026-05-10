@@ -30,10 +30,11 @@ interface WingScanCardProps {
  *  - Mettre à jour wings.physical_state à la transition
  */
 export function WingScanCard({ wings, selectedSerial, onScanResolved }: WingScanCardProps) {
-  const [state, setState] = useState<ScanState>(() =>
-    selectedSerial ? { status: 'success', serial: selectedSerial, method: 'manual' } : { status: 'idle' },
-  )
-  const [manualInput, setManualInput] = useState('')
+  // Toujours démarrer en idle pour que la viewport caméra soit visible.
+  // Si une aile est déjà sélectionnée (brouillon en cours), on pré-remplit
+  // juste le champ manuel — mais le scan reste accessible.
+  const [state, setState] = useState<ScanState>({ status: 'idle' })
+  const [manualInput, setManualInput] = useState(selectedSerial ?? '')
 
   function findWingBySerial(serial: string): ClientWing | undefined {
     const normalized = serial.trim().toUpperCase()
@@ -56,18 +57,21 @@ export function WingScanCard({ wings, selectedSerial, onScanResolved }: WingScan
   function startScan() {
     setState({ status: 'scanning' })
     // TODO: brancher html5-qrcode. Pour l'instant on simule un scan réussi
-    // sur la première aile après 800ms (le temps de voir l'animation).
+    // après 800ms (le temps de voir l'animation).
     setTimeout(() => {
       const first = wings[0]
       if (first) resolveSerial(first.serial_number, 'camera')
-      else setState({ status: 'error', message: 'Aucune aile disponible.' })
+      // Mode démo / pas d'aile enregistrée : succès factice pour que l'UX
+      // soit visible même sur un compte vierge.
+      else setState({ status: 'success', serial: 'PLM-DEMO-2026-00001', method: 'camera' })
     }, 800)
   }
 
   function runDemoScan() {
     const first = wings[0]
     if (first) resolveSerial(first.serial_number, 'demo')
-    else setState({ status: 'error', message: 'Aucune aile disponible pour la démo.' })
+    // Mode démo / pas d'aile enregistrée : succès factice.
+    else setState({ status: 'success', serial: 'PLM-DEMO-2026-00001', method: 'demo' })
   }
 
   function submitManualSerial() {
