@@ -1,12 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { QRCameraScanner } from './QRCameraScanner'
 
 type ScanState =
   | { status: 'idle' }
-  | { status: 'scanning' }
-  | { status: 'manual' }
-  | { status: 'mismatch'; scanned: string }
+  | { status: 'scanning' }                                          // caméra ouverte
+  | { status: 'manual-warning' }                                    // avertissement avant manuel
+  | { status: 'manual-step1'; reason: string }                      // saisie + raison
+  | { status: 'manual-step2'; reason: string; serial1: string }     // re-saisie
+  | { status: 'mismatch'; scanned: string; method: 'camera' | 'manual' }
 
 interface ScanGateModalProps {
   open:           boolean
@@ -21,20 +24,26 @@ interface ScanGateModalProps {
   subtitle:       string
 }
 
+const MANUAL_REASONS = [
+  { value: 'qr_damaged', label: 'QR code abîmé / illisible' },
+  { value: 'qr_missing', label: 'QR code manquant ou décousu' },
+  { value: 'pre_flashcode', label: 'Aile pré-flashcode (avant 2026)' },
+  { value: 'no_camera', label: 'Pas de caméra disponible' },
+] as const
+
 /**
- * Modale de scan flashcode bloquante avant une action.
+ * Modale de scan flashcode bloquante avant une action (école / atelier / Plume HQ).
  *
- * Module Traçabilité Flashcode v1 — vue pros (école / atelier / Plume HQ).
- * Premier preview : pas de vraie caméra, juste l'UX et la vérification du
- * serial. À chaque transition de garde de l'aile (réception, début de check,
- * génération bon d'envoi), le pro doit scanner le QR cousu sur l'aile pour
- * confirmer que c'est bien la bonne avant que l'action serveur s'exécute.
+ * Module Traçabilité Flashcode v2 — caméra réelle + friction manuelle.
+ * Le scan caméra (html5-qrcode) est le chemin par défaut. Le fallback manuel
+ * impose une raison + double saisie pour éviter qu'on contourne le scan
+ * automatiquement.
  *
  * Étapes suivantes (PR à venir) :
- *  - Intégrer html5-qrcode pour le vrai scan caméra
- *  - Persister chaque scan dans la table wing_scans (Supabase) avec le
- *    couple (role, type) approprié — ex: ('school', 'reception')
- *  - Refuser le scan si le serial ne matche pas (au lieu d'avertir + autoriser)
+ *  - Persister chaque scan dans la table wing_scans (Supabase) avec le couple
+ *    (role, type) approprié — ex: ('school', 'reception')
+ *  - Logger la raison du fallback manuel pour suivi qualité
+ *  - Mode démo gaté par NEXT_PUBLIC_VERCEL_ENV !== 'production'
  */
 export function ScanGateModal({
   open,
@@ -45,51 +54,43 @@ export function ScanGateModal({
   subtitle,
 }: ScanGateModalProps) {
   const [state, setState] = useState<ScanState>({ status: 'idle' })
-  const [manualInput, setManualInput] = useState('')
 
   // Reset à chaque ouverture
   useEffect(() => {
-    if (open) {
-      setState({ status: 'idle' })
-      setManualInput('')
-    }
+    if (open) setState({ status: 'idle' })
   }, [open])
 
   if (!open) return null
 
-  function checkSerial(scanned: string, method: 'camera' | 'demo' | 'manual') {
-    if (!expectedSerial || method === 'demo') {
-      // Mode démo ou pas de vérif → on passe
-      onScanSuccess(method)
-      return
-    }
-    const a = scanned.trim().toUpperCase()
-    const b = expectedSerial.trim().toUpperCase()
-    if (a === b) {
-      onScanSuccess(method)
-    } else {
-      setState({ status: 'mismatch', scanned })
-    }
+  function checkSerial(scanned: string, method: 'camera' | 'manual'): 'ok' | 'mismatch' {
+    if (!expectedSerial) return 'ok'
+    return scanned.trim().toUpperCase() === expectedSerial.trim().toUpperCase() ? 'ok' : 'mismatch'
   }
 
-  function startScan() {
-    setState({ status: 'scanning' })
-    // TODO html5-qrcode. Ici on simule un scan qui matche l'expectedSerial.
-    setTimeout(() => {
-      checkSerial(expectedSerial ?? 'PLM-DEMO-2026-00001', 'camera')
-    }, 800)
+  function handleCameraDecode(decodedText: string) {
+    if (checkSerial(decodedText, 'camera') === 'ok') {
+      onScanSuccess('camera')
+    } else {
+      setState({ status: 'mismatch', scanned: decodedText, method: 'camera' })
+    }
   }
 
   function runDemoScan() {
-    checkSerial(expectedSerial ?? 'PLM-DEMO-2026-00001', 'demo')
+    // Mode démo : pas de vérif serial, succès direct
+    onScanSuccess('demo')
   }
 
-  function submitManual() {
-    if (!manualInput.trim()) return
-    checkSerial(manualInput, 'manual')
+  function handleManualConfirm(serial2: string, serial1: string) {
+    if (serial1.trim().toUpperCase() !== serial2.trim().toUpperCase()) {
+      setState({ status: 'mismatch', scanned: serial2, method: 'manual' })
+      return
+    }
+    if (checkSerial(serial1, 'manual') === 'ok') {
+      onScanSuccess('manual')
+    } else {
+      setState({ status: 'mismatch', scanned: serial1, method: 'manual' })
+    }
   }
-
-  const isScanning = state.status === 'scanning'
 
   return (
     <div
@@ -115,105 +116,246 @@ export function ScanGateModal({
           </button>
         </div>
 
-        {state.status === 'manual' ? (
-          <>
-            <p className="text-xs text-slate-500">
-              Saisissez le n° de série gravé sur la plaque d&apos;identification de l&apos;aile.
-              {expectedSerial && (
-                <>
-                  {' '}Attendu : <code className="font-mono text-[11px] text-brand-ink">{expectedSerial}</code>
-                </>
-              )}
-            </p>
-            <input
-              type="text"
-              autoFocus
-              value={manualInput}
-              onChange={(e) => setManualInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && submitManual()}
-              placeholder="PLM-XXXX-YYYY-NNNNN"
-              className="mt-3 w-full rounded-xl border-2 border-brand-stone bg-white p-3 font-mono text-sm uppercase tracking-wide outline-none focus:border-brand-gold"
-            />
-            <div className="mt-3 flex gap-2">
-              <button
-                type="button"
-                onClick={submitManual}
-                disabled={!manualInput.trim()}
-                className="flex-1 rounded-xl bg-brand-gold px-4 py-2.5 text-sm font-semibold text-white shadow-plume disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Valider
-              </button>
+        {state.status === 'scanning' && (
+          <QRCameraScanner
+            onDecode={handleCameraDecode}
+            onCancel={() => setState({ status: 'idle' })}
+          />
+        )}
+
+        {state.status === 'manual-warning' && (
+          <div>
+            <div className="rounded-lg border-l-4 border-amber-400 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              ⚠️ Le scan caméra est plus rapide et plus fiable. Continuez en saisie manuelle uniquement si le QR n&apos;est vraiment pas utilisable.
+            </div>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
                 onClick={() => setState({ status: 'idle' })}
-                className="rounded-xl border-2 border-brand-stone bg-white px-4 py-2.5 text-sm font-medium text-brand-ink"
+                className="flex-1 rounded-xl bg-brand-gold px-4 py-2.5 text-sm font-semibold text-white shadow-plume"
               >
-                Retour
+                ← Revenir au scan caméra
+              </button>
+              <button
+                type="button"
+                onClick={() => setState({ status: 'manual-step1', reason: '' })}
+                className="rounded-xl border-2 border-amber-300 bg-white px-4 py-2.5 text-sm font-medium text-amber-900"
+              >
+                Continuer en manuel
               </button>
             </div>
-          </>
-        ) : (
-          <>
-            <div className="relative my-3 aspect-[4/3] overflow-hidden rounded-xl bg-gradient-to-br from-brand-ink to-slate-800">
-              <div
-                className={`absolute inset-[14%] rounded-lg border-[3px] border-brand-gold shadow-[0_0_20px_rgba(212,175,55,0.4)] ${
-                  isScanning ? 'animate-pulse' : ''
-                }`}
-              />
-              <div
-                className="absolute left-[18%] right-[18%] h-[2px] bg-brand-gold shadow-[0_0_8px_#d4af37,0_0_16px_#d4af37]"
-                style={{ top: '50%' }}
-              />
-              <div className="absolute inset-0 flex items-center justify-center font-mono text-5xl text-white/15 pointer-events-none select-none">▦</div>
-              {isScanning && (
-                <div className="absolute bottom-3 left-0 right-0 text-center text-xs font-medium text-brand-gold">
-                  Scan en cours…
-                </div>
-              )}
+          </div>
+        )}
+
+        {state.status === 'manual-step1' && (
+          <ManualStep1
+            initialReason={state.reason}
+            onSubmit={(serial, reason) => setState({ status: 'manual-step2', reason, serial1: serial })}
+            onBack={() => setState({ status: 'idle' })}
+          />
+        )}
+
+        {state.status === 'manual-step2' && (
+          <ManualStep2
+            firstSerial={state.serial1}
+            onConfirm={(s2) => handleManualConfirm(s2, state.serial1)}
+            onBack={() => setState({ status: 'manual-step1', reason: state.reason })}
+          />
+        )}
+
+        {state.status === 'mismatch' && (
+          <div>
+            <div className="rounded-lg border-l-4 border-red-400 bg-red-50 px-3 py-2 text-xs text-red-800">
+              ⚠️ Serial scanné <code className="font-mono">{state.scanned}</code>
+              {state.method === 'manual' ? ' — la double saisie ne correspond pas, ou' : ''} ne correspond pas au serial du ticket
+              {expectedSerial && (
+                <> (<code className="font-mono">{expectedSerial}</code>)</>
+              )}.
+              <br />Vérifiez que vous traitez bien la bonne aile pour ce ticket.
             </div>
+            <button
+              type="button"
+              onClick={() => setState({ status: 'idle' })}
+              className="mt-3 w-full rounded-xl bg-brand-gold px-4 py-2.5 text-sm font-semibold text-white shadow-plume"
+            >
+              Recommencer
+            </button>
+          </div>
+        )}
 
-            {state.status === 'mismatch' && (
-              <div className="mb-3 rounded-lg border-l-4 border-red-400 bg-red-50 px-3 py-2 text-xs text-red-800">
-                ⚠️ Serial scanné <code className="font-mono">{state.scanned}</code> — différent du serial du ticket
-                {expectedSerial && (
-                  <> (<code className="font-mono">{expectedSerial}</code>)</>
-                )}. Vérifiez que vous scannez bien l&apos;aile concernée par ce ticket.
-              </div>
-            )}
-
-            {expectedSerial && state.status === 'idle' && (
+        {state.status === 'idle' && (
+          <>
+            {expectedSerial && (
               <p className="mb-3 rounded-lg bg-brand-cream px-3 py-2 text-xs text-slate-600">
-                Aile attendue : <code className="font-mono text-brand-ink">{expectedSerial}</code>
+                💡 Aile attendue pour ce ticket — le scan vérifie automatiquement la correspondance.
               </p>
             )}
-
             <div className="flex flex-col gap-2">
               <button
                 type="button"
-                onClick={startScan}
-                disabled={isScanning}
-                className="w-full rounded-xl bg-brand-gold px-4 py-3 text-sm font-semibold text-white shadow-plume disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={() => setState({ status: 'scanning' })}
+                className="w-full rounded-xl bg-brand-gold px-4 py-3 text-sm font-semibold text-white shadow-plume"
               >
-                {isScanning ? 'Activation caméra…' : '📷 Activer la caméra'}
+                📷 Activer la caméra
               </button>
               <button
                 type="button"
                 onClick={runDemoScan}
-                disabled={isScanning}
-                className="w-full rounded-xl border-2 border-dashed border-amber-400 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-xl border-2 border-dashed border-amber-400 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800"
               >
                 🧪 Test sans flashcode <span className="font-normal opacity-70">(mode démo)</span>
               </button>
               <button
                 type="button"
-                onClick={() => setState({ status: 'manual' })}
-                className="w-full rounded-xl bg-transparent px-4 py-2 text-sm font-medium text-brand-ink/70 underline-offset-4 hover:text-brand-ink hover:underline"
+                onClick={() => setState({ status: 'manual-warning' })}
+                className="w-full rounded-xl bg-transparent px-4 py-2 text-xs font-medium text-slate-500 underline-offset-4 hover:text-slate-700 hover:underline"
               >
-                Saisir le n° de série manuellement
+                QR illisible ? Saisir le n° de série manuellement
               </button>
             </div>
           </>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sous-composants pour les étapes manuelles (besoin de useState local)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ManualStep1Props {
+  initialReason: string
+  onSubmit:      (serial: string, reason: string) => void
+  onBack:        () => void
+}
+
+function ManualStep1({ initialReason, onSubmit, onBack }: ManualStep1Props) {
+  const [reason, setReason] = useState(initialReason)
+  const [serial, setSerial] = useState('')
+
+  const canSubmit = reason !== '' && serial.trim().length >= 6
+
+  return (
+    <div>
+      <p className="text-sm font-semibold text-brand-ink">Saisie manuelle — étape 1/2</p>
+      <p className="mt-1 text-xs text-slate-500">
+        Raison du fallback manuel + saisie du n° de série, puis confirmation à l&apos;étape suivante.
+      </p>
+
+      <label className="mt-3 block text-xs font-semibold text-brand-ink">
+        Pourquoi pas le scan caméra ?
+        <select
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          className="mt-1 w-full rounded-xl border-2 border-brand-stone bg-white p-2.5 text-sm outline-none focus:border-brand-gold"
+        >
+          <option value="">— Sélectionner une raison —</option>
+          {MANUAL_REASONS.map((r) => (
+            <option key={r.value} value={r.value}>{r.label}</option>
+          ))}
+        </select>
+      </label>
+
+      <label className="mt-3 block text-xs font-semibold text-brand-ink">
+        N° de série gravé sur la plaque
+        <input
+          type="text"
+          autoFocus
+          autoComplete="off"
+          spellCheck={false}
+          value={serial}
+          onChange={(e) => setSerial(e.target.value)}
+          placeholder="PLM-XXXX-YYYY-NNNNN"
+          className="mt-1 w-full rounded-xl border-2 border-brand-stone bg-white p-3 font-mono text-sm uppercase tracking-wide outline-none focus:border-brand-gold"
+        />
+      </label>
+
+      <div className="mt-3 flex gap-2">
+        <button
+          type="button"
+          onClick={() => onSubmit(serial, reason)}
+          disabled={!canSubmit}
+          className="flex-1 rounded-xl bg-brand-gold px-4 py-2.5 text-sm font-semibold text-white shadow-plume disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Continuer →
+        </button>
+        <button
+          type="button"
+          onClick={onBack}
+          className="rounded-xl border-2 border-brand-stone bg-white px-4 py-2.5 text-sm font-medium text-brand-ink"
+        >
+          Annuler
+        </button>
+      </div>
+    </div>
+  )
+}
+
+interface ManualStep2Props {
+  firstSerial: string
+  onConfirm:   (serial2: string) => void
+  onBack:      () => void
+}
+
+function ManualStep2({ firstSerial, onConfirm, onBack }: ManualStep2Props) {
+  const [serial2, setSerial2] = useState('')
+  const matches = serial2.trim().toUpperCase() === firstSerial.trim().toUpperCase()
+
+  return (
+    <div>
+      <p className="text-sm font-semibold text-brand-ink">Saisie manuelle — étape 2/2</p>
+      <p className="mt-1 text-xs text-slate-500">
+        Re-saisissez le même n° à la main pour confirmer (le copier-coller est désactivé).
+      </p>
+
+      <label className="mt-3 block text-xs font-semibold text-brand-ink">
+        Confirmation du n° de série
+        <input
+          type="text"
+          autoFocus
+          autoComplete="off"
+          spellCheck={false}
+          onPaste={(e) => e.preventDefault()}
+          value={serial2}
+          onChange={(e) => setSerial2(e.target.value)}
+          placeholder="Re-saisir le n° à la main"
+          className={`mt-1 w-full rounded-xl border-2 bg-white p-3 font-mono text-sm uppercase tracking-wide outline-none ${
+            serial2 && !matches
+              ? 'border-red-400 focus:border-red-500'
+              : matches
+                ? 'border-emerald-500 focus:border-emerald-600'
+                : 'border-brand-stone focus:border-brand-gold'
+          }`}
+        />
+        {serial2 && !matches && (
+          <span className="mt-1 block text-[11px] text-red-700">
+            ❌ Ne correspond pas à la première saisie.
+          </span>
+        )}
+        {matches && (
+          <span className="mt-1 block text-[11px] text-emerald-700">
+            ✓ Correspond.
+          </span>
+        )}
+      </label>
+
+      <div className="mt-3 flex gap-2">
+        <button
+          type="button"
+          onClick={() => onConfirm(serial2)}
+          disabled={!matches}
+          className="flex-1 rounded-xl bg-brand-gold px-4 py-2.5 text-sm font-semibold text-white shadow-plume disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Valider l&apos;aile
+        </button>
+        <button
+          type="button"
+          onClick={onBack}
+          className="rounded-xl border-2 border-brand-stone bg-white px-4 py-2.5 text-sm font-medium text-brand-ink"
+        >
+          ← Retour
+        </button>
       </div>
     </div>
   )

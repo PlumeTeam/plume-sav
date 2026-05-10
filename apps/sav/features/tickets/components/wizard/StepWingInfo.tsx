@@ -131,7 +131,9 @@ export function StepWingInfo({ wings, onNext }: StepWingInfoProps) {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold">{wing.product_label}</p>
                   {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
-                  <p className="mt-1 font-mono text-xs text-slate-400">{wing.serial_number}</p>
+                  {/* Module Flashcode v2 : on masque le serial pour pousser au scan QR.
+                      Le serial est révélé seulement après scan/sélection (à l'étape suivante). */}
+                  <p className="mt-1 font-mono text-xs text-slate-300">PLM-•••••-••••-•••••</p>
                 </div>
                 <span className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold ${
                   isSelected
