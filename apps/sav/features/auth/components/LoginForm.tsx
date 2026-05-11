@@ -1,32 +1,36 @@
 'use client'
 
 import { useFormState, useFormStatus } from 'react-dom'
-import { useEffect, useRef, useState } from 'react'
-import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
+// TODO: Réactiver Turnstile avant mise en prod
+// import { useEffect, useRef, useState } from 'react'
+// import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { loginAction, type LoginFormState } from '../actions'
 
-const TURNSTILE_SITE_KEY =
-  process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '0x4AAAAAAB9Gpk5pYILNvYaj'
+// TODO: Réactiver Turnstile avant mise en prod
+// const TURNSTILE_SITE_KEY =
+//   process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '0x4AAAAAAB9Gpk5pYILNvYaj'
 
 const initialState: LoginFormState = { error: null }
 
 export function LoginForm() {
   const [state, formAction] = useFormState(loginAction, initialState)
-  const [captchaToken, setCaptchaToken] = useState('')
-  const [turnstileError, setTurnstileError] = useState(false)
-  const turnstileRef = useRef<TurnstileInstance>(null)
-
-  useEffect(() => {
-    if (state.error) {
-      turnstileRef.current?.reset()
-      setCaptchaToken('')
-      setTurnstileError(false)
-    }
-  }, [state.error])
+  // TODO: Réactiver Turnstile avant mise en prod
+  // const [captchaToken, setCaptchaToken] = useState('')
+  // const [turnstileError, setTurnstileError] = useState(false)
+  // const turnstileRef = useRef<TurnstileInstance>(null)
+  //
+  // useEffect(() => {
+  //   if (state.error) {
+  //     turnstileRef.current?.reset()
+  //     setCaptchaToken('')
+  //     setTurnstileError(false)
+  //   }
+  // }, [state.error])
 
   return (
     <form action={formAction} className="space-y-4">
-      <input type="hidden" name="captchaToken" value={captchaToken} readOnly />
+      {/* TODO: Réactiver Turnstile avant mise en prod */}
+      {/* <input type="hidden" name="captchaToken" value={captchaToken} readOnly /> */}
 
       <div>
         <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-brand-ink">
@@ -65,6 +69,8 @@ export function LoginForm() {
         )}
       </div>
 
+      {/* TODO: Réactiver Turnstile avant mise en prod */}
+      {/*
       <div className="flex justify-center pt-1">
         <Turnstile
           ref={turnstileRef}
@@ -82,6 +88,7 @@ export function LoginForm() {
           l&apos;administrateur pour ajouter ce domaine à Cloudflare Turnstile.
         </p>
       )}
+      */}
 
       {state.error?._form?.[0] && (
         <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
@@ -89,7 +96,8 @@ export function LoginForm() {
         </p>
       )}
 
-      <SubmitButton captchaReady={!!captchaToken} />
+      {/* TODO: Réactiver Turnstile avant mise en prod — remettre captchaReady={!!captchaToken} */}
+      <SubmitButton captchaReady={true} />
 
       <p className="text-center text-xs text-slate-500">
         Pas encore de compte ? Contactez votre école partenaire ou{' '}
