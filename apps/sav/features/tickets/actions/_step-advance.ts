@@ -44,7 +44,7 @@ export async function advanceTicketStep(args: AdvanceArgs) {
   // Lit le status courant + les infos client/Ã©cole pour l'email.
   const { data: current, error: fetchError } = await supabase
     .from('service_requests')
-    .select('id, status, first_name, last_name, email, ticket_number, referent_school_id')
+    .select('id, status, first_name, last_name, email, referent_school_id')
     .eq('id', ticketId)
     .single()
     .returns<{
@@ -53,8 +53,7 @@ export async function advanceTicketStep(args: AdvanceArgs) {
       first_name:          string | null
       last_name:           string | null
       email:               string | null
-      ticket_number:       string | null
-      referent_school_id:  string | null
+            referent_school_id:  string | null
     }>()
 
   if (fetchError || !current) {
@@ -109,7 +108,7 @@ export async function advanceTicketStep(args: AdvanceArgs) {
       const schoolDetail = current.referent_school_id
         ? await getPartnerSchoolById(current.referent_school_id)
         : null
-      const ref = current.ticket_number ?? `#${current.id.slice(0, 8).toUpperCase()}`
+      const ref = `#${current.id.slice(0, 8).toUpperCase()}`
       const r = await sendClientStepUpdateEmail(supabase, emailStep, {
         ticketId:    current.id,
         ticketRef:   ref,
@@ -134,4 +133,7 @@ export async function advanceTicketStep(args: AdvanceArgs) {
 
   return { success: true as const, previousStatus: current.status }
 }
+
+
+
 
