@@ -75,38 +75,80 @@ export function QRCameraScanner({ onDecode, onCancel }: QRCameraScannerProps) {
         const scanner = new Html5Qrcode(REGION_ID, /* verbose */ false)
         scannerRef.current = scanner
 
-        await scanner.start(
-          { facingMode: 'environment' }, // back camera par défaut (mobile)
-          {
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1.333,
-          },
-          (decodedText: string) => {
-            if (decodedRef.current) return
-            decodedRef.current = true
-            scanner
-              .stop()
-              .catch(() => { /* déjà arrêté */ })
-              .finally(() => onDecode(decodedText))
-          },
-          () => { /* frames sans QR — ignorer */ },
-        )
-        if (!mountedRef.current) return
+        const config = {
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.333,
+        }
+        const onScan = (decodedText: string) => {
+          if (decodedRef.current) return
+          decodedRef.current = true
+          scanner
+            .stop()
+            .catch(() => { /* déjà arrêté */ })
+            .finally(() => onDecode(decodedText))
+        }
+        const onFrame = () => { /* frames sans QR — ignorer */ }
+
+        // ── Stratégie de sélection caméra robuste sur PC + mobile ─────────
+        // Sur mobile : on veut la back camera (facingMode: 'environment').
+        // Sur PC : pas de back cam → 'environment' peut throw OverconstrainedError
+        // (Firefox surtout, mais aussi Chrome/Edge avec certains drivers webcam).
+        // → On énumère d'abord les caméras et on choisit la mieux adaptée par ID.
+        let started = false
+        try {
+          const cameras = await Html5Qrcode.getCameras()
+          console.log('[QRCameraScanner] cameras détectées:', cameras)
+
+          if (!cameras || cameras.length === 0) {
+            if (mountedRef.current) setState({ kind: 'unavailable' })
+            return
+          }
+
+          // Cherche une caméra "back/rear/environment" par label, sinon prend la 1re
+          const backCam = cameras.find((c) =>
+            /back|rear|environment|arri[eè]re/i.test(c.label),
+          )
+          const chosen = backCam ?? cameras[0]
+
+          await scanner.start(chosen.id, config, onScan, onFrame)
+          started = true
+        } catch (camErr) {
+          // Fallback : si l'énumération ou le démarrage par ID a échoué,
+          // on retente avec une contrainte molle facingMode (sans 'exact')
+          // — laisse le browser choisir n'importe quelle caméra dispo.
+          console.warn('[QRCameraScanner] énumération échouée, fallback facingMode:', camErr)
+          await scanner.start({ facingMode: 'environment' }, config, onScan, onFrame)
+          started = true
+        }
+
+        if (!mountedRef.current) {
+          if (started) {
+            scanner.stop().catch(() => { /* ignore */ })
+          }
+          return
+        }
         setState({ kind: 'running' })
       } catch (err) {
         if (!mountedRef.current) return
         const msg = err instanceof Error ? err.message : String(err)
+        const name = err instanceof Error ? err.name : ''
         // Log pour debug (visible dans la console browser)
-        console.error('[QRCameraScanner] start failed:', err)
+        console.error('[QRCameraScanner] start failed:', { name, msg, err })
 
-        // Détection des cas usuels
-        if (/permission|denied|notallowed/i.test(msg)) {
+        // Détection des cas usuels — utilise err.name (DOMException) ET msg
+        if (name === 'NotAllowedError' || /permission|denied|notallowed/i.test(msg)) {
           setState({ kind: 'denied' })
-        } else if (/notfound|nodevice|notreadable|navigator|mediaDevices|secure/i.test(msg)) {
+        } else if (
+          name === 'NotFoundError' ||
+          name === 'OverconstrainedError' ||
+          name === 'NotReadableError' ||
+          name === 'AbortError' ||
+          /notfound|nodevice|notreadable|overconstrained|navigator|mediadevices|secure|requested device|busy/i.test(msg)
+        ) {
           setState({ kind: 'unavailable' })
         } else {
-          setState({ kind: 'error', message: msg })
+          setState({ kind: 'error', message: msg || 'Erreur inconnue (voir console F12)' })
         }
       }
     }

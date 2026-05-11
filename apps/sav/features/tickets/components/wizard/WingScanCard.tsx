@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
+import { CameraErrorBoundary } from '../CameraErrorBoundary'
 import type { ClientWing } from '../../queries'
 
 // Chargement dynamique avec ssr: false — html5-qrcode touche navigator au top
@@ -133,10 +134,15 @@ export function WingScanCard({ wings, selectedSerial: _selectedSerial, onScanRes
     return (
       <div className="rounded-2xl border-2 border-brand-gold/40 bg-gradient-to-br from-white to-brand-cream p-4">
         <p className="mb-3 text-sm font-semibold text-brand-ink">📷 Scanner en cours</p>
-        <QRCameraScanner
-          onDecode={handleCameraDecode}
-          onCancel={reset}
-        />
+        <CameraErrorBoundary
+          onRetry={reset}
+          onSwitchToManual={() => setState({ status: 'manual-warning' })}
+        >
+          <QRCameraScanner
+            onDecode={handleCameraDecode}
+            onCancel={reset}
+          />
+        </CameraErrorBoundary>
       </div>
     )
   }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
+import { CameraErrorBoundary } from './CameraErrorBoundary'
 
 // Chargement dynamique avec ssr: false — html5-qrcode touche navigator au top
 // du module, impossible à évaluer côté serveur. Voir QRCameraScanner.tsx.
@@ -131,10 +132,15 @@ export function ScanGateModal({
         </div>
 
         {state.status === 'scanning' && (
-          <QRCameraScanner
-            onDecode={handleCameraDecode}
-            onCancel={() => setState({ status: 'idle' })}
-          />
+          <CameraErrorBoundary
+            onRetry={() => setState({ status: 'idle' })}
+            onSwitchToManual={() => setState({ status: 'manual-warning' })}
+          >
+            <QRCameraScanner
+              onDecode={handleCameraDecode}
+              onCancel={() => setState({ status: 'idle' })}
+            />
+          </CameraErrorBoundary>
         )}
 
         {state.status === 'manual-warning' && (
