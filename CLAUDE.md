@@ -1,5 +1,7 @@
 # Plume SAV — Contexte projet
 
+> 📘 **NOUVEAU SUR LE PROJET / NOUVELLE SESSION** : commence par [`docs/BRIEFING-PROJET.md`](docs/BRIEFING-PROJET.md) — sujet, GitHub, Vercel, état actuel, comment démarrer. Le présent fichier ne couvre que les règles techniques.
+
 > 🚨 **AVANT TOUTE RECHERCHE** : lis [`./.claude/PRE-SEARCH.md`](.claude/PRE-SEARCH.md). Ce repo est indexé par **GitNexus** (~955 symboles, ~1 960 relations, ~71 flux). Utilise les outils MCP `gitnexus_*` (cf. section finale) au lieu de `grep`/`glob`/`Read` aveugle.
 >
 > 🧪 **MODE DÉMO** (mai 2026) — site pas encore en ligne pour vrais clients. Prod : https://plume-sav.vercel.app. On push **direct sur `main`** sauf demande explicite de branche preview.
