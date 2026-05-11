@@ -153,6 +153,17 @@ export function SchoolStepPanel({
   const [returnModalOpen, setReturnModalOpen] = useState(false)
   const [returnOption, setReturnOption] = useState<ReturnOption | null>(null)
   const [returnError, setReturnError] = useState<string | null>(null)
+  // Module Flashcode — pour options 2 et 3, le scan QR est requis AVANT d'afficher
+  // le bouton "Générer le bon de transport". Si une étiquette a déjà été générée
+  // pour ce leg, on considère le scan implicitement validé (il a eu lieu lors
+  // de la première génération).
+  const [returnScanGateFor, setReturnScanGateFor] = useState<ReturnOption | null>(null)
+  const [scannedReturnOptions, setScannedReturnOptions] = useState<Set<ReturnOption>>(() => {
+    const s = new Set<ReturnOption>()
+    if (workshopReturnLabelUrl) s.add('carrier_to_client')
+    if (schoolWorkshopLabelUrl) s.add('to_workshop')
+    return s
+  })
 
   const ctx: StepCtx = { status, isCheckValidated, schoolResolution }
 
@@ -193,6 +204,30 @@ export function SchoolStepPanel({
         router.push(`/school/ticket/${ticketId}/check`)
       }
     })
+  }
+
+  // Sélection d'une option de retour :
+  //  - Option 1 (client_pickup) : sélection directe, pas de scan
+  //  - Options 2/3 : si déjà scannée → sélection ; sinon → ouvre le ScanGateModal
+  function selectReturnOption(opt: ReturnOption) {
+    setReturnError(null)
+    if (opt === 'client_pickup' || scannedReturnOptions.has(opt)) {
+      setReturnOption(opt)
+      return
+    }
+    setReturnScanGateFor(opt)
+  }
+
+  function handleReturnScanSuccess(_method: 'camera' | 'demo' | 'manual') {
+    if (!returnScanGateFor) return
+    const opt = returnScanGateFor
+    setScannedReturnOptions((prev) => {
+      const next = new Set(prev)
+      next.add(opt)
+      return next
+    })
+    setReturnOption(opt)
+    setReturnScanGateFor(null)
   }
 
   function handleClientPickupConfirm() {
@@ -338,6 +373,22 @@ export function SchoolStepPanel({
         subtitle={activeScanStep?.scanSubtitle ?? ''}
       />
 
+      {/* Scan gate pour les options 2/3 du modal "Renvoyer l'aile". Une fois
+          validé, l'option est marquée scannée et sélectionnée → expand la card
+          avec le bouton "Générer le bon de transport". */}
+      <ScanGateModal
+        open={returnScanGateFor !== null}
+        onClose={() => setReturnScanGateFor(null)}
+        onScanSuccess={handleReturnScanSuccess}
+        expectedSerial={wingSerial}
+        title="Avant le bon de transport"
+        subtitle={
+          returnScanGateFor === 'to_workshop'
+            ? "Scannez l'aile avant de générer l'étiquette école → atelier."
+            : "Scannez l'aile avant de générer l'étiquette de renvoi au client."
+        }
+      />
+
       {decisionModalOpen && (
         <div
           role="dialog"
@@ -422,7 +473,7 @@ export function SchoolStepPanel({
                 title="Le client revient chercher son aile"
                 description="Le client se déplace à l'école. Pas d'expédition."
                 isSelected={returnOption === 'client_pickup'}
-                onClick={() => { setReturnOption('client_pickup'); setReturnError(null) }}
+                onClick={() => selectReturnOption('client_pickup')}
               >
                 <p className="text-xs text-slate-600">
                   Confirmer fermera le ticket (passage en <strong>completed</strong>).
@@ -437,13 +488,14 @@ export function SchoolStepPanel({
                 </button>
               </ReturnOptionCard>
 
-              {/* Card 2 — Carrier to client */}
+              {/* Card 2 — Carrier to client (scan QR requis avant génération) */}
               <ReturnOptionCard
                 emoji="📦"
                 title="Renvoyer par transporteur au client"
                 description="Envoi postal GLS depuis l'école vers l'adresse du client."
                 isSelected={returnOption === 'carrier_to_client'}
-                onClick={() => { setReturnOption('carrier_to_client'); setReturnError(null) }}
+                onClick={() => selectReturnOption('carrier_to_client')}
+                scanRequired={!scannedReturnOptions.has('carrier_to_client')}
               >
                 <ShippingLabelButton
                   ticketId={ticketId}
@@ -456,7 +508,7 @@ export function SchoolStepPanel({
                 />
               </ReturnOptionCard>
 
-              {/* Card 3 — To workshop */}
+              {/* Card 3 — To workshop (scan QR requis avant génération) */}
               <ReturnOptionCard
                 emoji="🔧"
                 title="Envoyer à l'atelier"
@@ -466,7 +518,8 @@ export function SchoolStepPanel({
                     : "L'aile part à l'atelier choisi lors de la décision."
                 }
                 isSelected={returnOption === 'to_workshop'}
-                onClick={() => { setReturnOption('to_workshop'); setReturnError(null) }}
+                onClick={() => selectReturnOption('to_workshop')}
+                scanRequired={!scannedReturnOptions.has('to_workshop')}
               >
                 <ShippingLabelButton
                   ticketId={ticketId}
@@ -474,8 +527,6 @@ export function SchoolStepPanel({
                   initialTracking={schoolWorkshopTracking}
                   initialLabelUrl={schoolWorkshopLabelUrl}
                   triggerLabel="Générer le bon école → atelier"
-                  requireScan
-                  wingSerial={wingSerial}
                 />
               </ReturnOptionCard>
 
@@ -498,14 +549,17 @@ function ReturnOptionCard({
   description,
   isSelected,
   onClick,
+  scanRequired = false,
   children,
 }: {
-  emoji:       string
-  title:       string
-  description: string
-  isSelected:  boolean
-  onClick:     () => void
-  children:    React.ReactNode
+  emoji:        string
+  title:        string
+  description:  string
+  isSelected:   boolean
+  onClick:      () => void
+  /** Si true, affiche un badge "Scan requis" — le click ouvre le scanner avant expand. */
+  scanRequired?: boolean
+  children:     React.ReactNode
 }) {
   return (
     <div
@@ -522,7 +576,14 @@ function ReturnOptionCard({
       >
         <span aria-hidden className="text-2xl">{emoji}</span>
         <div className="flex-1">
-          <p className="text-sm font-semibold text-brand-ink">{title}</p>
+          <p className="text-sm font-semibold text-brand-ink">
+            {title}
+            {scanRequired && (
+              <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-brand-gold/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                📷 Scan requis
+              </span>
+            )}
+          </p>
           <p className="mt-0.5 text-xs text-slate-600">{description}</p>
         </div>
         <span className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold ${
