@@ -141,7 +141,6 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           isCheckValidated={isCheckValidated}
           wingSerial={ticket.serial_number ?? null}
           schoolResolution={ticket.school_resolution ?? null}
-          hasOutboundLabel={Boolean(ticket.school_workshop_label_url)}
         />
       </section>
 
@@ -278,7 +277,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
       )}
 
       {/* Décision (mineur / important / grave) */}
-      <section className="card p-5">
+      <section className="card p-5" data-section="decision">
         <h2 className="section-title mb-4">Décision</h2>
         {!isCheckValidated && !ticket.school_resolution && (
           <div className="mb-4 rounded-xl bg-brand-cream p-3 text-xs text-slate-600">

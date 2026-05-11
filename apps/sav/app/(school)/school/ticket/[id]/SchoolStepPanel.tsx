@@ -19,104 +19,87 @@ interface SchoolStepPanelProps {
   isCheckValidated:        boolean
   /** N° de série de l'aile, pour vérification au scan flashcode. */
   wingSerial:              string | null
-  /** Décision prise au check (null = pas encore décidé). Détermine la destination de renvoi. */
+  /** Décision prise au check (null = pas encore décidé). Pilote l'étape 4. */
   schoolResolution:        SchoolResolution | null
-  /** True si l'école a déjà généré le bon de transport sortant (vers atelier). */
-  hasOutboundLabel:        boolean
 }
 
-type StepKey = 'ack' | 'wing' | 'check'
+type StepKey = 'ack' | 'wing' | 'check' | 'decision'
+
+interface StepCtx {
+  status:            RequestStatus
+  isCheckValidated:  boolean
+  schoolResolution:  SchoolResolution | null
+}
 
 interface StepDef {
   key:        StepKey
   label:      string
   helpText:   string
   emoji:      string
-  /** Statut courant attendu pour activer le bouton. */
-  activeWhen: RequestStatus[]
-  /** Statut(s) à partir desquels l'étape est considérée comme franchie. */
-  doneWhen:   (status: RequestStatus, isCheckValidated: boolean) => boolean
+  isActive:   (ctx: StepCtx) => boolean
+  isDone:     (ctx: StepCtx) => boolean
   /** Si true, exige un scan flashcode avant l'action (Module Flashcode v1). */
   requiresScan: boolean
-  /** Titre de la modale de scan (utilisé si requiresScan). */
   scanTitle?:    string
-  /** Sous-titre de la modale de scan. */
   scanSubtitle?: string
 }
 
 const STEPS: StepDef[] = [
+  // ── 1. Message vu ────────────────────────────────────────────────────────
   {
     key:        'ack',
     label:      'Message vu',
     helpText:   "Confirme que vous avez pris connaissance de la demande. Le client est notifié.",
     emoji:      '👀',
-    activeWhen: ['pending'],
-    doneWhen:   (s) =>
-      s !== 'pending',
+    isActive:   (c) => c.status === 'pending',
+    isDone:     (c) => c.status !== 'pending',
     requiresScan: false,
   },
+  // ── 2. Aile reçue (scan flashcode) ──────────────────────────────────────
   {
     key:        'wing',
     label:      'Aile reçue',
     helpText:   "À cliquer quand l'aile est physiquement chez vous (en main propre ou via la poste).",
     emoji:      '📥',
-    activeWhen: ['school_acknowledged'],
-    doneWhen:   (s) =>
-      s !== 'pending' && s !== 'school_acknowledged',
+    isActive:   (c) => c.status === 'school_acknowledged',
+    isDone:     (c) => c.status !== 'pending' && c.status !== 'school_acknowledged',
     requiresScan: true,
     scanTitle:    "Réception de l'aile",
     scanSubtitle: "Scannez le QR cousu sur l'aile (ou sur le sac) pour confirmer la réception.",
   },
+  // ── 3. Check de l'aile (scan flashcode + briefing + wizard) ─────────────
   {
     key:        'check',
-    label:      'Lancer le check',
-    helpText:   "Ouvre le wizard de diagnostic. Vous pourrez ensuite prendre la décision.",
+    label:      "Check de l'aile",
+    helpText:   "Inspection visuelle, comportement, structure. Ouvre le wizard de diagnostic.",
     emoji:      '🔍',
-    activeWhen: ['wing_received_school'],
-    doneWhen:   (s, isCheckValidated) =>
-      isCheckValidated || (
-        s !== 'pending' &&
-        s !== 'school_acknowledged' &&
-        s !== 'wing_received_school'
-      ),
+    isActive:   (c) => c.status === 'wing_received_school' && !c.isCheckValidated,
+    isDone:     (c) => c.isCheckValidated,
     requiresScan: true,
     scanTitle:    "Avant le check",
     scanSubtitle: "Scannez l'aile pour ouvrir le wizard de diagnostic sur le bon ticket.",
   },
+  // ── 4. Prendre la décision (qui s'occupe de l'aile) ─────────────────────
+  {
+    key:        'decision',
+    label:      'Prendre la décision',
+    helpText:   "Choisir qui prend la suite : résolu sur place, escalade atelier, escalade Plume, ou aile gardée.",
+    emoji:      '⚖️',
+    isActive:   (c) => c.isCheckValidated && c.schoolResolution === null,
+    isDone:     (c) => c.schoolResolution !== null,
+    requiresScan: false,
+  },
 ]
 
-// ── Étape 4 — Renvoi de l'aile ─────────────────────────────────────────────
-// Hors STEPS[] parce que la destination est dynamique (dépend de school_resolution)
-// et que le bouton d'action redirige vers la section "Bon de transport" plus
-// bas dans la page plutôt que d'exécuter une Server Action directement.
-
-type ReturnDestination = 'client' | 'workshop' | 'plume' | 'kept_at_school' | null
-
-function deriveReturnDestination(resolution: SchoolResolution | null): ReturnDestination {
-  if (!resolution) return null
-  switch (resolution) {
-    case 'resolved_by_school':
-    case 'normal_behavior_explained':
-      return 'client'
-    case 'escalated_to_workshop':
-      return 'workshop'
-    case 'escalated_to_plume':
-      return 'plume'
-    case 'workshop_advice_requested':
-    case 'reflection':
-      return 'kept_at_school'
-    default: {
-      const _exhaustive: never = resolution
-      return null
-    }
-  }
-}
-
-const RETURN_LABELS: Record<Exclude<ReturnDestination, null>, { title: string; help: string; emoji: string }> = {
-  client:         { title: 'Renvoyer au client',        help: "Aile à expédier au client après check résolu sur place.",            emoji: '🏠' },
-  workshop:       { title: "Envoyer à l'atelier",       help: "Aile à escalader vers l'atelier partenaire pour réparation.",        emoji: '🔧' },
-  plume:          { title: 'Envoyer à Plume HQ',        help: "Aile à escalader vers Plume Paragliders pour traitement direct.",    emoji: '🏢' },
-  kept_at_school: { title: "Aile gardée à l'école",     help: "Vous conservez l'aile en attendant un avis atelier ou réflexion.",   emoji: '⏸️' },
+// Libellés humains pour chaque résolution — utilisés dans le helpText de
+// l'étape 4 une fois la décision prise.
+const RESOLUTION_LABEL: Record<SchoolResolution, string> = {
+  resolved_by_school:        'Résolu sur place — renvoi au client',
+  normal_behavior_explained: "Comportement normal expliqué — renvoi au client",
+  escalated_to_workshop:     'Escalade atelier partenaire',
+  escalated_to_plume:        'Escalade Plume HQ',
+  workshop_advice_requested: "Aile gardée — demande d'avis atelier",
+  reflection:                'En réflexion — aile gardée à l\'école',
 }
 
 export function SchoolStepPanel({
@@ -127,13 +110,22 @@ export function SchoolStepPanel({
   isCheckValidated,
   wingSerial,
   schoolResolution,
-  hasOutboundLabel,
 }: SchoolStepPanelProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [scanGateFor, setScanGateFor] = useState<StepKey | null>(null)
 
+  const ctx: StepCtx = { status, isCheckValidated, schoolResolution }
+
   function executeStep(key: StepKey) {
+    if (key === 'decision') {
+      // Pas de Server Action ici — on scroll vers la section Décision où
+      // l'école choisit sa résolution dans SchoolResolutionPanel.
+      const target = document.querySelector('[data-section="decision"]')
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
+    }
+
     startTransition(async () => {
       const fd = new FormData()
       fd.set('ticketId', ticketId)
@@ -176,48 +168,29 @@ export function SchoolStepPanel({
     }
   }
 
-  function scrollToShippingSection() {
-    // Tente de scroller vers la section "Bon de transport" plus bas dans la page.
-    const target = document.querySelector('[data-section="shipping"]')
-    if (target) {
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
-  }
-
   const activeScanStep = scanGateFor ? STEPS.find((s) => s.key === scanGateFor) : null
 
   const timestampByKey: Record<StepKey, string | null> = {
-    ack:   schoolAcknowledgedAt,
-    wing:  wingReceivedSchoolAt,
-    check: null, // matérialisé par le remplissage de school_checklist
+    ack:      schoolAcknowledgedAt,
+    wing:     wingReceivedSchoolAt,
+    check:    null, // matérialisé par le remplissage de school_checklist
+    decision: null, // matérialisé par le remplissage de school_resolution
   }
-
-  // ── Étape 4 : état dérivé ────────────────────────────────────────────────
-  const returnDest = deriveReturnDestination(schoolResolution)
-  // Active : décision prise + bon pas encore généré (pour escalades) OU pas
-  // encore marqué expédié (pour client direct, on n'a pas de signal côté DB
-  // pour l'instant — on considère active dès qu'une résolution existe).
-  const returnIsDone = returnDest === 'kept_at_school'
-    ? false  // pas une "complétion", juste un état d'attente
-    : hasOutboundLabel
-  const returnIsActive = returnDest !== null && !returnIsDone
-  const returnIsLocked = returnDest === null
-
-  const returnConfig = returnDest && returnDest !== 'kept_at_school' ? RETURN_LABELS[returnDest] : null
-  const returnHelpFallback = returnIsLocked
-    ? "S'activera après votre décision au check (renvoi au client, à l'atelier, ou à Plume)."
-    : returnDest === 'kept_at_school'
-      ? RETURN_LABELS.kept_at_school.help
-      : returnConfig?.help ?? ''
 
   return (
     <>
       <div className="space-y-3">
         {STEPS.map((step, idx) => {
-          const isDone   = step.doneWhen(status, isCheckValidated)
-          const isActive = step.activeWhen.includes(status) && !isDone
+          const isDone   = step.isDone(ctx)
+          const isActive = step.isActive(ctx) && !isDone
           const isLocked = !isActive && !isDone
           const at       = timestampByKey[step.key]
+
+          // Helptext dynamique pour l'étape 4 quand une décision est prise :
+          // on affiche la résolution choisie au lieu de la description générique.
+          const helpText = step.key === 'decision' && schoolResolution
+            ? `Décision : ${RESOLUTION_LABEL[schoolResolution]}`
+            : step.helpText
 
           return (
             <div
@@ -253,7 +226,7 @@ export function SchoolStepPanel({
                     </span>
                   )}
                 </p>
-                <p className="mt-0.5 text-xs text-slate-500">{step.helpText}</p>
+                <p className="mt-0.5 text-xs text-slate-500">{helpText}</p>
                 {at && (
                   <p className="mt-1 text-[11px] text-emerald-700">
                     ✓ Validé le {formatDateTime(at)}
@@ -274,59 +247,6 @@ export function SchoolStepPanel({
             </div>
           )
         })}
-
-        {/* ── Étape 4 — Renvoi de l'aile (dynamique) ───────────────────── */}
-        <div
-          className={`flex items-start gap-4 rounded-card border p-4 transition-colors ${
-            returnIsDone
-              ? 'border-emerald-200 bg-emerald-50/50'
-              : returnIsActive
-                ? 'border-brand-gold bg-brand-gold/5 shadow-plume'
-                : 'border-brand-stone bg-white opacity-60'
-          }`}
-        >
-          <div
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-bold ${
-              returnIsDone
-                ? 'bg-emerald-500 text-white'
-                : returnIsActive
-                  ? 'bg-brand-gold text-white'
-                  : 'bg-brand-stone text-slate-400'
-            }`}
-            aria-hidden
-          >
-            {returnIsDone ? '✓' : 4}
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <p className={`text-sm font-semibold ${returnIsDone ? 'text-slate-500 line-through decoration-emerald-500/60' : returnIsLocked ? 'text-slate-400' : 'text-brand-ink'}`}>
-              <span className="mr-1.5" aria-hidden>
-                {returnConfig?.emoji ?? (returnDest === 'kept_at_school' ? RETURN_LABELS.kept_at_school.emoji : '🚚')}
-              </span>
-              {returnIsLocked
-                ? "Renvoi de l'aile"
-                : returnDest === 'kept_at_school'
-                  ? RETURN_LABELS.kept_at_school.title
-                  : returnConfig?.title ?? "Renvoi de l'aile"}
-              {returnIsActive && returnDest !== 'kept_at_school' && (
-                <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-brand-gold/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
-                  📷 Scan requis pour le bon
-                </span>
-              )}
-            </p>
-            <p className="mt-0.5 text-xs text-slate-500">{returnHelpFallback}</p>
-          </div>
-
-          {returnIsActive && returnDest !== 'kept_at_school' && (
-            <button
-              type="button"
-              onClick={scrollToShippingSection}
-              className="btn-primary shrink-0"
-            >
-              Préparer le bon
-            </button>
-          )}
-        </div>
       </div>
 
       <ScanGateModal
