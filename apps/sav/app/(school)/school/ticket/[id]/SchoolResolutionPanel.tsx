@@ -58,20 +58,20 @@ const PRIMARY_CHOICES: Array<{
     bg:          'bg-emerald-50',
   },
   {
-    key:         'level_2',
-    emoji:       '🟡',
-    label:       'Niveau 2 — Important',
-    description: "Défaut identifié, on envoie l'aile à un atelier du réseau.",
-    border:      'border-amber-300',
-    bg:          'bg-amber-50',
-  },
-  {
     key:         'level_3_undetermined',
     emoji:       '🟠',
-    label:       'Niveau 3 — Indéterminé',
+    label:       'Niveau 2 — Indéterminé',
     description: "On ne sait pas si c'est grave : on envoie à l'atelier pour contrôle approfondi (sans alerte).",
     border:      'border-orange-300',
     bg:          'bg-orange-50',
+  },
+  {
+    key:         'level_2',
+    emoji:       '🟡',
+    label:       'Niveau 3 — Important',
+    description: "Défaut identifié, on envoie l'aile à un atelier du réseau.",
+    border:      'border-amber-300',
+    bg:          'bg-amber-50',
   },
   {
     key:         'level_4',
@@ -334,7 +334,7 @@ export function SchoolResolutionPanel({
       </button>
 
       <p className="text-center text-xs text-slate-400">
-        Vous constatez ce que vous voyez — vous ne certifiez rien. En cas de doute, choisissez le niveau 3 (Indéterminé).
+        Vous constatez ce que vous voyez — vous ne certifiez rien. En cas de doute, choisissez le niveau 2 (Indéterminé).
       </p>
     </form>
   )
@@ -343,8 +343,8 @@ export function SchoolResolutionPanel({
 function labelForChoice(c: ChoiceKey): string {
   switch (c) {
     case 'level_1':              return '✅ Valider — niveau 1 (école gère)'
-    case 'level_2':              return "🟡 Envoyer à l'atelier (niveau 2)"
-    case 'level_3_undetermined': return "🟠 Envoyer à l'atelier pour contrôle (niveau 3)"
+    case 'level_3_undetermined': return "🟠 Envoyer à l'atelier pour contrôle (niveau 2)"
+    case 'level_2':              return "🟡 Envoyer à l'atelier (niveau 3)"
     case 'level_4':              return "🚨 Envoyer à l'atelier + alerter Plume (niveau 4)"
   }
 }
