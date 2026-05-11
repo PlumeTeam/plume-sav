@@ -1,9 +1,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getSchoolTicketDetail } from '@/features/tickets/queries'
-import { getCurrentUserRoles } from '@/features/auth/queries'
 import { markTicketReadBySchoolAction } from '@/features/tickets/messages-actions-school'
-import { markTicketReadByPlumeAction } from '@/features/tickets/messages-actions-plume'
 import { CommentThread } from '@/features/tickets/components/CommentThread'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { SchoolMessageComposer } from '../../ticket/[id]/SchoolMessageComposer'
@@ -13,26 +11,17 @@ interface PageProps { params: { id: string } }
 export const dynamic = 'force-dynamic'
 
 export default async function SchoolConversationPage({ params }: PageProps) {
-  const [ticket, currentRoles] = await Promise.all([
-    getSchoolTicketDetail(params.id),
-    getCurrentUserRoles(),
-  ])
+  const ticket = await getSchoolTicketDetail(params.id)
   if (!ticket) notFound()
 
-  await Promise.all([
-    markTicketReadBySchoolAction(ticket.id),
-    markTicketReadByPlumeAction(ticket.id),
-  ])
+  await markTicketReadBySchoolAction(ticket.id)
 
-  const isPlumeAdmin = currentRoles.includes('plume_admin')
-
-  // Same visibility filter as the school ticket page (Messages tab).
+  // Same visibility filter as the school ticket page (Messages tab) — pas de
+  // canal Plume HQ côté école : seul l'atelier communique avec Plume.
   const messages = ticket.ticket_messages
     .filter((m) =>
       m.visibility_level === 'all' ||
-      m.visibility_level === 'school_plume' ||
       m.visibility_level === 'workshop_plume' ||
-      (isPlumeAdmin && m.visibility_level === 'plume_only') ||
       m.sender_role === 'school'
     )
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())

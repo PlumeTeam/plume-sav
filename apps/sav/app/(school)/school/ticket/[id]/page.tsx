@@ -2,12 +2,9 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getSchoolTicketDetail } from '@/features/tickets/queries'
 import { markTicketReadBySchoolAction } from '@/features/tickets/messages-actions-school'
-import { markTicketReadByPlumeAction } from '@/features/tickets/messages-actions-plume'
-import { getCurrentUserRoles } from '@/features/auth/queries'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { TicketTimeline } from '@/features/tickets/components/TicketTimeline'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
-import { PlumeNoteComposer } from '@/features/tickets/components/PlumeNoteComposer'
 import { TicketChannelSwitch, type TicketChannel } from '@/features/tickets/components/TicketChannelSwitch'
 import { readSchoolCheckInspector } from '@/features/tickets/inspection/steps'
 import { formatDate, formatDateTime } from '@/features/tickets/utils'
@@ -25,30 +22,21 @@ export const dynamic = 'force-dynamic'
 type ChecklistJson = { checkedIds?: string[]; notes?: string | null } | null
 
 export default async function SchoolTicketDetailPage({ params }: PageProps) {
-  const [ticket, currentRoles] = await Promise.all([
-    getSchoolTicketDetail(params.id),
-    getCurrentUserRoles(),
-  ])
+  const ticket = await getSchoolTicketDetail(params.id)
   if (!ticket) notFound()
 
   // Best-effort: mark this ticket as read for the current school user. The RPC
   // checks ownership via current_user_partner_school_ids() server-side.
-  // Plume admins use this view too — markPlume is no-op for non-admins.
-  await Promise.all([
-    markTicketReadBySchoolAction(ticket.id),
-    markTicketReadByPlumeAction(ticket.id),
-  ])
+  await markTicketReadBySchoolAction(ticket.id)
 
-  const isPlumeAdmin = currentRoles.includes('plume_admin')
-
-  // School sees public messages + own internal notes + workshop-plume channel.
-  // Plume admins (en vue support) voient en plus les notes 'plume_only'.
+  // School sees public messages (visibility 'all') + the workshop↔plume
+  // channel (visibility 'workshop_plume') + own messages. Le canal privé
+  // school↔plume ('school_plume') et les notes admin ('plume_only') ne sont
+  // pas exposés ici : seul l'atelier peut communiquer avec Plume HQ.
   const visibleMessages = ticket.ticket_messages
     .filter((m) =>
       m.visibility_level === 'all' ||
-      m.visibility_level === 'school_plume' ||
       m.visibility_level === 'workshop_plume' ||
-      (isPlumeAdmin && m.visibility_level === 'plume_only') ||
       m.sender_role === 'school'
     )
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
@@ -198,7 +186,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
     </>
   )
 
-  // ── Tab 3: Messages — 3 canaux : Client / Atelier / Plume HQ ────────────
+  // ── Tab 3: Messages — 2 canaux : Client / Atelier ───────────────────────
   // Spotlight (message du client à la création) + photos restent dans le
   // canal "Client" — c'est le contexte d'arrivée pour ce canal-là.
   const clientSpotlight = (
@@ -271,35 +259,16 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
         ? "Aucun échange avec l'atelier pour le moment."
         : "Aucun atelier assigné à ce ticket. Vous pourrez communiquer ici dès que l'aile sera escaladée.",
     },
-    {
-      id:         'plume',
-      label:      'Avec Plume HQ',
-      emoji:      '🦅',
-      visibility: 'school_plume',
-      composer: {
-        senderRole:      'school',
-        visibilityLevel: 'school_plume',
-        placeholder:     'Question, alerte, demande de conseil à Plume HQ…',
-        submitLabel:     'Envoyer à Plume HQ',
-        helperText:      'Privé école ↔ Plume — atelier & client ne voient pas',
-      },
-      emptyText: "Aucun échange avec Plume HQ pour le moment.",
-    },
   ]
 
   const messagesTab = (
-    <>
-      <TicketChannelSwitch
-        ticketId={ticket.id}
-        messages={visibleMessages}
-        channels={schoolChannels}
-        ownRoles={['school']}
-        showInternalBadge
-      />
-
-      {/* Composer Plume HQ — réservé aux plume_admin (vue support). */}
-      {isPlumeAdmin && <PlumeNoteComposer ticketId={ticket.id} />}
-    </>
+    <TicketChannelSwitch
+      ticketId={ticket.id}
+      messages={visibleMessages}
+      channels={schoolChannels}
+      ownRoles={['school']}
+      showInternalBadge
+    />
   )
 
   // ── Tab 4: Check aile ───────────────────────────────────────────────────

@@ -2,13 +2,14 @@
 //
 // Mirrors messages-unread.ts (client version) but with school-specific filters:
 //  - "Unread" excludes messages whose sender_role === 'school' (own messages).
-//  - Visible levels: 'all' + 'school_plume' + 'workshop_plume' (cf. school
-//    ticket detail page filter).
+//  - Visible levels: 'all' + 'workshop_plume' (cf. school ticket detail page
+//    filter). Le canal privé 'school_plume' n'est plus exposé côté école —
+//    seul l'atelier communique avec Plume HQ.
 //  - Compared against service_requests.school_last_read_at.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-const SCHOOL_VISIBLE_LEVELS = ['all', 'school_plume', 'workshop_plume']
+const SCHOOL_VISIBLE_LEVELS = ['all', 'workshop_plume']
 
 export type SchoolInboxThread = {
   ticketId:     string

@@ -54,9 +54,9 @@ function matchesChannel(m: TicketMessage, c: TicketChannel): boolean {
  * Sous-onglets de canaux de messagerie pour un même ticket. Chaque canal
  * filtre la liste `messages` via son `filter` et expose un composer qui pousse
  * un nouveau message avec la bonne `visibility_level`. Réutilisé côté école
- * (3 canaux : Client / Atelier / Plume HQ) et côté atelier (2 canaux :
- * Client / École), garantit que la liste des messages reste cohérente avec
- * le canal sur lequel on poste.
+ * (2 canaux : Client / Atelier) et côté atelier (2 canaux : Client / École),
+ * garantit que la liste des messages reste cohérente avec le canal sur lequel
+ * on poste. Seul l'atelier communique avec Plume HQ (via `workshop_plume`).
  */
 export function TicketChannelSwitch({
   ticketId,
