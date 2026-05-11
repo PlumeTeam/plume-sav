@@ -67,10 +67,10 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
   // atelier ↔ Plume séparé (RLS workshop ne lit que 'all' et 'workshop_plume').
   const workshopChannels: TicketChannel[] = [
     {
-      id:    'client',
-      label: 'Avec le client',
-      emoji: '👤',
-      filter: (m) => m.visibility_level === 'all',
+      id:         'client',
+      label:      'Avec le client',
+      emoji:      '👤',
+      visibility: 'all',
       composer: {
         senderRole:      'workshop',
         visibilityLevel: 'all',
@@ -81,10 +81,10 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
       emptyText: 'Aucun message public sur ce ticket pour le moment.',
     },
     {
-      id:    'school',
-      label: "Avec l'école",
-      emoji: '🏫',
-      filter: (m) => m.visibility_level === 'workshop_plume',
+      id:         'school',
+      label:      "Avec l'école",
+      emoji:      '🏫',
+      visibility: 'workshop_plume',
       composer: {
         senderRole:      'workshop',
         visibilityLevel: 'workshop_plume',

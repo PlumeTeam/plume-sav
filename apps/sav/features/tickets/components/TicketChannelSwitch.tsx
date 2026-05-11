@@ -19,8 +19,12 @@ export interface TicketChannel {
   id:        string
   label:     string
   emoji:     string
-  /** Predicate to pick messages belonging to this channel. */
-  filter:    (m: TicketMessage) => boolean
+  /** visibility_level that defines this channel — used to filter `messages`. */
+  visibility: Visibility
+  /** When true, ignore messages flagged `is_internal` even on this channel. */
+  excludeInternal?: boolean
+  /** Message ids hoisted out of the thread (e.g. spotlight card on top). */
+  excludeMessageIds?: string[]
   /** When null, the channel is read-only (no composer). */
   composer:  ComposerConfig | null
   /** Optional block rendered between the selector and the conversation. */
@@ -37,6 +41,13 @@ interface Props {
   channels:           TicketChannel[]
   ownRoles:           MessageSenderRole[]
   showInternalBadge?: boolean
+}
+
+function matchesChannel(m: TicketMessage, c: TicketChannel): boolean {
+  if (m.visibility_level !== c.visibility) return false
+  if (c.excludeInternal && m.is_internal)  return false
+  if (c.excludeMessageIds?.includes(m.id)) return false
+  return true
 }
 
 /**
@@ -59,8 +70,8 @@ export function TicketChannelSwitch({
   const active = channels.find((c) => c.id === activeId) ?? channels[0]
   if (!active) return null
 
-  const counts = new Map(channels.map((c) => [c.id, messages.filter(c.filter).length]))
-  const visible = messages.filter(active.filter)
+  const counts = new Map(channels.map((c) => [c.id, messages.filter((m) => matchesChannel(m, c)).length]))
+  const visible = messages.filter((m) => matchesChannel(m, active))
 
   return (
     <div className="space-y-3">

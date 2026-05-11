@@ -237,13 +237,12 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
 
   const schoolChannels: TicketChannel[] = [
     {
-      id:    'client',
-      label: 'Avec le client',
-      emoji: '👤',
-      filter: (m) =>
-        m.visibility_level === 'all' &&
-        !m.is_internal &&
-        m.id !== (firstClientMessage?.id ?? ''),
+      id:         'client',
+      label:      'Avec le client',
+      emoji:      '👤',
+      visibility: 'all',
+      excludeInternal:    true,
+      excludeMessageIds:  firstClientMessage ? [firstClientMessage.id] : undefined,
       composer: {
         senderRole:      'school',
         visibilityLevel: 'all',
@@ -257,10 +256,10 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
         : 'Aucun message — démarrez la conversation avec le client ci-dessous.',
     },
     {
-      id:    'workshop',
-      label: "Avec l'atelier",
-      emoji: '🛠️',
-      filter: (m) => m.visibility_level === 'workshop_plume',
+      id:         'workshop',
+      label:      "Avec l'atelier",
+      emoji:      '🛠️',
+      visibility: 'workshop_plume',
       composer: {
         senderRole:      'school',
         visibilityLevel: 'workshop_plume',
@@ -273,10 +272,10 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
         : "Aucun atelier assigné à ce ticket. Vous pourrez communiquer ici dès que l'aile sera escaladée.",
     },
     {
-      id:    'plume',
-      label: 'Avec Plume HQ',
-      emoji: '🦅',
-      filter: (m) => m.visibility_level === 'school_plume',
+      id:         'plume',
+      label:      'Avec Plume HQ',
+      emoji:      '🦅',
+      visibility: 'school_plume',
       composer: {
         senderRole:      'school',
         visibilityLevel: 'school_plume',
