@@ -1,8 +1,19 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { createContext, useContext, useState, type ReactNode } from 'react'
 
-type Tab = 'state' | 'declaration' | 'messages' | 'check'
+export type SchoolTicketTab = 'state' | 'declaration' | 'messages' | 'check'
+
+interface SchoolTabsContextValue {
+  setTab: (tab: SchoolTicketTab) => void
+}
+
+const SchoolTabsContext = createContext<SchoolTabsContextValue | null>(null)
+
+/** Hook pour qu'un enfant (ex: SchoolStepPanel) puisse changer l'onglet actif. */
+export function useSchoolTabs() {
+  return useContext(SchoolTabsContext)
+}
 
 interface SchoolTicketTabsProps {
   state:        ReactNode
@@ -23,7 +34,7 @@ export function SchoolTicketTabs({
   messagesCount,
   checkValidated,
 }: SchoolTicketTabsProps) {
-  const [tab, setTab] = useState<Tab>('state')
+  const [tab, setTab] = useState<SchoolTicketTab>('state')
 
   const baseBtn =
     'flex flex-1 items-center justify-center gap-1.5 rounded-2xl px-2 py-2.5 text-[13px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-gold/60'
@@ -32,7 +43,7 @@ export function SchoolTicketTabs({
     'border border-brand-stone bg-white text-slate-500 hover:text-brand-ink hover:border-brand-gold/40'
 
   return (
-    <>
+    <SchoolTabsContext.Provider value={{ setTab }}>
       <div
         role="tablist"
         aria-label="Sections du ticket"
@@ -147,6 +158,6 @@ export function SchoolTicketTabs({
       >
         {tab === 'check' && check}
       </div>
-    </>
+    </SchoolTabsContext.Provider>
   )
 }

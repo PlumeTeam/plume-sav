@@ -10,6 +10,7 @@ import {
 import { ScanGateModal } from '@/features/tickets/components/ScanGateModal'
 import { formatDateTime } from '@/features/tickets/utils'
 import type { RequestStatus, SchoolResolution } from '@/features/tickets/types'
+import { useSchoolTabs } from './SchoolTicketTabs'
 
 interface SchoolStepPanelProps {
   ticketId:                string
@@ -85,7 +86,7 @@ const STEPS: StepDef[] = [
   {
     key:        'decision',
     label:      'Prendre la décision',
-    helpText:   "Choisir qui prend la suite : résolu sur place, escalade atelier, escalade Plume, ou aile gardée.",
+    helpText:   "Choisir la suite à donner.",
     emoji:      '⚖️',
     isActive:   (c) => c.isCheckValidated && c.schoolResolution === null,
     isDone:     (c) => c.schoolResolution !== null,
@@ -115,6 +116,7 @@ export function SchoolStepPanel({
   schoolResolution,
 }: SchoolStepPanelProps) {
   const router = useRouter()
+  const tabs = useSchoolTabs()
   const [isPending, startTransition] = useTransition()
   const [scanGateFor, setScanGateFor] = useState<StepKey | null>(null)
 
@@ -122,10 +124,14 @@ export function SchoolStepPanel({
 
   function executeStep(key: StepKey) {
     if (key === 'decision') {
-      // Pas de Server Action ici — on scroll vers la section Décision où
-      // l'école choisit sa résolution dans SchoolResolutionPanel.
-      const target = document.querySelector('[data-section="decision"]')
-      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      // Pas de Server Action ici — la section Décision vit dans l'onglet
+      // "Check aile". On bascule l'onglet, puis on scroll une fois le panneau
+      // monté (le contenu n'existe pas dans le DOM tant que tab !== 'check').
+      tabs?.setTab('check')
+      setTimeout(() => {
+        const target = document.querySelector('[data-section="decision"]')
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
       return
     }
 
@@ -202,7 +208,7 @@ export function SchoolStepPanel({
           return (
             <div
               key={step.key}
-              className={`flex items-start gap-4 rounded-card border p-4 transition-colors ${
+              className={`rounded-card border p-4 transition-colors ${
                 isDone
                   ? 'border-emerald-200 bg-emerald-50/50'
                   : isActive
@@ -210,43 +216,59 @@ export function SchoolStepPanel({
                     : 'border-brand-stone bg-white opacity-60'
               }`}
             >
-              <div
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-bold ${
-                  isDone
-                    ? 'bg-emerald-500 text-white'
-                    : isActive
-                      ? 'bg-brand-gold text-white'
-                      : 'bg-brand-stone text-slate-400'
-                }`}
-                aria-hidden
-              >
-                {isDone ? '✓' : idx + 1}
-              </div>
+              <div className="flex items-start gap-3 sm:gap-4">
+                <div
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-bold ${
+                    isDone
+                      ? 'bg-emerald-500 text-white'
+                      : isActive
+                        ? 'bg-brand-gold text-white'
+                        : 'bg-brand-stone text-slate-400'
+                  }`}
+                  aria-hidden
+                >
+                  {isDone ? '✓' : idx + 1}
+                </div>
 
-              <div className="min-w-0 flex-1">
-                <p className={`text-sm font-semibold ${isDone ? 'text-slate-500 line-through decoration-emerald-500/60' : isLocked ? 'text-slate-400' : 'text-brand-ink'}`}>
-                  <span className="mr-1.5" aria-hidden>{step.emoji}</span>
-                  {step.label}
-                  {step.requiresScan && !isDone && (
-                    <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-brand-gold/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
-                      📷 Scan requis
-                    </span>
-                  )}
-                </p>
-                <p className="mt-0.5 text-xs text-slate-500">{helpText}</p>
-                {at && (
-                  <p className="mt-1 text-[11px] text-emerald-700">
-                    ✓ Validé le {formatDateTime(at)}
+                <div className="min-w-0 flex-1">
+                  <p className={`text-sm font-semibold ${isDone ? 'text-slate-500 line-through decoration-emerald-500/60' : isLocked ? 'text-slate-400' : 'text-brand-ink'}`}>
+                    <span className="mr-1.5" aria-hidden>{step.emoji}</span>
+                    {step.label}
+                    {step.requiresScan && !isDone && (
+                      <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-brand-gold/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                        📷 Scan requis
+                      </span>
+                    )}
                   </p>
+                  {/* helpText caché sur mobile (gain de place) ; line-clamp-2 sur desktop. */}
+                  <p className="mt-0.5 hidden text-xs text-slate-500 sm:line-clamp-2 sm:block">{helpText}</p>
+                  {at && (
+                    <p className="mt-1 text-[11px] text-emerald-700">
+                      ✓ Validé le {formatDateTime(at)}
+                    </p>
+                  )}
+                </div>
+
+                {/* Bouton desktop : à droite, sur la même ligne. */}
+                {isActive && (
+                  <button
+                    type="button"
+                    onClick={() => handleStep(step.key)}
+                    disabled={isPending}
+                    className="btn-primary hidden shrink-0 sm:inline-flex"
+                  >
+                    {isPending ? '…' : step.label}
+                  </button>
                 )}
               </div>
 
+              {/* Bouton mobile : pleine largeur, sur sa propre ligne. */}
               {isActive && (
                 <button
                   type="button"
                   onClick={() => handleStep(step.key)}
                   disabled={isPending}
-                  className="btn-primary shrink-0"
+                  className="btn-primary mt-3 w-full sm:hidden"
                 >
                   {isPending ? '…' : step.label}
                 </button>
