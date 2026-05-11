@@ -41,9 +41,13 @@ type StepKey = 'ack' | 'wing' | 'check' | 'decision' | 'return'
 type ReturnOption = 'client_pickup' | 'carrier_to_client' | 'to_workshop'
 
 interface StepCtx {
-  status:            RequestStatus
-  isCheckValidated:  boolean
-  schoolResolution:  SchoolResolution | null
+  status:                  RequestStatus
+  isCheckValidated:        boolean
+  schoolResolution:        SchoolResolution | null
+  /** Tracking GLS école → atelier — présent = aile effectivement expédiée. */
+  schoolWorkshopTracking:  string | null
+  /** Tracking GLS atelier/école → client — présent = aile effectivement expédiée. */
+  workshopReturnTracking:  string | null
 }
 
 interface StepDef {
@@ -105,6 +109,13 @@ const STEPS: StepDef[] = [
     requiresScan: false,
   },
   // ── 5. Renvoyer l'aile (client revient / poste / atelier) ───────────────
+  //
+  // Bug historique : `escalated_to_workshop` est positionné DÈS la prise de
+  // décision (étape 4) par `applySchoolResolutionAction` via
+  // `resolutionToRequestStatus`. Se baser sur ce status pour `isDone` cochait
+  // l'étape 5 alors que l'aile n'avait pas encore été expédiée. On se base
+  // donc sur des signaux d'expédition effective : ticket complété (remise en
+  // main propre), ou tracking GLS généré (atelier ou retour client).
   {
     key:        'return',
     label:      "Renvoyer l'aile",
@@ -113,8 +124,9 @@ const STEPS: StepDef[] = [
     isActive:   (c) => c.schoolResolution !== null,
     isDone:     (c) =>
       c.status === 'wing_returned' ||
-      c.status === 'escalated_to_workshop' ||
-      c.status === 'completed',
+      c.status === 'completed' ||
+      c.schoolWorkshopTracking !== null ||
+      c.workshopReturnTracking !== null,
     requiresScan: false,
   },
 ]
@@ -165,7 +177,13 @@ export function SchoolStepPanel({
     return s
   })
 
-  const ctx: StepCtx = { status, isCheckValidated, schoolResolution }
+  const ctx: StepCtx = {
+    status,
+    isCheckValidated,
+    schoolResolution,
+    schoolWorkshopTracking,
+    workshopReturnTracking,
+  }
 
   function executeStep(key: StepKey) {
     if (key === 'decision') {
