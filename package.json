@@ -10,10 +10,14 @@
     "lint": "pnpm --filter @plume/sav lint",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test --run",
-    "test:e2e": "pnpm --filter @plume/sav test:e2e",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:install": "playwright install --with-deps chromium",
     "db:gen-types": "pnpm --filter @plume/db gen-types"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^20.16.10",
     "typescript": "^5.6.3"
   },
   "engines": {
