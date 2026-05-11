@@ -110,7 +110,7 @@ pnpm db:gen-types     # régénérer types Supabase après migration
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **15_Plume_SAV** (955 symbols, 1957 relationships, 71 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **15_Plume_SAV** (1015 symbols, 2040 relationships, 76 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -206,10 +206,10 @@ To check whether embeddings exist, inspect `.gitnexus/meta.json` — the `stats.
 | Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
 | Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
-| Work in the Tickets area (97 symbols) | `.claude/skills/generated/tickets/SKILL.md` |
+| Work in the Tickets area (94 symbols) | `.claude/skills/generated/tickets/SKILL.md` |
+| Work in the Actions area (31 symbols) | `.claude/skills/generated/actions/SKILL.md` |
 | Work in the Wizard area (29 symbols) | `.claude/skills/generated/wizard/SKILL.md` |
-| Work in the Actions area (24 symbols) | `.claude/skills/generated/actions/SKILL.md` |
-| Work in the [id] area (24 symbols) | `.claude/skills/generated/id/SKILL.md` |
+| Work in the [id] area (20 symbols) | `.claude/skills/generated/id/SKILL.md` |
 | Work in the Components area (18 symbols) | `.claude/skills/generated/components/SKILL.md` |
 | Work in the Messages area (10 symbols) | `.claude/skills/generated/messages/SKILL.md` |
 | Work in the Auth area (7 symbols) | `.claude/skills/generated/auth/SKILL.md` |

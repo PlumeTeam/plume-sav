@@ -53,9 +53,13 @@ Start here when exploring this area:
 | `HandleReassign → CreateClient` | cross_community | 5 |
 | `HandleClose → CreateClient` | cross_community | 5 |
 | `HandleRemind → CreateClient` | cross_community | 5 |
+| `HandleSendMessage → CreateClient` | cross_community | 4 |
+| `HandleSubmit → CreateClient` | cross_community | 4 |
 | `WorkshopLayout → CreateClient` | cross_community | 3 |
 | `SchoolLayout → CreateClient` | cross_community | 3 |
 | `SelectDashboardPage → CreateClient` | cross_community | 3 |
+| `PlumeLayout → CreateClient` | cross_community | 3 |
+| `ClientLayout → CreateClient` | cross_community | 3 |
 
 ## Connected Areas
 

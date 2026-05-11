@@ -1,16 +1,16 @@
 ---
 name: actions
-description: "Skill for the Actions area of 15_Plume_SAV. 24 symbols across 10 files."
+description: "Skill for the Actions area of 15_Plume_SAV. 31 symbols across 12 files."
 ---
 
 # Actions
 
-24 symbols | 10 files | Cohesion: 77%
+31 symbols | 12 files | Cohesion: 71%
 
 ## When to Use
 
 - Working with code in `apps/`
-- Understanding how generateSavShippingLabelAction, ShippingLabelButton, buildFormData work
+- Understanding how ShippingLabelButton, buildFormData, handleGenerate work
 - Modifying actions-related functionality
 
 ## Key Files
@@ -19,33 +19,33 @@ description: "Skill for the Actions area of 15_Plume_SAV. 24 symbols across 10 f
 |------|---------|
 | `apps/sav/features/tickets/actions/shipping.ts` | clientShippingAddressOrNull, generatePlaceholderLabel, resolveSchoolAddress, resolveWorkshopAddress, resolveClientAddress (+1) |
 | `apps/sav/features/tickets/actions/workshop.ts` | markWingReceivedWorkshopAction, startWorkshopDiagnosisAction, startWorkshopRepairAction, markWorkshopDoneAction |
+| `apps/sav/features/tickets/actions/_helpers.ts` | deriveServiceType, formatWingHistory, buildRichDescription, requestStatusToSavStatus |
+| `apps/sav/features/tickets/actions/admin.ts` | ensurePlumeAdmin, adminReassignSchoolAction, adminRemindSchoolAction, adminCloseTicketAction |
 | `apps/sav/features/tickets/components/ShippingLabelButton.tsx` | ShippingLabelButton, buildFormData, handleGenerate |
-| `apps/sav/features/tickets/actions/_helpers.ts` | deriveServiceType, formatWingHistory, buildRichDescription |
+| `apps/sav/app/(plume)/plume/AdminTicketActions.tsx` | handleReassign, handleRemind, handleClose |
 | `apps/sav/features/tickets/actions/lifecycle.ts` | markWingReturnedAction, markTicketCompletedAction |
-| `apps/sav/features/auth/identity.ts` | stringOrNull, resolveClientIdentity |
 | `apps/sav/features/tickets/actions/_step-advance.ts` | advanceTicketStep |
 | `apps/sav/app/(workshop)/workshop/ticket/[id]/WorkshopStepPanel.tsx` | handleStep |
 | `apps/sav/features/tickets/email.ts` | sendSchoolNotificationEmail |
-| `apps/sav/features/tickets/actions/creation.ts` | createTicketAction |
 
 ## Entry Points
 
 Start here when exploring this area:
 
-- **`generateSavShippingLabelAction`** (Function) — `apps/sav/features/tickets/actions/shipping.ts:153`
 - **`ShippingLabelButton`** (Function) — `apps/sav/features/tickets/components/ShippingLabelButton.tsx:51`
 - **`buildFormData`** (Function) — `apps/sav/features/tickets/components/ShippingLabelButton.tsx:84`
 - **`handleGenerate`** (Function) — `apps/sav/features/tickets/components/ShippingLabelButton.tsx:97`
+- **`generateSavShippingLabelAction`** (Function) — `apps/sav/features/tickets/actions/shipping.ts:153`
 - **`advanceTicketStep`** (Function) — `apps/sav/features/tickets/actions/_step-advance.ts:36`
 
 ## Key Symbols
 
 | Symbol | Type | File | Line |
 |--------|------|------|------|
-| `generateSavShippingLabelAction` | Function | `apps/sav/features/tickets/actions/shipping.ts` | 153 |
 | `ShippingLabelButton` | Function | `apps/sav/features/tickets/components/ShippingLabelButton.tsx` | 51 |
 | `buildFormData` | Function | `apps/sav/features/tickets/components/ShippingLabelButton.tsx` | 84 |
 | `handleGenerate` | Function | `apps/sav/features/tickets/components/ShippingLabelButton.tsx` | 97 |
+| `generateSavShippingLabelAction` | Function | `apps/sav/features/tickets/actions/shipping.ts` | 153 |
 | `advanceTicketStep` | Function | `apps/sav/features/tickets/actions/_step-advance.ts` | 36 |
 | `markWingReceivedWorkshopAction` | Function | `apps/sav/features/tickets/actions/workshop.ts` | 50 |
 | `startWorkshopDiagnosisAction` | Function | `apps/sav/features/tickets/actions/workshop.ts` | 66 |
@@ -54,14 +54,14 @@ Start here when exploring this area:
 | `markWingReturnedAction` | Function | `apps/sav/features/tickets/actions/lifecycle.ts` | 40 |
 | `markTicketCompletedAction` | Function | `apps/sav/features/tickets/actions/lifecycle.ts` | 67 |
 | `handleStep` | Function | `apps/sav/app/(workshop)/workshop/ticket/[id]/WorkshopStepPanel.tsx` | 93 |
-| `resolveClientIdentity` | Function | `apps/sav/features/auth/identity.ts` | 33 |
 | `sendSchoolNotificationEmail` | Function | `apps/sav/features/tickets/email.ts` | 242 |
 | `deriveServiceType` | Function | `apps/sav/features/tickets/actions/_helpers.ts` | 30 |
 | `formatWingHistory` | Function | `apps/sav/features/tickets/actions/_helpers.ts` | 112 |
 | `buildRichDescription` | Function | `apps/sav/features/tickets/actions/_helpers.ts` | 150 |
 | `createTicketAction` | Function | `apps/sav/features/tickets/actions/creation.ts` | 33 |
-| `clientShippingAddressOrNull` | Function | `apps/sav/features/tickets/actions/shipping.ts` | 61 |
-| `generatePlaceholderLabel` | Function | `apps/sav/features/tickets/actions/shipping.ts` | 77 |
+| `adminReassignSchoolAction` | Function | `apps/sav/features/tickets/actions/admin.ts` | 86 |
+| `adminRemindSchoolAction` | Function | `apps/sav/features/tickets/actions/admin.ts` | 194 |
+| `handleReassign` | Function | `apps/sav/app/(plume)/plume/AdminTicketActions.tsx` | 45 |
 
 ## Execution Flows
 
@@ -75,18 +75,18 @@ Start here when exploring this area:
 | `WorkshopStepPanel → EnrichWithCoords` | cross_community | 6 |
 | `WorkshopStepPanel → FormatSchoolAddress` | cross_community | 6 |
 | `WorkshopStepPanel → RequestStatusToSavStatus` | cross_community | 5 |
-| `HandleSubmit → StringOrNull` | cross_community | 4 |
-| `HandleSubmit → FormatWingHistory` | cross_community | 4 |
+| `HandleReassign → CreateClient` | cross_community | 5 |
+| `HandleClose → CreateClient` | cross_community | 5 |
 
 ## Connected Areas
 
 | Area | Connections |
 |------|-------------|
-| Tickets | 9 calls |
-| [id] | 1 calls |
+| Tickets | 16 calls |
+| Auth | 1 calls |
 
 ## How to Explore
 
-1. `gitnexus_context({name: "generateSavShippingLabelAction"})` — see callers and callees
+1. `gitnexus_context({name: "ShippingLabelButton"})` — see callers and callees
 2. `gitnexus_query({query: "actions"})` — find related execution flows
 3. Read key files listed above for implementation details
