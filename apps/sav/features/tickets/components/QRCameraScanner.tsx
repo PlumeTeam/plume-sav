@@ -110,6 +110,10 @@ export function QRCameraScanner({ onDecode, onCancel }: QRCameraScannerProps) {
             /back|rear|environment|arri[eè]re/i.test(c.label),
           )
           const chosen = backCam ?? cameras[0]
+          if (!chosen) {
+            if (mountedRef.current) setState({ kind: 'unavailable' })
+            return
+          }
 
           await scanner.start(chosen.id, config, onScan, onFrame)
           started = true
