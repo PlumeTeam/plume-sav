@@ -6,9 +6,9 @@ import { markTicketReadByPlumeAction } from '@/features/tickets/messages-actions
 import { getCurrentUserRoles } from '@/features/auth/queries'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { TicketTimeline } from '@/features/tickets/components/TicketTimeline'
-import { CommentThread } from '@/features/tickets/components/CommentThread'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { PlumeNoteComposer } from '@/features/tickets/components/PlumeNoteComposer'
+import { TicketChannelSwitch, type TicketChannel } from '@/features/tickets/components/TicketChannelSwitch'
 import { DiagnosisChecklist } from '@/features/tickets/components/DiagnosisChecklist'
 import { WORKSHOP_TECHNICAL_CHECKLIST } from '@/features/tickets/constants'
 import { saveWorkshopChecklistAction } from '@/features/tickets/actions'
@@ -60,6 +60,41 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
       m.sender_role === 'workshop'
     )
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+
+  // 2 canaux côté atelier : Client (visibility 'all') / École (workshop_plume).
+  // Plume HQ peut intervenir dans le canal école — pas de canal direct
+  // atelier ↔ Plume séparé (RLS workshop ne lit que 'all' et 'workshop_plume').
+  const workshopChannels: TicketChannel[] = [
+    {
+      id:    'client',
+      label: 'Avec le client',
+      emoji: '👤',
+      filter: (m) => m.visibility_level === 'all',
+      composer: {
+        senderRole:      'workshop',
+        visibilityLevel: 'all',
+        placeholder:     'Mise à jour, demande de précision au client…',
+        submitLabel:     'Envoyer au client',
+        helperText:      "Visible par le client, l'école & Plume HQ",
+      },
+      emptyText: 'Aucun message public sur ce ticket pour le moment.',
+    },
+    {
+      id:    'school',
+      label: "Avec l'école",
+      emoji: '🏫',
+      filter: (m) => m.visibility_level === 'workshop_plume',
+      composer: {
+        senderRole:      'workshop',
+        visibilityLevel: 'workshop_plume',
+        placeholder:     "Diagnostic, devis, demande d'info à l'école…",
+        submitLabel:     "Envoyer à l'école",
+        helperText:      "Visible par l'école & Plume HQ — le client ne voit pas",
+      },
+      emptyText: "Aucun échange avec l'école pour le moment.",
+    },
+  ]
+
   const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
 
   const stored: ChecklistJson = (ticket.workshop_checklist ?? null) as ChecklistJson
@@ -269,13 +304,13 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
           </section>
         )}
 
-        <section className="card p-5">
-          <h2 className="section-title mb-4">Messages</h2>
-          <CommentThread
+        <section>
+          <TicketChannelSwitch
+            ticketId={ticket.id}
             messages={visibleMessages}
+            channels={workshopChannels}
             ownRoles={['workshop']}
             showInternalBadge
-            emptyText="Aucun message."
           />
         </section>
 

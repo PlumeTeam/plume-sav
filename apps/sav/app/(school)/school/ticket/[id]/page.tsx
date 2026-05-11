@@ -6,16 +6,15 @@ import { markTicketReadByPlumeAction } from '@/features/tickets/messages-actions
 import { getCurrentUserRoles } from '@/features/auth/queries'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { TicketTimeline } from '@/features/tickets/components/TicketTimeline'
-import { CommentThread } from '@/features/tickets/components/CommentThread'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { PlumeNoteComposer } from '@/features/tickets/components/PlumeNoteComposer'
+import { TicketChannelSwitch, type TicketChannel } from '@/features/tickets/components/TicketChannelSwitch'
 import { formatDate, formatDateTime } from '@/features/tickets/utils'
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
 import { SchoolActions } from './SchoolActions'
 import { SchoolStepPanel } from './SchoolStepPanel'
 import { SchoolResolutionPanel } from './SchoolResolutionPanel'
 import { SchoolTicketTabs } from './SchoolTicketTabs'
-import { SchoolMessageComposer } from './SchoolMessageComposer'
 import type { SchoolResolution, RequestStatus, TicketMessage } from '@/features/tickets/types'
 
 interface PageProps { params: { id: string } }
@@ -62,9 +61,6 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
     visibleMessages.find(
       (m) => m.sender_role === 'client' && m.visibility_level === 'all' && !m.is_internal
     ) ?? null
-  const threadMessages = firstClientMessage
-    ? visibleMessages.filter((m) => m.id !== firstClientMessage.id)
-    : visibleMessages
 
   const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
 
@@ -198,10 +194,11 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
     </>
   )
 
-  // ── Tab 3: Messages ─────────────────────────────────────────────────────
-  const messagesTab = (
+  // ── Tab 3: Messages — 3 canaux : Client / Atelier / Plume HQ ────────────
+  // Spotlight (message du client à la création) + photos restent dans le
+  // canal "Client" — c'est le contexte d'arrivée pour ce canal-là.
+  const clientSpotlight = (
     <>
-      {/* Spotlight: message du client à la création */}
       {firstClientMessage ? (
         <section className="rounded-card border-2 border-brand-gold bg-brand-gold/5 p-5 shadow-plume">
           <div className="flex items-baseline justify-between gap-2">
@@ -223,34 +220,79 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           </p>
         </section>
       )}
-
-      {/* Photos jointes par le client */}
       {ticket.ticket_photos.length > 0 && (
         <section className="card p-5">
           <h2 className="section-title mb-3">
-            Photos ({ticket.ticket_photos.length})
+            Photos du client ({ticket.ticket_photos.length})
           </h2>
           <PhotoLightbox photos={ticket.ticket_photos} />
         </section>
       )}
+    </>
+  )
 
-      {/* Conversation complète */}
-      <section className="card p-5">
-        <h2 className="section-title mb-4">Conversation</h2>
-        <CommentThread
-          messages={threadMessages}
-          ownRoles={['school']}
-          showInternalBadge
-          emptyText={
-            firstClientMessage
-              ? 'Pas encore de réponse — utilisez le composer ci-dessous pour répondre au client.'
-              : 'Aucun message — démarrez la conversation avec le client ci-dessous.'
-          }
-        />
-      </section>
+  const schoolChannels: TicketChannel[] = [
+    {
+      id:    'client',
+      label: 'Avec le client',
+      emoji: '👤',
+      filter: (m) =>
+        m.visibility_level === 'all' &&
+        !m.is_internal &&
+        m.id !== (firstClientMessage?.id ?? ''),
+      composer: {
+        senderRole:      'school',
+        visibilityLevel: 'all',
+        placeholder:     'Question, mise à jour, demande de précision…',
+        submitLabel:     'Envoyer au client',
+        helperText:      "Visible par le client & toute l'équipe Plume",
+      },
+      spotlight: clientSpotlight,
+      emptyText: firstClientMessage
+        ? 'Pas encore de réponse — utilisez le composer ci-dessous pour répondre au client.'
+        : 'Aucun message — démarrez la conversation avec le client ci-dessous.',
+    },
+    {
+      id:    'workshop',
+      label: "Avec l'atelier",
+      emoji: '🛠️',
+      filter: (m) => m.visibility_level === 'workshop_plume',
+      composer: {
+        senderRole:      'school',
+        visibilityLevel: 'workshop_plume',
+        placeholder:     "Question technique, demande d'avis, coordination…",
+        submitLabel:     "Envoyer à l'atelier",
+        helperText:      "Visible par l'atelier & Plume HQ — le client ne voit pas",
+      },
+      emptyText: ticket.assigned_workshop_id
+        ? "Aucun échange avec l'atelier pour le moment."
+        : "Aucun atelier assigné à ce ticket. Vous pourrez communiquer ici dès que l'aile sera escaladée.",
+    },
+    {
+      id:    'plume',
+      label: 'Avec Plume HQ',
+      emoji: '🦅',
+      filter: (m) => m.visibility_level === 'school_plume',
+      composer: {
+        senderRole:      'school',
+        visibilityLevel: 'school_plume',
+        placeholder:     'Question, alerte, demande de conseil à Plume HQ…',
+        submitLabel:     'Envoyer à Plume HQ',
+        helperText:      'Privé école ↔ Plume — atelier & client ne voient pas',
+      },
+      emptyText: "Aucun échange avec Plume HQ pour le moment.",
+    },
+  ]
 
-      {/* Composer toujours visible */}
-      <SchoolMessageComposer ticketId={ticket.id} />
+  const messagesTab = (
+    <>
+      <TicketChannelSwitch
+        ticketId={ticket.id}
+        messages={visibleMessages}
+        channels={schoolChannels}
+        ownRoles={['school']}
+        showInternalBadge
+      />
 
       {/* Composer Plume HQ — réservé aux plume_admin (vue support). */}
       {isPlumeAdmin && <PlumeNoteComposer ticketId={ticket.id} />}
