@@ -140,6 +140,8 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           wingReceivedSchoolAt={ticket.wing_received_school_at}
           isCheckValidated={isCheckValidated}
           wingSerial={ticket.serial_number ?? null}
+          schoolResolution={ticket.school_resolution ?? null}
+          hasOutboundLabel={Boolean(ticket.school_workshop_label_url)}
         />
       </section>
 
@@ -257,7 +259,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
 
       {/* Bon de transport école → atelier (si escalade) */}
       {shouldOfferSchoolShipping && (
-        <section className="card p-5">
+        <section className="card p-5" data-section="shipping">
           <h2 className="section-title mb-3">Bon de transport école → atelier</h2>
           <p className="mb-4 text-sm text-slate-600">
             {ticket.school_workshop_label_url
