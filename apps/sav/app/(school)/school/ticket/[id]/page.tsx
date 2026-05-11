@@ -149,6 +149,22 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
         <h2 className="section-title mb-4">Suivi</h2>
         <TicketTimeline status={ticket.status} />
       </section>
+    </>
+  )
+
+  // ── Tab 2: Déclaration ──────────────────────────────────────────────────
+  const declarationTab = (
+    <>
+      {/* Flag urgent — banner en tête, visible immédiatement */}
+      {ticket.urgency_level === 2 && (
+        <section className="flex items-center gap-3 rounded-card border-2 border-red-300 bg-red-50 px-4 py-3 shadow-sm">
+          <span aria-hidden className="text-2xl">🚨</span>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-red-700">Signalé comme urgent</p>
+            <p className="text-xs text-red-700/80">Le client a marqué cette demande comme prioritaire.</p>
+          </div>
+        </section>
+      )}
 
       {/* Client */}
       <section className="card p-5">
@@ -170,22 +186,19 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
         </div>
       </section>
 
-      {/* Demande — description rich text + flag urgent */}
+      {/* Demande SAV */}
       <section className="card p-5">
-        <h2 className="section-title mb-3">Demande</h2>
-        {ticket.description && (
+        <h2 className="section-title mb-3">Demande de SAV</h2>
+        {ticket.description ? (
           <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">{ticket.description}</p>
-        )}
-        {ticket.urgency_level === 2 && (
-          <p className="mt-3 rounded-2xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
-            🚨 Signalé comme urgent
-          </p>
+        ) : (
+          <p className="text-sm italic text-slate-500">Aucune description fournie.</p>
         )}
       </section>
     </>
   )
 
-  // ── Tab 2: Messages ─────────────────────────────────────────────────────
+  // ── Tab 3: Messages ─────────────────────────────────────────────────────
   const messagesTab = (
     <>
       {/* Spotlight: message du client à la création */}
@@ -244,7 +257,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
     </>
   )
 
-  // ── Tab 3: Check aile ───────────────────────────────────────────────────
+  // ── Tab 4: Check aile ───────────────────────────────────────────────────
   const checkTab = (
     <>
       {/* Cartes : Communiquer avec l'atelier + Checker l'aile */}
@@ -318,6 +331,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
       <main className="mx-auto max-w-4xl space-y-3 p-4 pb-12">
         <SchoolTicketTabs
           state={stateTab}
+          declaration={declarationTab}
           messages={messagesTab}
           check={checkTab}
           messagesCount={visibleMessages.length}

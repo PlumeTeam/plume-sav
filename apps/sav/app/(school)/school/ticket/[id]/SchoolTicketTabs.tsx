@@ -2,10 +2,11 @@
 
 import { useState, type ReactNode } from 'react'
 
-type Tab = 'state' | 'messages' | 'check'
+type Tab = 'state' | 'declaration' | 'messages' | 'check'
 
 interface SchoolTicketTabsProps {
   state:        ReactNode
+  declaration:  ReactNode
   messages:     ReactNode
   check:        ReactNode
   /** Total visible messages — surfaced as a badge on the Messages tab. */
@@ -16,6 +17,7 @@ interface SchoolTicketTabsProps {
 
 export function SchoolTicketTabs({
   state,
+  declaration,
   messages,
   check,
   messagesCount,
@@ -24,7 +26,7 @@ export function SchoolTicketTabs({
   const [tab, setTab] = useState<Tab>('state')
 
   const baseBtn =
-    'flex flex-1 items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-gold/60'
+    'flex flex-1 items-center justify-center gap-1.5 rounded-2xl px-2 py-2.5 text-[13px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-gold/60'
   const activeBtn = 'bg-brand-gold text-brand-ink shadow-sm'
   const idleBtn =
     'border border-brand-stone bg-white text-slate-500 hover:text-brand-ink hover:border-brand-gold/40'
@@ -34,7 +36,7 @@ export function SchoolTicketTabs({
       <div
         role="tablist"
         aria-label="Sections du ticket"
-        className="flex gap-2 rounded-2xl bg-brand-cream/60 p-1 ring-1 ring-brand-stone"
+        className="flex gap-1.5 rounded-2xl bg-brand-cream/60 p-1 ring-1 ring-brand-stone"
       >
         <button
           type="button"
@@ -47,6 +49,18 @@ export function SchoolTicketTabs({
         >
           <span aria-hidden>📋</span>
           <span>État</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'declaration'}
+          aria-controls="panel-declaration"
+          id="tab-declaration"
+          onClick={() => setTab('declaration')}
+          className={`${baseBtn} ${tab === 'declaration' ? activeBtn : idleBtn}`}
+        >
+          <span aria-hidden>📝</span>
+          <span>Déclaration</span>
         </button>
         <button
           type="button"
@@ -102,6 +116,16 @@ export function SchoolTicketTabs({
         className="space-y-3"
       >
         {tab === 'state' && state}
+      </div>
+
+      <div
+        id="panel-declaration"
+        role="tabpanel"
+        aria-labelledby="tab-declaration"
+        hidden={tab !== 'declaration'}
+        className="space-y-3"
+      >
+        {tab === 'declaration' && declaration}
       </div>
 
       <div
