@@ -43,6 +43,11 @@ export function QRCameraScanner({ onDecode, onCancel }: QRCameraScannerProps) {
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const decodedRef = useRef(false) // anti double-decode pendant l'arrêt
   const mountedRef = useRef(true)
+  // Ref sur le conteneur React-stable qui WRAPPE le div manipulé par
+  // html5-qrcode. On vide son innerHTML au cleanup pour éviter le crash
+  // 'removeChild — node is not a child of this node' qui arrivait quand
+  // React essayait de démonter des nœuds déjà déplacés par html5-qrcode.
+  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     mountedRef.current = true
@@ -161,19 +166,50 @@ export function QRCameraScanner({ onDecode, onCancel }: QRCameraScannerProps) {
       mountedRef.current = false
       clearTimeout(timer)
       const s = scannerRef.current
-      if (s && typeof s.isScanning === 'boolean' && s.isScanning) {
-        s.stop().catch(() => { /* ignore */ })
-      }
+      const container = containerRef.current
       scannerRef.current = null
+
+      // Cleanup en 2 temps pour éviter le crash 'removeChild':
+      //   1. On arrête le scanner si actif (async, sans bloquer)
+      //   2. On vide MANUELLEMENT le contenu du conteneur de manière
+      //      synchrone, AVANT que React tente de démonter les nœuds que
+      //      html5-qrcode a injectés (vidéo, canvas, etc.). React ne voit
+      //      plus que le conteneur vide → pas de removeChild sur des nœuds
+      //      disparus.
+      const stopPromise = s && typeof s.isScanning === 'boolean' && s.isScanning
+        ? s.stop().catch(() => { /* déjà arrêté */ })
+        : Promise.resolve()
+
+      // clear() retire l'élément vidéo proprement. Si ça échoue (déjà
+      // détaché), on tombe sur le innerHTML='' qui suit.
+      stopPromise
+        .then(() => s?.clear?.())
+        .catch(() => { /* ignore */ })
+
+      // Wipe synchrone du conteneur — c'est ce qui résout le crash.
+      if (container) {
+        try {
+          container.innerHTML = ''
+        } catch { /* ignore */ }
+      }
     }
   }, [onDecode])
 
   return (
     <div className="space-y-3">
+      {/* Conteneur React-stable. Le div #qr-camera-region (manipulé par
+          html5-qrcode) est un enfant — React ne touche jamais aux nœuds
+          internes que la lib y injecte/retire. Cleanup synchrone via
+          containerRef.innerHTML='' (cf. useEffect) pour éviter le crash
+          'removeChild' au démontage. */}
       <div
-        id={REGION_ID}
+        ref={containerRef}
         className="relative aspect-[4/3] overflow-hidden rounded-xl bg-black"
       >
+        <div
+          id={REGION_ID}
+          className="absolute inset-0"
+        />
         {/* Overlay de cadrage gold autour de la zone qrbox */}
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="h-[62%] w-[62%] rounded-lg border-[3px] border-brand-gold shadow-[0_0_20px_rgba(212,175,55,0.4)]" />
