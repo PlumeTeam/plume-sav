@@ -17,6 +17,8 @@ interface SchoolStepPanelProps {
   schoolAcknowledgedAt:    string | null
   wingReceivedSchoolAt:    string | null
   isCheckValidated:        boolean
+  /** Nom du moniteur qui a effectué le check (extrait du wizard payload V2). */
+  checkInspector:          string | null
   /** N° de série de l'aile, pour vérification au scan flashcode. */
   wingSerial:              string | null
   /** Décision prise au check (null = pas encore décidé). Pilote l'étape 4. */
@@ -108,6 +110,7 @@ export function SchoolStepPanel({
   schoolAcknowledgedAt,
   wingReceivedSchoolAt,
   isCheckValidated,
+  checkInspector,
   wingSerial,
   schoolResolution,
 }: SchoolStepPanelProps) {
@@ -186,11 +189,15 @@ export function SchoolStepPanel({
           const isLocked = !isActive && !isDone
           const at       = timestampByKey[step.key]
 
-          // Helptext dynamique pour l'étape 4 quand une décision est prise :
-          // on affiche la résolution choisie au lieu de la description générique.
-          const helpText = step.key === 'decision' && schoolResolution
-            ? `Décision : ${RESOLUTION_LABEL[schoolResolution]}`
-            : step.helpText
+          // Helptext dynamique :
+          //  - étape 4 (decision) : on affiche la résolution choisie au lieu de la description
+          //  - étape 3 (check)    : si validée, on indique le moniteur pour traçabilité
+          const helpText =
+            step.key === 'decision' && schoolResolution
+              ? `Décision : ${RESOLUTION_LABEL[schoolResolution]}`
+              : step.key === 'check' && isDone && checkInspector
+                ? `Effectué par ${checkInspector}`
+                : step.helpText
 
           return (
             <div

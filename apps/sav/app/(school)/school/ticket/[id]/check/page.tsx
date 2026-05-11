@@ -3,30 +3,12 @@ import Link from 'next/link'
 import { getSchoolTicketDetail } from '@/features/tickets/queries'
 import { PlumeLogo } from '@/app/_components/PlumeLogo'
 import { CheckWizard } from '@/features/tickets/inspection/CheckWizard'
-import { extractReportedCategory, type SchoolCheckPayload } from '@/features/tickets/inspection/steps'
+import { extractReportedCategory, readSchoolCheckPayload } from '@/features/tickets/inspection/steps'
 import { SchoolCheckGate } from './SchoolCheckGate'
 
 interface PageProps { params: { id: string } }
 
 export const dynamic = 'force-dynamic'
-
-// service_requests.school_checklist stores either:
-// (a) the V2 wizard payload, JSON-encoded inside the `notes` field with a
-//     __wizard__ marker so we can recover it across reloads, or
-// (b) the legacy { checkedIds, notes } shape — read as-is, ignored here.
-function readWizardPayload(raw: unknown): SchoolCheckPayload | null {
-  if (!raw || typeof raw !== 'object') return null
-  const obj = raw as Record<string, unknown>
-  const notes = obj.notes
-  if (typeof notes !== 'string') return null
-  try {
-    const parsed = JSON.parse(notes)
-    if (parsed && typeof parsed === 'object' && parsed.__wizard__ === true) {
-      return parsed as SchoolCheckPayload
-    }
-  } catch { /* not JSON — was a plain text note in the legacy shape */ }
-  return null
-}
 
 export default async function SchoolTicketCheckPage({ params }: PageProps) {
   const ticket = await getSchoolTicketDetail(params.id)
@@ -38,7 +20,7 @@ export default async function SchoolTicketCheckPage({ params }: PageProps) {
   }
 
   const reportedCategory = extractReportedCategory(ticket.description)
-  const initial = readWizardPayload(ticket.school_checklist)
+  const initial = readSchoolCheckPayload(ticket.school_checklist)
   const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
 
   return (

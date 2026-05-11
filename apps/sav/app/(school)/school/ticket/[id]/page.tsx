@@ -9,6 +9,7 @@ import { TicketTimeline } from '@/features/tickets/components/TicketTimeline'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { PlumeNoteComposer } from '@/features/tickets/components/PlumeNoteComposer'
 import { TicketChannelSwitch, type TicketChannel } from '@/features/tickets/components/TicketChannelSwitch'
+import { readSchoolCheckInspector } from '@/features/tickets/inspection/steps'
 import { formatDate, formatDateTime } from '@/features/tickets/utils'
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
 import { SchoolActions } from './SchoolActions'
@@ -88,6 +89,8 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
     (Array.isArray(stored.checkedIds) && stored.checkedIds.length > 0) ||
     (typeof stored.notes === 'string' && stored.notes.trim().length > 0)
   )
+  // Nom du moniteur qui a effectué le check, extrait du payload V2.
+  const checkInspector = readSchoolCheckInspector(ticket.school_checklist)
 
   // ── Tab 1: État ─────────────────────────────────────────────────────────
   const stateTab = (
@@ -135,6 +138,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           schoolAcknowledgedAt={ticket.school_acknowledged_at}
           wingReceivedSchoolAt={ticket.wing_received_school_at}
           isCheckValidated={isCheckValidated}
+          checkInspector={checkInspector}
           wingSerial={ticket.serial_number ?? null}
           schoolResolution={ticket.school_resolution ?? null}
         />

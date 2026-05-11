@@ -122,6 +122,37 @@ export function extractReportedCategory(description: string | null | undefined):
 }
 
 /**
+ * Decode the wizard payload from `service_requests.school_checklist`. The
+ * page-side guard stores the V2 payload JSON-encoded inside `notes` with a
+ * `__wizard__` marker so we can recover it across reloads. Returns null for
+ * the legacy `{ checkedIds, notes }` shape or anything we can't parse.
+ */
+export function readSchoolCheckPayload(raw: unknown): SchoolCheckPayload | null {
+  if (!raw || typeof raw !== 'object') return null
+  const obj = raw as Record<string, unknown>
+  const notes = obj.notes
+  if (typeof notes !== 'string') return null
+  try {
+    const parsed = JSON.parse(notes)
+    if (parsed && typeof parsed === 'object' && parsed.__wizard__ === true) {
+      return parsed as SchoolCheckPayload
+    }
+  } catch { /* not JSON — was a plain text note in the legacy shape */ }
+  return null
+}
+
+/**
+ * Convenience accessor — pulls just the inspector name (trimmed, non-empty)
+ * from a stored school_checklist. Used by the school & workshop ticket views
+ * to display "Check effectué par <nom>" for traceability across roles.
+ */
+export function readSchoolCheckInspector(raw: unknown): string | null {
+  const payload = readSchoolCheckPayload(raw)
+  const name = payload?.inspectorName?.trim()
+  return name && name.length > 0 ? name : null
+}
+
+/**
  * The ripstop hint surfaces when the tear is small enough to repair on-site
  * AND far enough from a seam. Anything closer to a seam, or larger than
  * 15 cm, escalates to the workshop.

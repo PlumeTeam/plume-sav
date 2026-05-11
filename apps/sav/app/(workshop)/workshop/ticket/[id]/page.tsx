@@ -9,6 +9,7 @@ import { TicketTimeline } from '@/features/tickets/components/TicketTimeline'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { PlumeNoteComposer } from '@/features/tickets/components/PlumeNoteComposer'
 import { TicketChannelSwitch, type TicketChannel } from '@/features/tickets/components/TicketChannelSwitch'
+import { readSchoolCheckInspector } from '@/features/tickets/inspection/steps'
 import { DiagnosisChecklist } from '@/features/tickets/components/DiagnosisChecklist'
 import { WORKSHOP_TECHNICAL_CHECKLIST } from '@/features/tickets/constants'
 import { saveWorkshopChecklistAction } from '@/features/tickets/actions'
@@ -97,6 +98,10 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
 
   const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
 
+  // Nom du moniteur qui a effectué le check côté école — exposé à l'atelier
+  // pour la traçabilité de l'escalade.
+  const schoolCheckInspector = readSchoolCheckInspector(ticket.school_checklist)
+
   const stored: ChecklistJson = (ticket.workshop_checklist ?? null) as ChecklistJson
   const initialChecked = Array.isArray(stored?.checkedIds) ? stored!.checkedIds! : []
   const initialNotes   = typeof stored?.notes === 'string' ? stored!.notes! : ''
@@ -151,11 +156,20 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
           <TicketTimeline status={ticket.status} />
         </section>
 
-        {/* Contexte de l'escalation école */}
-        {ticket.school_resolution === 'escalated_to_workshop' && ticket.school_resolution_note && (
+        {/* Contexte de l'escalation école — nom du moniteur + note. La section
+            s'affiche dès qu'au moins l'un des deux est renseigné. */}
+        {(schoolCheckInspector || (ticket.school_resolution === 'escalated_to_workshop' && ticket.school_resolution_note)) && (
           <section className="card p-5 bg-brand-gold/5 border-brand-gold/30">
-            <h2 className="section-title mb-2">Note de l&apos;école qui a escaladé</h2>
-            <p className="whitespace-pre-line text-sm text-brand-ink">{ticket.school_resolution_note}</p>
+            <h2 className="section-title mb-3">Briefing de l&apos;école</h2>
+            {schoolCheckInspector && (
+              <div className="mb-3 flex items-center gap-2 rounded-xl bg-white/60 px-3 py-2 text-sm text-brand-ink">
+                <span aria-hidden>👤</span>
+                <span>Check effectué par <strong>{schoolCheckInspector}</strong></span>
+              </div>
+            )}
+            {ticket.school_resolution === 'escalated_to_workshop' && ticket.school_resolution_note && (
+              <p className="whitespace-pre-line text-sm text-brand-ink">{ticket.school_resolution_note}</p>
+            )}
           </section>
         )}
 
