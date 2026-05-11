@@ -4,6 +4,7 @@ import { getSchoolTicketDetail } from '@/features/tickets/queries'
 import { PlumeLogo } from '@/app/_components/PlumeLogo'
 import { CheckWizard } from '@/features/tickets/inspection/CheckWizard'
 import { extractReportedCategory, type SchoolCheckPayload } from '@/features/tickets/inspection/steps'
+import { SchoolCheckGate } from './SchoolCheckGate'
 
 interface PageProps { params: { id: string } }
 
@@ -64,12 +65,18 @@ export default async function SchoolTicketCheckPage({ params }: PageProps) {
       </header>
 
       <main className="mx-auto max-w-3xl space-y-3 p-4 pb-12">
-        <CheckWizard
+        <SchoolCheckGate
           ticketId={ticket.id}
           ticketHref={`/school/ticket/${ticket.id}`}
-          reportedCategory={reportedCategory}
-          initial={initial}
-        />
+          wingSerial={ticket.serial_number ?? null}
+        >
+          <CheckWizard
+            ticketId={ticket.id}
+            ticketHref={`/school/ticket/${ticket.id}`}
+            reportedCategory={reportedCategory}
+            initial={initial}
+          />
+        </SchoolCheckGate>
       </main>
     </div>
   )
