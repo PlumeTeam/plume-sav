@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { ScanGateModal } from '@/features/tickets/components/ScanGateModal'
+import { SchoolCheckBriefing } from './SchoolCheckBriefing'
 
 interface SchoolCheckGateProps {
   ticketId:    string
@@ -13,37 +14,51 @@ interface SchoolCheckGateProps {
   children:    ReactNode
 }
 
+type GateStep = 'scan' | 'briefing' | 'unlocked'
+
 /**
- * Gate de scan flashcode bloquant l'accès à la page check tant que l'école
- * n'a pas scanné le QR cousu sur l'aile concernée par le ticket.
+ * Gate bloquant l'accès à la page check tant que l'école n'a pas (1) scanné
+ * le QR cousu sur l'aile concernée par le ticket, puis (2) lu le rappel sur
+ * son rôle de filtre N1 et explicitement accepté de commencer.
  *
  * Module Traçabilité Flashcode — règle d'or : "Scan obligatoire pour ouvrir
- * un check / diagnostic" (cf. Bible §23.7). Auparavant le scan était demandé
- * via le bouton "Lancer le check" du SchoolStepPanel, mais on pouvait y
- * échapper en arrivant directement sur l'URL /school/ticket/[id]/check
- * (tab Check ou lien direct). Ce gate ferme la faille.
+ * un check / diagnostic" (cf. Bible §23.7). Le briefing pédagogique en plus
+ * sert à rappeler que l'école n'est PAS attendue comme expert technique.
  *
- * Workflow :
- *  - Mount → modal ouvert d'office sur "scanning" possible
- *  - Scan réussi → unlock le wizard (children rendu)
- *  - Fermeture modal sans scan → retour à la page ticket
+ * Workflow en 2 étapes :
+ *  1. step='scan'      → ScanGateModal force ouvert
+ *     - Scan réussi    → step='briefing'
+ *     - Fermeture modal sans scan → retour à la page ticket
+ *  2. step='briefing'  → page d'info SchoolCheckBriefing
+ *     - Click "J'ai compris" → step='unlocked'
+ *     - Click "Retour"       → retour à la page ticket
+ *  3. step='unlocked'  → children rendu (CheckWizard)
  *
- * Étape suivante (PR à venir) : persister chaque scan dans wing_scans
- * avec scan_type='check_open' au moment du unlock.
+ * Étape suivante (PR à venir) : persister scan_type='check_open' dans
+ * wing_scans + tracer l'acknowledgement du briefing pour audit qualité.
  */
 export function SchoolCheckGate({ ticketId: _ticketId, ticketHref, wingSerial, children }: SchoolCheckGateProps) {
   const router = useRouter()
-  const [unlocked, setUnlocked] = useState(false)
+  const [step, setStep] = useState<GateStep>('scan')
 
-  if (unlocked) {
+  if (step === 'unlocked') {
     return <>{children}</>
   }
 
+  if (step === 'briefing') {
+    return (
+      <SchoolCheckBriefing
+        onContinue={() => setStep('unlocked')}
+        onCancel={() => router.push(ticketHref)}
+      />
+    )
+  }
+
+  // step === 'scan'
   return (
     <>
       {/* Placeholder visuel pendant que le scan est demandé — évite un fond
-          blanc pur. Les couleurs reprennent celles du wizard, pour ne pas
-          surprendre l'utilisateur quand le scan se ferme. */}
+          blanc pur. */}
       <div className="rounded-card border-2 border-dashed border-brand-stone bg-white p-8 text-center">
         <p className="text-2xl">🔒</p>
         <p className="mt-2 text-sm font-semibold text-brand-ink">
@@ -58,7 +73,7 @@ export function SchoolCheckGate({ ticketId: _ticketId, ticketHref, wingSerial, c
       <ScanGateModal
         open={true}
         onClose={() => router.push(ticketHref)}
-        onScanSuccess={() => setUnlocked(true)}
+        onScanSuccess={() => setStep('briefing')}
         expectedSerial={wingSerial}
         title="Avant le check"
         subtitle="Scannez l'aile pour ouvrir le wizard de diagnostic sur le bon ticket."
