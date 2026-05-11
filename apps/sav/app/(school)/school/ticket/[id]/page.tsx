@@ -11,9 +11,9 @@ import { formatDate, formatDateTime } from '@/features/tickets/utils'
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
 import { SchoolActions } from './SchoolActions'
 import { SchoolStepPanel } from './SchoolStepPanel'
-import { SchoolResolutionPanel } from './SchoolResolutionPanel'
 import { SchoolTicketTabs } from './SchoolTicketTabs'
-import type { SchoolResolution, RequestStatus, TicketMessage } from '@/features/tickets/types'
+import { SchoolWorkshopChannel } from './SchoolWorkshopChannel'
+import type { RequestStatus, TicketMessage } from '@/features/tickets/types'
 
 interface PageProps { params: { id: string } }
 
@@ -129,8 +129,39 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           checkInspector={checkInspector}
           wingSerial={ticket.serial_number ?? null}
           schoolResolution={ticket.school_resolution ?? null}
+          assignedWorkshopLabel={ticket.assigned_workshop_label}
+          isPlumeUrgent={ticket.is_plume_urgent ?? false}
         />
       </section>
+
+      {/* Cartes : Communiquer avec l'atelier + Checker l'aile */}
+      <SchoolActions
+        ticketId={ticket.id}
+        isCheckValidated={isCheckValidated}
+        assignedWorkshopId={ticket.assigned_workshop_id}
+        assignedWorkshopLabel={ticket.assigned_workshop_label}
+        cards={['workshop', 'check']}
+      />
+
+      {/* Bon de transport école → atelier (si escalade) */}
+      {shouldOfferSchoolShipping && (
+        <section className="card p-5" data-section="shipping">
+          <h2 className="section-title mb-3">Bon de transport école → atelier</h2>
+          <p className="mb-4 text-sm text-slate-600">
+            {ticket.school_workshop_label_url
+              ? "Étiquette GLS prête — collez-la sur le colis avant expédition."
+              : `Générez l'étiquette GLS pour expédier l'aile à ${ticket.assigned_workshop_label ?? 'l\'atelier'}.`}
+          </p>
+          <ShippingLabelButton
+            ticketId={ticket.id}
+            leg="school_to_workshop"
+            initialTracking={ticket.school_workshop_tracking}
+            initialLabelUrl={ticket.school_workshop_label_url}
+            requireScan
+            wingSerial={ticket.serial_number ?? null}
+          />
+        </section>
+      )}
 
       {/* Suivi visuel */}
       <section className="card p-5">
@@ -248,16 +279,20 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
       label:      "Avec l'atelier",
       emoji:      '🛠️',
       visibility: 'workshop_plume',
-      composer: {
-        senderRole:      'school',
-        visibilityLevel: 'workshop_plume',
-        placeholder:     "Question technique, demande d'avis, coordination…",
-        submitLabel:     "Envoyer à l'atelier",
-        helperText:      "Visible par l'atelier & Plume HQ — le client ne voit pas",
-      },
-      emptyText: ticket.assigned_workshop_id
-        ? "Aucun échange avec l'atelier pour le moment."
-        : "Aucun atelier assigné à ce ticket. Vous pourrez communiquer ici dès que l'aile sera escaladée.",
+      // Composer null + body custom : SchoolWorkshopChannel gère picker +
+      // thread + composer en interne pour permettre le choix / changement
+      // d'atelier directement dans le flux du chat.
+      composer: null,
+      body: (
+        <SchoolWorkshopChannel
+          ticketId={ticket.id}
+          messages={visibleMessages.filter(
+            (m) => m.visibility_level === 'workshop_plume'
+          )}
+          assignedWorkshopId={ticket.assigned_workshop_id}
+          assignedWorkshopLabel={ticket.assigned_workshop_label}
+        />
+      ),
     },
   ]
 
@@ -269,56 +304,6 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
       ownRoles={['school']}
       showInternalBadge
     />
-  )
-
-  // ── Tab 4: Check aile ───────────────────────────────────────────────────
-  const checkTab = (
-    <>
-      {/* Cartes : Communiquer avec l'atelier + Checker l'aile */}
-      <SchoolActions
-        ticketId={ticket.id}
-        isCheckValidated={isCheckValidated}
-        assignedWorkshopId={ticket.assigned_workshop_id}
-        assignedWorkshopLabel={ticket.assigned_workshop_label}
-        cards={['workshop', 'check']}
-      />
-
-      {/* Bon de transport école → atelier (si escalade) */}
-      {shouldOfferSchoolShipping && (
-        <section className="card p-5" data-section="shipping">
-          <h2 className="section-title mb-3">Bon de transport école → atelier</h2>
-          <p className="mb-4 text-sm text-slate-600">
-            {ticket.school_workshop_label_url
-              ? "Étiquette GLS prête — collez-la sur le colis avant expédition."
-              : `Générez l'étiquette GLS pour expédier l'aile à ${ticket.assigned_workshop_label ?? 'l\'atelier'}.`}
-          </p>
-          <ShippingLabelButton
-            ticketId={ticket.id}
-            leg="school_to_workshop"
-            initialTracking={ticket.school_workshop_tracking}
-            initialLabelUrl={ticket.school_workshop_label_url}
-            requireScan
-            wingSerial={ticket.serial_number ?? null}
-          />
-        </section>
-      )}
-
-      {/* Décision (mineur / important / grave) */}
-      <section className="card p-5" data-section="decision">
-        <h2 className="section-title mb-4">Décision</h2>
-        {!isCheckValidated && !ticket.school_resolution && (
-          <div className="mb-4 rounded-xl bg-brand-cream p-3 text-xs text-slate-600">
-            💡 Lancez d&apos;abord le check de l&apos;aile pour une décision éclairée.
-          </div>
-        )}
-        <SchoolResolutionPanel
-          ticketId={ticket.id}
-          currentResolution={ticket.school_resolution as SchoolResolution | null}
-          assignedWorkshopLabel={ticket.assigned_workshop_label}
-          isPlumeUrgent={ticket.is_plume_urgent ?? false}
-        />
-      </section>
-    </>
   )
 
   return (
@@ -347,9 +332,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           state={stateTab}
           declaration={declarationTab}
           messages={messagesTab}
-          check={checkTab}
           messagesCount={visibleMessages.length}
-          checkValidated={isCheckValidated}
         />
       </main>
     </div>

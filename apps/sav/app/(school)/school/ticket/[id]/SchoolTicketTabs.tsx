@@ -1,38 +1,22 @@
 'use client'
 
-import { createContext, useContext, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 
-export type SchoolTicketTab = 'state' | 'declaration' | 'messages' | 'check'
-
-interface SchoolTabsContextValue {
-  setTab: (tab: SchoolTicketTab) => void
-}
-
-const SchoolTabsContext = createContext<SchoolTabsContextValue | null>(null)
-
-/** Hook pour qu'un enfant (ex: SchoolStepPanel) puisse changer l'onglet actif. */
-export function useSchoolTabs() {
-  return useContext(SchoolTabsContext)
-}
+export type SchoolTicketTab = 'state' | 'declaration' | 'messages'
 
 interface SchoolTicketTabsProps {
   state:        ReactNode
   declaration:  ReactNode
   messages:     ReactNode
-  check:        ReactNode
   /** Total visible messages — surfaced as a badge on the Messages tab. */
   messagesCount: number
-  /** When true, hint that the check has been completed (visual ✓ on the Check tab). */
-  checkValidated: boolean
 }
 
 export function SchoolTicketTabs({
   state,
   declaration,
   messages,
-  check,
   messagesCount,
-  checkValidated,
 }: SchoolTicketTabsProps) {
   const [tab, setTab] = useState<SchoolTicketTab>('state')
 
@@ -43,7 +27,7 @@ export function SchoolTicketTabs({
     'border border-brand-stone bg-white text-slate-500 hover:text-brand-ink hover:border-brand-gold/40'
 
   return (
-    <SchoolTabsContext.Provider value={{ setTab }}>
+    <>
       <div
         role="tablist"
         aria-label="Sections du ticket"
@@ -97,26 +81,6 @@ export function SchoolTicketTabs({
             </span>
           )}
         </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'check'}
-          aria-controls="panel-check"
-          id="tab-check"
-          onClick={() => setTab('check')}
-          className={`${baseBtn} ${tab === 'check' ? activeBtn : idleBtn}`}
-        >
-          <span aria-hidden>🔍</span>
-          <span>Check aile</span>
-          {checkValidated && (
-            <span
-              className="ml-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[11px] font-bold text-white"
-              aria-label="Check validé"
-            >
-              ✓
-            </span>
-          )}
-        </button>
       </div>
 
       <div
@@ -148,16 +112,6 @@ export function SchoolTicketTabs({
       >
         {tab === 'messages' && messages}
       </div>
-
-      <div
-        id="panel-check"
-        role="tabpanel"
-        aria-labelledby="tab-check"
-        hidden={tab !== 'check'}
-        className="space-y-3"
-      >
-        {tab === 'check' && check}
-      </div>
-    </SchoolTabsContext.Provider>
+    </>
   )
 }

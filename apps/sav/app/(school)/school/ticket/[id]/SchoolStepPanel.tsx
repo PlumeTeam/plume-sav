@@ -10,7 +10,7 @@ import {
 import { ScanGateModal } from '@/features/tickets/components/ScanGateModal'
 import { formatDateTime } from '@/features/tickets/utils'
 import type { RequestStatus, SchoolResolution } from '@/features/tickets/types'
-import { useSchoolTabs } from './SchoolTicketTabs'
+import { SchoolResolutionPanel } from './SchoolResolutionPanel'
 
 interface SchoolStepPanelProps {
   ticketId:                string
@@ -24,6 +24,10 @@ interface SchoolStepPanelProps {
   wingSerial:              string | null
   /** Décision prise au check (null = pas encore décidé). Pilote l'étape 4. */
   schoolResolution:        SchoolResolution | null
+  /** Libellé de l'atelier assigné (utilisé par la modal de décision). */
+  assignedWorkshopLabel:   string | null
+  /** Flag d'urgence Plume HQ (utilisé par la modal de décision). */
+  isPlumeUrgent:           boolean
 }
 
 type StepKey = 'ack' | 'wing' | 'check' | 'decision'
@@ -114,24 +118,21 @@ export function SchoolStepPanel({
   checkInspector,
   wingSerial,
   schoolResolution,
+  assignedWorkshopLabel,
+  isPlumeUrgent,
 }: SchoolStepPanelProps) {
   const router = useRouter()
-  const tabs = useSchoolTabs()
   const [isPending, startTransition] = useTransition()
   const [scanGateFor, setScanGateFor] = useState<StepKey | null>(null)
+  const [decisionModalOpen, setDecisionModalOpen] = useState(false)
 
   const ctx: StepCtx = { status, isCheckValidated, schoolResolution }
 
   function executeStep(key: StepKey) {
     if (key === 'decision') {
-      // Pas de Server Action ici — la section Décision vit dans l'onglet
-      // "Check aile". On bascule l'onglet, puis on scroll une fois le panneau
-      // monté (le contenu n'existe pas dans le DOM tant que tab !== 'check').
-      tabs?.setTab('check')
-      setTimeout(() => {
-        const target = document.querySelector('[data-section="decision"]')
-        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      }, 100)
+      // Ouvre la modal contenant SchoolResolutionPanel — remplace l'ancien
+      // mécanisme de switch d'onglet + scroll vers la section "Décision".
+      setDecisionModalOpen(true)
       return
     }
 
@@ -286,6 +287,50 @@ export function SchoolStepPanel({
         title={activeScanStep?.scanTitle ?? 'Scan flashcode'}
         subtitle={activeScanStep?.scanSubtitle ?? ''}
       />
+
+      {decisionModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="decision-modal-title"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setDecisionModalOpen(false)
+          }}
+        >
+          <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-xl sm:rounded-3xl">
+            <div className="flex items-start justify-between gap-3 border-b border-brand-stone px-5 py-4">
+              <div>
+                <h2
+                  id="decision-modal-title"
+                  className="text-base font-semibold text-brand-ink"
+                >
+                  ⚖️ Prendre la décision
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Choisissez la suite à donner à ce ticket.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDecisionModalOpen(false)}
+                aria-label="Fermer"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-brand-cream hover:text-brand-ink"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="overflow-y-auto px-5 py-4">
+              <SchoolResolutionPanel
+                ticketId={ticketId}
+                currentResolution={schoolResolution}
+                assignedWorkshopLabel={assignedWorkshopLabel}
+                isPlumeUrgent={isPlumeUrgent}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

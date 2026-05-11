@@ -33,6 +33,12 @@ export interface TicketChannel {
   spotlight?: ReactNode
   /** Empty thread placeholder. */
   emptyText?: string
+  /**
+   * When set, replaces the default conversation card + composer with custom
+   * JSX. Used when a channel needs richer state than the standard thread —
+   * e.g. school's workshop channel inlines a workshop picker before the chat.
+   */
+  body?: ReactNode
 }
 
 interface Props {
@@ -117,21 +123,27 @@ export function TicketChannelSwitch({
 
       {active.spotlight}
 
-      <section className="card p-5">
-        <h2 className="section-title mb-4 flex items-center gap-2">
-          <span aria-hidden>{active.emoji}</span>
-          <span>{active.label}</span>
-        </h2>
-        <CommentThread
-          messages={visible}
-          ownRoles={ownRoles}
-          showInternalBadge={showInternalBadge}
-          emptyText={active.emptyText ?? 'Aucun message dans ce canal pour le moment.'}
-        />
-      </section>
+      {active.body ? (
+        active.body
+      ) : (
+        <>
+          <section className="card p-5">
+            <h2 className="section-title mb-4 flex items-center gap-2">
+              <span aria-hidden>{active.emoji}</span>
+              <span>{active.label}</span>
+            </h2>
+            <CommentThread
+              messages={visible}
+              ownRoles={ownRoles}
+              showInternalBadge={showInternalBadge}
+              emptyText={active.emptyText ?? 'Aucun message dans ce canal pour le moment.'}
+            />
+          </section>
 
-      {active.composer && (
-        <ChannelComposer key={active.id} ticketId={ticketId} cfg={active.composer} />
+          {active.composer && (
+            <ChannelComposer key={active.id} ticketId={ticketId} cfg={active.composer} />
+          )}
+        </>
       )}
     </div>
   )
