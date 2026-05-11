@@ -1,4 +1,4 @@
-'use server'
+﻿'use server'
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
@@ -19,13 +19,13 @@ import type {
 } from '../types'
 import { generateShippingLabelSchema } from '../schemas'
 
-const ANNUAL_FREE_SAV_THRESHOLD = 2  // dès le 2ème ticket de l'année → admin
+const ANNUAL_FREE_SAV_THRESHOLD = 2  // dÃ¨s le 2Ã¨me ticket de l'annÃ©e â†’ admin
 
 interface GenerateLabelOk {
   ok:             true
   trackingNumber: string
   labelUrl:       string
-  /** Échos de l'adresse persistée (utile pour rafraîchir l'UI). */
+  /** Ã‰chos de l'adresse persistÃ©e (utile pour rafraÃ®chir l'UI). */
   address?:       ClientShippingAddress | null
 }
 
@@ -47,16 +47,16 @@ type GenerateLabelResult =
   | GenerateLabelPending
   | GenerateLabelError
 
-// Adresse postale école — récupérée depuis partner_schools, ou string brute
+// Adresse postale Ã©cole â€” rÃ©cupÃ©rÃ©e depuis partner_schools, ou string brute
 // fallback. L'API GLS a juste besoin du `rawLine` final + `country`, on garde
-// les champs décomposés nullables pour les écoles dont on n'a qu'un texte libre.
+// les champs dÃ©composÃ©s nullables pour les Ã©coles dont on n'a qu'un texte libre.
 type ResolvedAddress = {
   name:    string
   street:  string | null
   postal:  string | null
   city:    string | null
   country: string
-  rawLine: string  // version one-line si on n'a pas la décomposition
+  rawLine: string  // version one-line si on n'a pas la dÃ©composition
 }
 
 function clientShippingAddressOrNull(raw: unknown): ClientShippingAddress | null {
@@ -72,8 +72,8 @@ function clientShippingAddressOrNull(raw: unknown): ClientShippingAddress | null
   }
 }
 
-// Placeholder GLS — sera remplacé par un appel vers une edge function
-// `create-sav-gls-shipment` qui lit les secrets et appelle l'API GLS réelle.
+// Placeholder GLS â€” sera remplacÃ© par un appel vers une edge function
+// `create-sav-gls-shipment` qui lit les secrets et appelle l'API GLS rÃ©elle.
 // Le format du retour reproduit ce que l'edge function exposera.
 function generatePlaceholderLabel(args: {
   ticketId: string
@@ -85,7 +85,7 @@ function generatePlaceholderLabel(args: {
   const stamp   = Date.now().toString(36).toUpperCase()
   const short   = args.ticketId.replace(/-/g, '').slice(0, 8).toUpperCase()
   const trackingNumber = `GLS-PLACEHOLDER-${legCode}-${short}-${stamp}`
-  // URL clairement fake : facile à grepper le jour où on branche le vrai GLS.
+  // URL clairement fake : facile Ã  grepper le jour oÃ¹ on branche le vrai GLS.
   const labelUrl = `https://placeholder.gls.invalid/labels/${trackingNumber}.pdf`
   if (process.env.NODE_ENV !== 'production') {
     console.warn('[generateSavShippingLabelAction] PLACEHOLDER GLS call', {
@@ -98,8 +98,8 @@ function generatePlaceholderLabel(args: {
   return { trackingNumber, labelUrl }
 }
 
-// Compose un ResolvedAddress lisible à partir d'une école (DB) — adresse libre
-// ou décomposée selon ce que partner_schools fournit.
+// Compose un ResolvedAddress lisible Ã  partir d'une Ã©cole (DB) â€” adresse libre
+// ou dÃ©composÃ©e selon ce que partner_schools fournit.
 function resolveSchoolAddress(detail: {
   name: string
   city?: string | null
@@ -136,7 +136,7 @@ function resolveWorkshopAddress(workshopId: string | null, label: string | null)
     postal:  null,
     city:    w.city,
     country: 'FR',
-    rawLine: `${w.label} — ${w.address}`,
+    rawLine: `${w.label} â€” ${w.address}`,
   }
 }
 
@@ -157,7 +157,7 @@ export async function generateSavShippingLabelAction(formData: FormData): Promis
   let parsedAddress: unknown = undefined
   if (typeof rawAddress === 'string' && rawAddress.length > 0) {
     try { parsedAddress = JSON.parse(rawAddress) }
-    catch { return { error: { _form: ["Adresse mal formée"] } } }
+    catch { return { error: { _form: ["Adresse mal formÃ©e"] } } }
   }
 
   const parsed = generateShippingLabelSchema.safeParse({
@@ -175,9 +175,9 @@ export async function generateSavShippingLabelAction(formData: FormData): Promis
   // 2. Auth
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: { _form: ['Non authentifié'] } }
+  if (!user) return { error: { _form: ['Non authentifiÃ©'] } }
 
-  // 3. Ticket lookup (RLS scoped — le client ne lit que ses tickets, l'école
+  // 3. Ticket lookup (RLS scoped â€” le client ne lit que ses tickets, l'Ã©cole
   //    que ceux qu'elle traite, etc.)
   const { data: ticket, error: fetchError } = await supabase
     .from('service_requests')
@@ -189,7 +189,7 @@ export async function generateSavShippingLabelAction(formData: FormData): Promis
     return { error: { _form: ['Demande introuvable'] } }
   }
 
-  // 4. Idempotence : si on a déjà un tracking pour ce leg, on le ré-expose.
+  // 4. Idempotence : si on a dÃ©jÃ  un tracking pour ce leg, on le rÃ©-expose.
   const existingTracking =
     leg === 'client_to_school'   ? ticket.client_school_tracking
   : leg === 'school_to_workshop' ? ticket.school_workshop_tracking
@@ -211,14 +211,14 @@ export async function generateSavShippingLabelAction(formData: FormData): Promis
     }
   }
 
-  // 5. Résolution des adresses + checks spécifiques par leg
+  // 5. RÃ©solution des adresses + checks spÃ©cifiques par leg
   const clientName = [ticket.first_name, ticket.last_name].filter(Boolean).join(' ').trim() || 'Client Plume'
 
   let from: ResolvedAddress | null = null
   let to:   ResolvedAddress | null = null
   let addressToPersist: ClientShippingAddress | null = null
 
-  // Adresse école — partagée par les legs 1 et 3-vers-école.
+  // Adresse Ã©cole â€” partagÃ©e par les legs 1 et 3-vers-Ã©cole.
   const schoolDetail = ticket.referent_school_id
     ? await getPartnerSchoolById(ticket.referent_school_id)
     : null
@@ -230,22 +230,22 @@ export async function generateSavShippingLabelAction(formData: FormData): Promis
   }) : null
 
   if (leg === 'client_to_school') {
-    // 5a. Adresse client : capture lazy si pas encore stockée.
+    // 5a. Adresse client : capture lazy si pas encore stockÃ©e.
     const stored = clientShippingAddressOrNull(ticket.client_shipping_address)
     const finalAddress = address ?? stored
     if (!finalAddress) return { needsAddress: true }
     addressToPersist = finalAddress
 
-    // 5b. Anti-abus : si déjà flaggé par un précédent appel, ou si le compteur
-    //     annuel passe le seuil → bloquer et notifier admin.
+    // 5b. Anti-abus : si dÃ©jÃ  flaggÃ© par un prÃ©cÃ©dent appel, ou si le compteur
+    //     annuel passe le seuil â†’ bloquer et notifier admin.
     if (ticket.auto_approved_shipping === false) {
       return { pendingAdminApproval: true }
     }
 
     const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString()
-    // Restreindre aux types créés par le wizard SAV ('sav' pour comportements,
-    // 'repair' pour tear/line/riser — voir deriveServiceType). Les autres
-    // service_type (cours, info, révision) ne comptent pas dans le quota.
+    // Restreindre aux types crÃ©Ã©s par le wizard SAV ('sav' pour comportements,
+    // 'repair' pour tear/line/riser â€” voir deriveServiceType). Les autres
+    // service_type (cours, info, rÃ©vision) ne comptent pas dans le quota.
     const { count, error: countError } = await supabase
       .from('service_requests')
       .select('id', { count: 'exact', head: true })
@@ -256,8 +256,8 @@ export async function generateSavShippingLabelAction(formData: FormData): Promis
       console.warn('[generateSavShippingLabelAction] count failed:', countError.message)
     }
     if ((count ?? 0) >= ANNUAL_FREE_SAV_THRESHOLD) {
-      // Persiste l'adresse + flag → admin verra le ticket dans sa queue.
-      // Le cast en `Json` est nécessaire car ClientShippingAddress est une
+      // Persiste l'adresse + flag â†’ admin verra le ticket dans sa queue.
+      // Le cast en `Json` est nÃ©cessaire car ClientShippingAddress est une
       // interface stricte sans index signature.
       const { error: flagError } = await supabase
         .from('service_requests')
@@ -276,7 +276,7 @@ export async function generateSavShippingLabelAction(formData: FormData): Promis
     }
 
     if (!schoolAddress) {
-      return { error: { _form: ['École destinataire introuvable — impossible de générer le bon de transport'] } }
+      return { error: { _form: ['Ã‰cole destinataire introuvable â€” impossible de gÃ©nÃ©rer le bon de transport'] } }
     }
     from = resolveClientAddress(clientName, finalAddress)
     to   = schoolAddress
@@ -284,11 +284,11 @@ export async function generateSavShippingLabelAction(formData: FormData): Promis
 
   if (leg === 'school_to_workshop') {
     if (!schoolAddress) {
-      return { error: { _form: ['Adresse de l\'école introuvable'] } }
+      return { error: { _form: ['Adresse de l\'Ã©cole introuvable'] } }
     }
     const workshopAddr = resolveWorkshopAddress(ticket.assigned_workshop_id, ticket.assigned_workshop_label)
     if (!workshopAddr) {
-      return { error: { _form: ["Aucun atelier assigné à ce ticket"] } }
+      return { error: { _form: ["Aucun atelier assignÃ© Ã  ce ticket"] } }
     }
     from = schoolAddress
     to   = workshopAddr
@@ -297,7 +297,7 @@ export async function generateSavShippingLabelAction(formData: FormData): Promis
   if (leg === 'workshop_to_return') {
     const dest = returnDestination ?? ticket.workshop_return_destination
     if (!dest) {
-      return { error: { _form: ['Précisez la destination du renvoi (école ou client)'] } }
+      return { error: { _form: ['PrÃ©cisez la destination du renvoi (Ã©cole ou client)'] } }
     }
     const workshopAddr = resolveWorkshopAddress(ticket.assigned_workshop_id, ticket.assigned_workshop_label)
     if (!workshopAddr) {
@@ -305,14 +305,14 @@ export async function generateSavShippingLabelAction(formData: FormData): Promis
     }
     if (dest === 'school') {
       if (!schoolAddress) {
-        return { error: { _form: ['École destinataire introuvable'] } }
+        return { error: { _form: ['Ã‰cole destinataire introuvable'] } }
       }
       from = workshopAddr
       to   = schoolAddress
     } else {
       const stored = clientShippingAddressOrNull(ticket.client_shipping_address)
       if (!stored) {
-        return { error: { _form: ["Adresse client absente — le client doit d'abord générer son bon de transport initial"] } }
+        return { error: { _form: ["Adresse client absente â€” le client doit d'abord gÃ©nÃ©rer son bon de transport initial"] } }
       }
       from = workshopAddr
       to   = resolveClientAddress(clientName, stored)
@@ -320,10 +320,10 @@ export async function generateSavShippingLabelAction(formData: FormData): Promis
   }
 
   if (!from || !to) {
-    return { error: { _form: ['Impossible de résoudre les adresses pour ce leg'] } }
+    return { error: { _form: ['Impossible de rÃ©soudre les adresses pour ce leg'] } }
   }
 
-  // 6. Génération (placeholder pour l'instant)
+  // 6. GÃ©nÃ©ration (placeholder pour l'instant)
   const { trackingNumber, labelUrl } = generatePlaceholderLabel({ ticketId, leg, from, to })
 
   // 7. Persistance des champs sur le ticket
@@ -369,7 +369,8 @@ export async function generateSavShippingLabelAction(formData: FormData): Promis
   }
 }
 
-// École : assigne un atelier au ticket pour la communication, sans escalade.
-// Utilisé par le picker du composer "Communiquer avec l'atelier" — l'école
-// choisit son interlocuteur, sans verrouiller la décision finale (qui reste
-// gérée par applySchoolResolutionAction).
+// Ã‰cole : assigne un atelier au ticket pour la communication, sans escalade.
+// UtilisÃ© par le picker du composer "Communiquer avec l'atelier" â€” l'Ã©cole
+// choisit son interlocuteur, sans verrouiller la dÃ©cision finale (qui reste
+// gÃ©rÃ©e par applySchoolResolutionAction).
+

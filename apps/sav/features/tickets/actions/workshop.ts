@@ -1,4 +1,4 @@
-'use server'
+﻿'use server'
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
@@ -32,7 +32,7 @@ export async function saveWorkshopChecklistAction(formData: FormData) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: { _form: ['Non authentifié'] } }
+  if (!user) return { error: { _form: ['Non authentifiÃ©'] } }
 
   const { ticketId, checkedIds, notes } = parsed.data
   const payload = { checkedIds, notes: notes ?? null, updatedAt: new Date().toISOString() }
@@ -61,8 +61,8 @@ export async function markWingReceivedWorkshopAction(formData: FormData) {
 }
 
 /**
- * Étape 5 — L'atelier commence le diagnostic technique.
- * wing_received_workshop → workshop_diagnosing
+ * Ã‰tape 5 â€” L'atelier commence le diagnostic technique.
+ * wing_received_workshop â†’ workshop_diagnosing
  */
 export async function startWorkshopDiagnosisAction(formData: FormData) {
   const ticketId = String(formData.get('ticketId') ?? '')
@@ -77,8 +77,8 @@ export async function startWorkshopDiagnosisAction(formData: FormData) {
 }
 
 /**
- * Étape 6 — La réparation démarre.
- * workshop_diagnosing → workshop_repairing
+ * Ã‰tape 6 â€” La rÃ©paration dÃ©marre.
+ * workshop_diagnosing â†’ workshop_repairing
  */
 export async function startWorkshopRepairAction(formData: FormData) {
   const ticketId = String(formData.get('ticketId') ?? '')
@@ -92,8 +92,8 @@ export async function startWorkshopRepairAction(formData: FormData) {
 }
 
 /**
- * Étape 7 — L'atelier a fini la réparation.
- * workshop_repairing → workshop_done
+ * Ã‰tape 7 â€” L'atelier a fini la rÃ©paration.
+ * workshop_repairing â†’ workshop_done
  */
 export async function markWorkshopDoneAction(formData: FormData) {
   const ticketId = String(formData.get('ticketId') ?? '')
@@ -108,8 +108,9 @@ export async function markWorkshopDoneAction(formData: FormData) {
 }
 
 /**
- * Étape 8 — L'atelier renvoie l'aile (au client direct ou via l'école).
- * workshop_done → wing_returned
+ * Ã‰tape 8 â€” L'atelier renvoie l'aile (au client direct ou via l'Ã©cole).
+ * workshop_done â†’ wing_returned
  *
- * `recipient` est consigné dans la note d'audit pour traçabilité.
+ * `recipient` est consignÃ© dans la note d'audit pour traÃ§abilitÃ©.
  */
+

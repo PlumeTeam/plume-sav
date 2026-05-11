@@ -1,4 +1,4 @@
-'use server'
+﻿'use server'
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
@@ -43,7 +43,7 @@ export async function saveDiagnosisAction(formData: FormData) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: { _form: ['Non authentifié'] } }
+  if (!user) return { error: { _form: ['Non authentifiÃ©'] } }
 
   const { ticketId, diagnosisNotes, estimatedCost, estimatedHours, partsNeeded } = parsed.data
 
@@ -64,7 +64,7 @@ export async function saveDiagnosisAction(formData: FormData) {
 }
 
 // ============================================================
-// Workflow diagnostic école / atelier (migration 20260503120000)
+// Workflow diagnostic Ã©cole / atelier (migration 20260503120000)
 // ============================================================
 
 export async function saveSchoolChecklistAction(formData: FormData) {
@@ -77,7 +77,7 @@ export async function saveSchoolChecklistAction(formData: FormData) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: { _form: ['Non authentifié'] } }
+  if (!user) return { error: { _form: ['Non authentifiÃ©'] } }
 
   const { ticketId, checkedIds, notes } = parsed.data
   const payload = { checkedIds, notes: notes ?? null, updatedAt: new Date().toISOString() }
@@ -106,16 +106,16 @@ export async function applySchoolResolutionAction(formData: FormData) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: { _form: ['Non authentifié'] } }
+  if (!user) return { error: { _form: ['Non authentifiÃ©'] } }
 
   const { ticketId, resolution, note, workshopId, workshopLabel, isPlumeUrgent } = parsed.data
 
-  // Garde-fou : si l'école escalade ou demande un avis, le workshopId doit
-  // correspondre à un atelier connu de PARTNER_WORKSHOPS. Empêche un client
-  // qui forgerait une requête de pointer vers un atelier arbitraire.
+  // Garde-fou : si l'Ã©cole escalade ou demande un avis, le workshopId doit
+  // correspondre Ã  un atelier connu de PARTNER_WORKSHOPS. EmpÃªche un client
+  // qui forgerait une requÃªte de pointer vers un atelier arbitraire.
   if (resolution === 'escalated_to_workshop' || resolution === 'workshop_advice_requested') {
     if (!workshopId || !PARTNER_WORKSHOPS.some((w) => w.id === workshopId)) {
-      return { error: { _form: ["Atelier inconnu — choisissez un atelier du réseau partenaire"] } }
+      return { error: { _form: ["Atelier inconnu â€” choisissez un atelier du rÃ©seau partenaire"] } }
     }
   }
 
@@ -152,7 +152,7 @@ export async function applySchoolResolutionAction(formData: FormData) {
     fullUpdate.workshop_assigned_at    = now
     fullUpdate.workshop_assigned_by    = user.id
   }
-  // Step pipeline timestamp — l'escalade vers atelier marque l'entrée dans
+  // Step pipeline timestamp â€” l'escalade vers atelier marque l'entrÃ©e dans
   // la branche workshop, le client le voit dans sa timeline.
   if (resolution === 'escalated_to_workshop') {
     fullUpdate.escalated_to_workshop_at = now
@@ -170,7 +170,7 @@ export async function applySchoolResolutionAction(formData: FormData) {
       /column .* does not exist/i.test(error.message) ||
       /could not find the .* column/i.test(error.message)
     if (looksLikeMissingColumn) {
-      console.warn('applySchoolResolutionAction: retrying without is_plume_urgent —', error.message)
+      console.warn('applySchoolResolutionAction: retrying without is_plume_urgent â€”', error.message)
       const legacyUpdate: TicketUpdate = { ...fullUpdate }
       delete legacyUpdate.is_plume_urgent
       const r = await supabase.from('service_requests').update(legacyUpdate).eq('id', ticketId)
@@ -178,7 +178,7 @@ export async function applySchoolResolutionAction(formData: FormData) {
     }
   }
 
-  if (error) return { error: { _form: [`Erreur lors de la résolution (${error.message})`] } }
+  if (error) return { error: { _form: [`Erreur lors de la rÃ©solution (${error.message})`] } }
 
   // Best-effort audit trail
   const { error: histError } = await supabase.from('ticket_status_history').insert({
@@ -188,11 +188,11 @@ export async function applySchoolResolutionAction(formData: FormData) {
     changed_by: user.id,
     note:       note ? `[${resolution}] ${note}` : `[${resolution}]`,
   })
-  if (histError) console.warn('ticket_status_history insert failed:', histError.message)
+  if (histError) console.error('[SAV] ticket_status_history insert failed:', histError.message)
 
-  // Notification client (best-effort) — seules les décisions « définitives »
-  // (école résout, ou ticket part vers l'atelier) déclenchent un email. Les
-  // états transitoires (advice/reflection) restent silencieux côté client.
+  // Notification client (best-effort) â€” seules les dÃ©cisions Â« dÃ©finitives Â»
+  // (Ã©cole rÃ©sout, ou ticket part vers l'atelier) dÃ©clenchent un email. Les
+  // Ã©tats transitoires (advice/reflection) restent silencieux cÃ´tÃ© client.
   const stepEmail: ClientStepEmail | null =
     resolution === 'resolved_by_school' || resolution === 'normal_behavior_explained'
       ? 'school_resolved'
@@ -257,10 +257,10 @@ export async function markWingReceivedSchoolAction(formData: FormData) {
 }
 
 /**
- * Étape 3 — L'école lance le check (ouvre le wizard).
- * wing_received_school → school_checking
+ * Ã‰tape 3 â€” L'Ã©cole lance le check (ouvre le wizard).
+ * wing_received_school â†’ school_checking
  *
- * Pas de timestamp dédié : la fin de check est matérialisée par le
+ * Pas de timestamp dÃ©diÃ© : la fin de check est matÃ©rialisÃ©e par le
  * remplissage de school_checklist, qui porte sa propre updatedAt.
  */
 export async function startSchoolCheckAction(formData: FormData) {
@@ -274,9 +274,10 @@ export async function startSchoolCheckAction(formData: FormData) {
   })
 }
 
-// ── Atelier : étapes post-escalade ──────────────────────────────────────────
+// â”€â”€ Atelier : Ã©tapes post-escalade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
- * Étape 4 — L'atelier a réceptionné l'aile.
- * escalated_to_workshop → wing_received_workshop
+ * Ã‰tape 4 â€” L'atelier a rÃ©ceptionnÃ© l'aile.
+ * escalated_to_workshop â†’ wing_received_workshop
  */
+

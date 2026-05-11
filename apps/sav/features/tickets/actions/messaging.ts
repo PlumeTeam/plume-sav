@@ -1,4 +1,4 @@
-'use server'
+﻿'use server'
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
@@ -36,7 +36,7 @@ export async function addMessageAction(formData: FormData) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: { _form: ['Non authentifié'] } }
+  if (!user) return { error: { _form: ['Non authentifiÃ©'] } }
 
   const { error } = await supabase.from('ticket_messages').insert({
     ticket_id: parsed.data.ticketId,
@@ -65,7 +65,7 @@ export async function updateTicketStatusAction(formData: FormData) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: { _form: ['Non authentifié'] } }
+  if (!user) return { error: { _form: ['Non authentifiÃ©'] } }
 
   const { ticketId, newStatus, note } = parsed.data
 
@@ -87,7 +87,7 @@ export async function updateTicketStatusAction(formData: FormData) {
     })
     .eq('id', ticketId)
 
-  if (updateError) return { error: { _form: [`Erreur lors de la mise à jour (${updateError.message})`] } }
+  if (updateError) return { error: { _form: [`Erreur lors de la mise Ã  jour (${updateError.message})`] } }
 
   // Best-effort audit trail (table may not exist on legacy envs)
   const { error: histError } = await supabase.from('ticket_status_history').insert({
@@ -97,7 +97,7 @@ export async function updateTicketStatusAction(formData: FormData) {
     changed_by: user.id,
     note:       note ?? null,
   })
-  if (histError) console.warn('ticket_status_history insert failed:', histError.message)
+  if (histError) console.error('[SAV] ticket_status_history insert failed:', histError.message)
 
   revalidatePath(`/client/ticket/${ticketId}`)
   revalidatePath(`/school/ticket/${ticketId}`)
@@ -122,7 +122,7 @@ export async function addRoleMessageAction(formData: FormData) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: { _form: ['Non authentifié'] } }
+  if (!user) return { error: { _form: ['Non authentifiÃ©'] } }
 
   const { ticketId, content, isInternal, senderRole: requestedRole, visibilityLevel } = parsed.data
 
@@ -141,11 +141,11 @@ export async function addRoleMessageAction(formData: FormData) {
     // Non-admin: requested role must match a role they actually own.
     senderRole = requestedRole
   } else if (requestedRole === 'client') {
-    // Authenticated ticket owner without an explicit user_roles row — RLS still
+    // Authenticated ticket owner without an explicit user_roles row â€” RLS still
     // enforces ownership (client_insert_messages requires service_request.client_id = auth.uid()).
     senderRole = 'client'
   } else {
-    return { error: { _form: ["Vous n'avez pas le droit de poster avec ce rôle."] } }
+    return { error: { _form: ["Vous n'avez pas le droit de poster avec ce rÃ´le."] } }
   }
 
   // Explicit visibility wins; otherwise fall back to a sender-role mapping.
@@ -175,4 +175,5 @@ export async function addRoleMessageAction(formData: FormData) {
   revalidatePath(`/client/ticket/${ticketId}`)
   return { success: true }
 }
+
 

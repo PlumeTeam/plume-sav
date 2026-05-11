@@ -1,4 +1,4 @@
-'use server'
+﻿'use server'
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
@@ -34,22 +34,22 @@ export async function acknowledgeTicketAction(formData: FormData) {
 }
 
 /**
- * Étape 2 — L'école a réceptionné l'aile (en main propre ou par poste).
- * school_acknowledged → wing_received_school
+ * Ã‰tape 2 â€” L'Ã©cole a rÃ©ceptionnÃ© l'aile (en main propre ou par poste).
+ * school_acknowledged â†’ wing_received_school
  */
 
 export async function markWingReturnedAction(formData: FormData) {
   const ticketId = String(formData.get('ticketId') ?? '')
   if (!ticketId) return { error: { _form: ['Identifiant manquant'] } }
   const recipient = String(formData.get('recipient') ?? '')
-  // recipient est requis et doit être 'school' ou 'client' — refuse explicitement
-  // les valeurs forgées (anti-injection) plutôt que de fallback silencieusement.
+  // recipient est requis et doit Ãªtre 'school' ou 'client' â€” refuse explicitement
+  // les valeurs forgÃ©es (anti-injection) plutÃ´t que de fallback silencieusement.
   if (recipient !== 'school' && recipient !== 'client') {
-    return { error: { _form: ['Destination invalide — choisissez école ou client'] } }
+    return { error: { _form: ['Destination invalide â€” choisissez Ã©cole ou client'] } }
   }
   const note = recipient === 'school'
-    ? "Aile renvoyée à l'école partenaire"
-    : 'Aile renvoyée directement au client'
+    ? "Aile renvoyÃ©e Ã  l'Ã©cole partenaire"
+    : 'Aile renvoyÃ©e directement au client'
   return advanceTicketStep({
     ticketId,
     from:            ['workshop_done'],
@@ -61,9 +61,9 @@ export async function markWingReturnedAction(formData: FormData) {
 }
 
 /**
- * Étape finale — Clôture du ticket. Disponible depuis :
+ * Ã‰tape finale â€” ClÃ´ture du ticket. Disponible depuis :
  *  - wing_returned (parcours atelier complet)
- *  - school_resolved (parcours école-only)
+ *  - school_resolved (parcours Ã©cole-only)
  */
 export async function markTicketCompletedAction(formData: FormData) {
   const ticketId = String(formData.get('ticketId') ?? '')
@@ -80,17 +80,18 @@ export async function markTicketCompletedAction(formData: FormData) {
 // Bons de transport GLS (migration 20260510000000)
 // ============================================================
 //
-// Trois legs de transport peuvent être déclenchés :
-//   1. client_to_school   — par le client, après choix "envoi postal"
-//   2. school_to_workshop — par l'école, après escalade vers atelier
-//   3. workshop_to_return — par l'atelier, après réparation
+// Trois legs de transport peuvent Ãªtre dÃ©clenchÃ©s :
+//   1. client_to_school   â€” par le client, aprÃ¨s choix "envoi postal"
+//   2. school_to_workshop â€” par l'Ã©cole, aprÃ¨s escalade vers atelier
+//   3. workshop_to_return â€” par l'atelier, aprÃ¨s rÃ©paration
 //
-// La génération elle-même est, pour l'instant, simulée (placeholder).
-// Le câblage vers l'API GLS réelle (via une edge function wrapper qui
-// peut lire les secrets GLS_*) est documenté en Phase 4 — voir le PR.
+// La gÃ©nÃ©ration elle-mÃªme est, pour l'instant, simulÃ©e (placeholder).
+// Le cÃ¢blage vers l'API GLS rÃ©elle (via une edge function wrapper qui
+// peut lire les secrets GLS_*) est documentÃ© en Phase 4 â€” voir le PR.
 //
-// Anti-abus : un client a droit à 1 SAV gratuit par année civile. À
-// partir du 2ème ticket, le leg client_to_school passe en validation
-// admin (auto_approved_shipping = false) avant que l'étiquette ne soit
-// générée. Les autres legs (école/atelier) ne sont jamais bloqués.
+// Anti-abus : un client a droit Ã  1 SAV gratuit par annÃ©e civile. Ã€
+// partir du 2Ã¨me ticket, le leg client_to_school passe en validation
+// admin (auto_approved_shipping = false) avant que l'Ã©tiquette ne soit
+// gÃ©nÃ©rÃ©e. Les autres legs (Ã©cole/atelier) ne sont jamais bloquÃ©s.
+
 

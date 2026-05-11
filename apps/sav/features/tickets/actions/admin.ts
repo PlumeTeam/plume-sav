@@ -1,4 +1,4 @@
-'use server'
+﻿'use server'
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
@@ -36,13 +36,13 @@ export async function assignWorkshopForCommunicationAction(formData: FormData) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: { _form: ['Non authentifié'] } }
+  if (!user) return { error: { _form: ['Non authentifiÃ©'] } }
 
   const { ticketId, workshopId, workshopLabel } = parsed.data
 
-  // Garde-fou : workshopId doit être dans PARTNER_WORKSHOPS (anti-forge).
+  // Garde-fou : workshopId doit Ãªtre dans PARTNER_WORKSHOPS (anti-forge).
   if (!PARTNER_WORKSHOPS.some((w) => w.id === workshopId)) {
-    return { error: { _form: ["Atelier inconnu — choisissez un atelier du réseau partenaire"] } }
+    return { error: { _form: ["Atelier inconnu â€” choisissez un atelier du rÃ©seau partenaire"] } }
   }
 
   const now = new Date().toISOString()
@@ -65,24 +65,24 @@ export async function assignWorkshopForCommunicationAction(formData: FormData) {
 }
 
 // ============================================================
-// Actions admin Plume HQ (T2) — toutes refusent si rôle ≠ plume_admin
+// Actions admin Plume HQ (T2) â€” toutes refusent si rÃ´le â‰  plume_admin
 // ============================================================
 
 async function ensurePlumeAdmin(): Promise<{ ok: true; userId: string } | { ok: false; error: { _form: string[] } }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { ok: false, error: { _form: ['Non authentifié'] } }
+  if (!user) return { ok: false, error: { _form: ['Non authentifiÃ©'] } }
   const roles = await getCurrentUserRoles()
   if (!roles.includes('plume_admin')) {
-    return { ok: false, error: { _form: ['Action réservée à Plume HQ'] } }
+    return { ok: false, error: { _form: ['Action rÃ©servÃ©e Ã  Plume HQ'] } }
   }
   return { ok: true, userId: user.id }
 }
 
 /**
- * Réassigne un ticket à une autre école. Met à jour `school_id` (école qui
- * traite désormais) ET `referent_school_id` (nouvelle école référente). La
- * raison est postée comme message interne `plume_only` pour la traçabilité.
+ * RÃ©assigne un ticket Ã  une autre Ã©cole. Met Ã  jour `school_id` (Ã©cole qui
+ * traite dÃ©sormais) ET `referent_school_id` (nouvelle Ã©cole rÃ©fÃ©rente). La
+ * raison est postÃ©e comme message interne `plume_only` pour la traÃ§abilitÃ©.
  */
 export async function adminReassignSchoolAction(formData: FormData) {
   const parsed = adminReassignSchoolSchema.safeParse({
@@ -106,14 +106,14 @@ export async function adminReassignSchoolAction(formData: FormData) {
     })
     .eq('id', ticketId)
 
-  if (error) return { error: { _form: [`Erreur réassignation (${error.message})`] } }
+  if (error) return { error: { _form: [`Erreur rÃ©assignation (${error.message})`] } }
 
-  // Trace en interne pour Plume — pas visible côté client/école/atelier.
+  // Trace en interne pour Plume â€” pas visible cÃ´tÃ© client/Ã©cole/atelier.
   await supabase.from('ticket_messages').insert({
     ticket_id:        ticketId,
     sender_id:        auth.userId,
     sender_role:      'plume_admin' as MessageSenderRole,
-    content:          `[Réassignation] Ticket transféré à une autre école.\nMotif : ${reason}`,
+    content:          `[RÃ©assignation] Ticket transfÃ©rÃ© Ã  une autre Ã©cole.\nMotif : ${reason}`,
     is_internal:      true,
     visibility_level: 'plume_only',
   })
@@ -125,8 +125,8 @@ export async function adminReassignSchoolAction(formData: FormData) {
 }
 
 /**
- * Clôture manuelle d'un ticket par Plume HQ (status → completed). Note
- * obligatoire pour la traçabilité, postée en interne `plume_only`.
+ * ClÃ´ture manuelle d'un ticket par Plume HQ (status â†’ completed). Note
+ * obligatoire pour la traÃ§abilitÃ©, postÃ©e en interne `plume_only`.
  */
 export async function adminCloseTicketAction(formData: FormData) {
   const parsed = adminCloseTicketSchema.safeParse({
@@ -157,27 +157,27 @@ export async function adminCloseTicketAction(formData: FormData) {
     })
     .eq('id', ticketId)
 
-  if (error) return { error: { _form: [`Erreur clôture (${error.message})`] } }
+  if (error) return { error: { _form: [`Erreur clÃ´ture (${error.message})`] } }
 
   await supabase.from('ticket_messages').insert({
     ticket_id:        ticketId,
     sender_id:        auth.userId,
     sender_role:      'plume_admin' as MessageSenderRole,
-    content:          `[Clôture admin] ${note}`,
+    content:          `[ClÃ´ture admin] ${note}`,
     is_internal:      true,
     visibility_level: 'plume_only',
   })
 
-  // Audit trail — best-effort (la table peut ne pas exister sur certains envs).
+  // Audit trail â€” best-effort (la table peut ne pas exister sur certains envs).
   if (current?.status) {
     const { error: histError } = await supabase.from('ticket_status_history').insert({
       ticket_id:  ticketId,
       old_status: requestStatusToSavStatus(current.status),
       new_status: 'closed' as TicketStatus,
       changed_by: auth.userId,
-      note:       `Clôture admin : ${note}`,
+      note:       `ClÃ´ture admin : ${note}`,
     })
-    if (histError) console.warn('ticket_status_history insert failed:', histError.message)
+    if (histError) console.error('[SAV] ticket_status_history insert failed:', histError.message)
   }
 
   revalidatePath('/plume')
@@ -188,9 +188,9 @@ export async function adminCloseTicketAction(formData: FormData) {
 }
 
 /**
- * Relance email de l'école : envoie une notification "rappel" via Resend
- * (réutilise `send-email-resend` Edge Function comme les autres emails SAV).
- * Best-effort — log un warning si l'école n'a pas d'email connu.
+ * Relance email de l'Ã©cole : envoie une notification "rappel" via Resend
+ * (rÃ©utilise `send-email-resend` Edge Function comme les autres emails SAV).
+ * Best-effort â€” log un warning si l'Ã©cole n'a pas d'email connu.
  */
 export async function adminRemindSchoolAction(formData: FormData) {
   const parsed = adminRemindSchoolSchema.safeParse({
@@ -221,12 +221,12 @@ export async function adminRemindSchoolAction(formData: FormData) {
 
   if (!ticket) return { error: { _form: ['Ticket introuvable'] } }
   if (!ticket.school_id) {
-    return { error: { _form: ["Aucune école assignée à ce ticket"] } }
+    return { error: { _form: ["Aucune Ã©cole assignÃ©e Ã  ce ticket"] } }
   }
 
   const school = await getPartnerSchoolById(ticket.school_id)
   if (!school?.email) {
-    return { error: { _form: ["L'école n'a pas d'email enregistré dans partner_schools"] } }
+    return { error: { _form: ["L'Ã©cole n'a pas d'email enregistrÃ© dans partner_schools"] } }
   }
 
   const ticketRef = ticket.ticket_number ?? `#${ticketId.slice(0, 8).toUpperCase()}`
@@ -236,15 +236,15 @@ export async function adminRemindSchoolAction(formData: FormData) {
 
   const html = `
     <div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px">
-      <p style="font-size:12px;color:#9333ea;letter-spacing:.08em;text-transform:uppercase;margin:0">Plume HQ — relance</p>
+      <p style="font-size:12px;color:#9333ea;letter-spacing:.08em;text-transform:uppercase;margin:0">Plume HQ â€” relance</p>
       <h1 style="font-size:20px;color:#0f172a;margin:8px 0 16px">Ticket SAV ${ticketRef} en attente</h1>
       <p style="color:#334155;line-height:1.55">Bonjour,</p>
       <p style="color:#334155;line-height:1.55">
-        Le ticket SAV de ${fullName} pour ${wing} a été ouvert il y a <strong>${daysOpen} jour${daysOpen > 1 ? 's' : ''}</strong>
-        et n'a pas encore été pris en charge par votre école.
+        Le ticket SAV de ${fullName} pour ${wing} a Ã©tÃ© ouvert il y a <strong>${daysOpen} jour${daysOpen > 1 ? 's' : ''}</strong>
+        et n'a pas encore Ã©tÃ© pris en charge par votre Ã©cole.
       </p>
       <p style="color:#334155;line-height:1.55">
-        Merci de prendre quelques minutes pour le traiter dans votre espace École :
+        Merci de prendre quelques minutes pour le traiter dans votre espace Ã‰cole :
       </p>
       <p style="margin:24px 0">
         <a href="https://sav.plumeparagliders.com/school/ticket/${ticketId}"
@@ -252,7 +252,7 @@ export async function adminRemindSchoolAction(formData: FormData) {
           Ouvrir le ticket ${ticketRef}
         </a>
       </p>
-      <p style="font-size:12px;color:#94a3b8;margin-top:32px">— L'équipe Plume</p>
+      <p style="font-size:12px;color:#94a3b8;margin-top:32px">â€” L'Ã©quipe Plume</p>
     </div>
   `
 
@@ -260,7 +260,7 @@ export async function adminRemindSchoolAction(formData: FormData) {
     const { error } = await supabase.functions.invoke('send-email-resend', {
       body: {
         to:         school.email,
-        subject:    `Plume SAV — Relance ticket ${ticketRef} en attente depuis ${daysOpen} j`,
+        subject:    `Plume SAV â€” Relance ticket ${ticketRef} en attente depuis ${daysOpen} j`,
         html,
         email_type: 'sav_notification',
       },
@@ -270,12 +270,12 @@ export async function adminRemindSchoolAction(formData: FormData) {
     return { error: { _form: [`Erreur envoi email (${e instanceof Error ? e.message : String(e)})`] } }
   }
 
-  // Trace de la relance — visible Plume uniquement.
+  // Trace de la relance â€” visible Plume uniquement.
   await supabase.from('ticket_messages').insert({
     ticket_id:        ticketId,
     sender_id:        auth.userId,
     sender_role:      'plume_admin' as MessageSenderRole,
-    content:          `[Relance école] Email envoyé à ${school.email} (ticket ouvert depuis ${daysOpen} j).`,
+    content:          `[Relance Ã©cole] Email envoyÃ© Ã  ${school.email} (ticket ouvert depuis ${daysOpen} j).`,
     is_internal:      true,
     visibility_level: 'plume_only',
   })
@@ -283,4 +283,5 @@ export async function adminRemindSchoolAction(formData: FormData) {
   revalidatePath('/plume')
   return { success: true }
 }
+
 

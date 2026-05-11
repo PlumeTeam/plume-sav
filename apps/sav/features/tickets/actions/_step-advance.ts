@@ -1,4 +1,4 @@
-import { revalidatePath } from 'next/cache'
+﻿import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { sendClientStepUpdateEmail, type ClientStepEmail, type TicketEmailContext } from '../email'
 import type { RequestStatus, TicketStatus, TicketUpdate } from '../types'
@@ -6,42 +6,42 @@ import { getPartnerSchoolById } from '../queries'
 import { requestStatusToSavStatus } from './_helpers'
 
 // ============================================================
-// Pipeline d'étapes SAV (migration 20260509000000)
+// Pipeline d'Ã©tapes SAV (migration 20260509000000)
 // ============================================================
 //
 // Chaque transition est :
-//  - séquentielle (refus si le statut actuel n'est pas dans la whitelist),
-//  - write-once (le timestamp se remplit côté DB en even of duplicate clicks),
-//  - notifiée au client par email (best-effort).
+//  - sÃ©quentielle (refus si le statut actuel n'est pas dans la whitelist),
+//  - write-once (le timestamp se remplit cÃ´tÃ© DB en even of duplicate clicks),
+//  - notifiÃ©e au client par email (best-effort).
 //
-// Les boutons UI s'appuient sur des Server Actions dédiées plutôt qu'un seul
-// `updateStatusAction` générique : ça permet d'écrire le timestamp correspondant
-// et de cibler la bonne copie email sans couplage côté client.
+// Les boutons UI s'appuient sur des Server Actions dÃ©diÃ©es plutÃ´t qu'un seul
+// `updateStatusAction` gÃ©nÃ©rique : Ã§a permet d'Ã©crire le timestamp correspondant
+// et de cibler la bonne copie email sans couplage cÃ´tÃ© client.
 
 export interface AdvanceArgs {
   ticketId:        string
-  /** Statuts à partir desquels la transition est autorisée. */
+  /** Statuts Ã  partir desquels la transition est autorisÃ©e. */
   from:            RequestStatus[]
   /** Statut cible. */
   to:              RequestStatus
-  /** Colonne timestamp à renseigner avec NOW(). */
+  /** Colonne timestamp Ã  renseigner avec NOW(). */
   timestampColumn?: keyof TicketUpdate
-  /** ID de copie email envoyé au client à la transition. null = pas d'email. */
+  /** ID de copie email envoyÃ© au client Ã  la transition. null = pas d'email. */
   emailStep:       ClientStepEmail | null
-  /** Champs additionnels à patcher (ex: assignations). */
+  /** Champs additionnels Ã  patcher (ex: assignations). */
   patch?:          Partial<TicketUpdate>
-  /** Note optionnelle à enregistrer dans ticket_status_history. */
+  /** Note optionnelle Ã  enregistrer dans ticket_status_history. */
   historyNote?:    string
 }
 
 export async function advanceTicketStep(args: AdvanceArgs) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: { _form: ['Non authentifié'] } }
+  if (!user) return { error: { _form: ['Non authentifiÃ©'] } }
 
   const { ticketId, from, to, timestampColumn, emailStep, patch, historyNote } = args
 
-  // Lit le status courant + les infos client/école pour l'email.
+  // Lit le status courant + les infos client/Ã©cole pour l'email.
   const { data: current, error: fetchError } = await supabase
     .from('service_requests')
     .select('id, status, first_name, last_name, email, ticket_number, referent_school_id')
@@ -61,14 +61,14 @@ export async function advanceTicketStep(args: AdvanceArgs) {
     return { error: { _form: ['Demande introuvable'] } }
   }
 
-  // Garde-fou séquentiel : si le statut courant n'est pas dans la whitelist
-  // ET qu'on n'est pas déjà au statut cible (idempotence), on refuse.
+  // Garde-fou sÃ©quentiel : si le statut courant n'est pas dans la whitelist
+  // ET qu'on n'est pas dÃ©jÃ  au statut cible (idempotence), on refuse.
   if (!from.includes(current.status) && current.status !== to) {
     return {
       error: {
         _form: [
-          `Étape impossible depuis le statut actuel (« ${current.status} »). ` +
-          `Rafraîchissez la page pour voir l'état à jour.`,
+          `Ã‰tape impossible depuis le statut actuel (Â« ${current.status} Â»). ` +
+          `RafraÃ®chissez la page pour voir l'Ã©tat Ã  jour.`,
         ],
       },
     }
@@ -90,7 +90,7 @@ export async function advanceTicketStep(args: AdvanceArgs) {
     .eq('id', ticketId)
 
   if (updateError) {
-    return { error: { _form: [`Erreur lors de la mise à jour (${updateError.message})`] } }
+    return { error: { _form: [`Erreur lors de la mise Ã  jour (${updateError.message})`] } }
   }
 
   // Audit trail (best-effort)
@@ -101,9 +101,9 @@ export async function advanceTicketStep(args: AdvanceArgs) {
     changed_by: user.id,
     note:       historyNote ?? null,
   })
-  if (histError) console.warn('ticket_status_history insert failed:', histError.message)
+  if (histError) console.error('[SAV] ticket_status_history insert failed:', histError.message)
 
-  // Notification client (best-effort — n'interrompt jamais la transition)
+  // Notification client (best-effort â€” n'interrompt jamais la transition)
   if (emailStep && current.email) {
     try {
       const schoolDetail = current.referent_school_id
@@ -134,3 +134,4 @@ export async function advanceTicketStep(args: AdvanceArgs) {
 
   return { success: true as const, previousStatus: current.status }
 }
+

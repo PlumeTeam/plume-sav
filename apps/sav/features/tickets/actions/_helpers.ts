@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   RequestStatus,
   SchoolResolution,
   ServiceType,
@@ -6,16 +6,16 @@ import type {
   WizardProblemCategory,
 } from '../types'
 
-// Maps school resolution outcome → request_status the ticket transitions into.
+// Maps school resolution outcome â†’ request_status the ticket transitions into.
 // Aligned with the new step pipeline (migration 20260509000000).
 export function resolutionToRequestStatus(r: SchoolResolution): RequestStatus {
   switch (r) {
-    case 'resolved_by_school':         return 'school_resolved'      // école clôt sur place
-    case 'normal_behavior_explained':  return 'school_resolved'      // idem — pas de réparation
+    case 'resolved_by_school':         return 'school_resolved'      // Ã©cole clÃ´t sur place
+    case 'normal_behavior_explained':  return 'school_resolved'      // idem â€” pas de rÃ©paration
     case 'escalated_to_workshop':      return 'escalated_to_workshop' // visible par l'atelier
     case 'escalated_to_plume':         return 'processing'            // reste ouvert, Plume reprend
-    case 'workshop_advice_requested':  return 'processing'            // école garde l'aile, demande un avis
-    case 'reflection':                 return 'processing'            // école n'a pas encore décidé
+    case 'workshop_advice_requested':  return 'processing'            // Ã©cole garde l'aile, demande un avis
+    case 'reflection':                 return 'processing'            // Ã©cole n'a pas encore dÃ©cidÃ©
     default: {
       const _exhaustive: never = r
       return 'processing'
@@ -27,7 +27,7 @@ export function resolutionToRequestStatus(r: SchoolResolution): RequestStatus {
 // 'porosity' is excluded from the client wizard (staff-only diagnosis), so
 // the wizard never reaches this function with that value. 'fabric_issue'
 // is wizard-only ("Tissu") and behaves like the other physical-damage
-// categories — it routes to 'repair'.
+// categories â€” it routes to 'repair'.
 export function deriveServiceType(category: WizardProblemCategory): ServiceType {
   if (['tear', 'fabric_issue', 'line_issue', 'riser_issue'].includes(category)) return 'repair'
   return 'sav'
@@ -58,12 +58,12 @@ export function requestStatusToSavStatus(status: RequestStatus): TicketStatus {
 }
 
 export const PROBLEM_CATEGORY_LABELS: Record<WizardProblemCategory, string> = {
-  tear:         'Déchirure',
+  tear:         'DÃ©chirure',
   fabric_issue: 'Tissu',
   line_issue:   'Suspente',
-  riser_issue:  'Élévateur',
+  riser_issue:  'Ã‰lÃ©vateur',
   buckle_issue: 'Boucle',
-  porosity:     'Porosité',
+  porosity:     'PorositÃ©',
   other:        'Comportement',
 }
 
@@ -73,7 +73,7 @@ export const BEHAVIOR_LABELS_BY_ID: Record<string, string> = {
   lazy_inflation:  'Aile trop paresseuse au gonflage',
   closes_easily:   'Aile qui ferme facilement',
   unstable:        'Aile instable en turbulence',
-  brake_issue:     'Problème de freins',
+  brake_issue:     'ProblÃ¨me de freins',
   speed_issue:     'Vitesse anormale',
   other_behavior:  'Autre comportement inhabituel',
 }
@@ -81,7 +81,7 @@ export const BEHAVIOR_LABELS_BY_ID: Record<string, string> = {
 export const WATER_CONTACT_LABELS: Record<string, string> = {
   none:  'Non',
   fresh: 'Eau douce',
-  salt:  'Eau salée',
+  salt:  'Eau salÃ©e',
 }
 
 export const SURFACE_CONTACT_LABELS: Record<string, string> = {
@@ -94,7 +94,7 @@ export const SURFACE_CONTACT_LABELS: Record<string, string> = {
 export const CONDITION_LABELS: Record<string, string> = {
   excellent: 'Excellent',
   good:      'Bon',
-  worn:      'Usé',
+  worn:      'UsÃ©',
   bad:       'Mauvais',
 }
 
@@ -113,38 +113,38 @@ export type WingHistoryInput = {
 export function formatWingHistory(h: WingHistoryInput | undefined): string[] {
   if (!h) return []
   const lines: string[] = []
-  if (h.flightHours)     lines.push(`  • Heures de vol : ${h.flightHours} h`)
-  if (h.flightCount)     lines.push(`  • Nombre de vols : ${h.flightCount}`)
+  if (h.flightHours)     lines.push(`  â€¢ Heures de vol : ${h.flightHours} h`)
+  if (h.flightCount)     lines.push(`  â€¢ Nombre de vols : ${h.flightCount}`)
   if (h.alreadyRepaired === 'yes') {
     const repairLine = h.repairDescription
-      ? `  • Déjà réparée : oui — ${h.repairDescription}`
-      : `  • Déjà réparée : oui`
+      ? `  â€¢ DÃ©jÃ  rÃ©parÃ©e : oui â€” ${h.repairDescription}`
+      : `  â€¢ DÃ©jÃ  rÃ©parÃ©e : oui`
     lines.push(repairLine)
   } else if (h.alreadyRepaired === 'no') {
-    lines.push('  • Déjà réparée : non')
+    lines.push('  â€¢ DÃ©jÃ  rÃ©parÃ©e : non')
   }
   if (h.waterContact) {
-    lines.push(`  • Contact avec l'eau : ${WATER_CONTACT_LABELS[h.waterContact] ?? h.waterContact}`)
+    lines.push(`  â€¢ Contact avec l'eau : ${WATER_CONTACT_LABELS[h.waterContact] ?? h.waterContact}`)
   }
   if (h.treeContact === 'yes') {
-    lines.push('  • Arbrissage : Oui')
+    lines.push('  â€¢ Arbrissage : Oui')
   } else if (h.treeContact === 'no') {
-    lines.push('  • Arbrissage : Non')
+    lines.push('  â€¢ Arbrissage : Non')
   }
   if (h.surfaceContact) {
     const surface = SURFACE_CONTACT_LABELS[h.surfaceContact] ?? h.surfaceContact
     const note = h.surfaceContact === 'other' && h.surfaceContactNote
       ? ` (${h.surfaceContactNote})`
       : ''
-    lines.push(`  • Sable/neige/dunes : ${surface}${note}`)
+    lines.push(`  â€¢ Sable/neige/dunes : ${surface}${note}`)
   }
   if (h.generalCondition) {
-    lines.push(`  • État général : ${CONDITION_LABELS[h.generalCondition] ?? h.generalCondition}`)
+    lines.push(`  â€¢ Ã‰tat gÃ©nÃ©ral : ${CONDITION_LABELS[h.generalCondition] ?? h.generalCondition}`)
   }
   return lines
 }
 
-// The DB only has a single `description` TEXT column for narrative — no dedicated
+// The DB only has a single `description` TEXT column for narrative â€” no dedicated
 // problem_category, wing_size, wing_color, flight_hours, etc. We fold all the
 // wizard metadata into a structured prefix the school can read, then append the
 // client's free text.
@@ -161,11 +161,11 @@ export function buildRichDescription(input: {
   wingHistory?:    WingHistoryInput
 }): string {
   const lines: string[] = []
-  lines.push(`[Catégorie] ${PROBLEM_CATEGORY_LABELS[input.problemCategory] ?? input.problemCategory}`)
+  lines.push(`[CatÃ©gorie] ${PROBLEM_CATEGORY_LABELS[input.problemCategory] ?? input.problemCategory}`)
   lines.push(`[Urgence] ${input.urgency === 'urgent' ? 'Urgent' : 'Normal'}`)
 
   const aile = [input.wingBrand, input.wingModel, input.wingSize && `Taille ${input.wingSize}`, input.wingColor]
-    .filter(Boolean).join(' — ')
+    .filter(Boolean).join(' â€” ')
   if (aile) lines.push(`[Aile] ${aile}`)
 
   if (input.flightHours != null) {
@@ -187,3 +187,4 @@ export function buildRichDescription(input: {
 
   return `${lines.join('\n')}\n\n---\n\n${input.freeText}`
 }
+

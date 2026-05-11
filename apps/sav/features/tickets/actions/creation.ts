@@ -1,4 +1,4 @@
-'use server'
+﻿'use server'
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
@@ -39,7 +39,7 @@ export async function createTicketAction(input: unknown) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: { _form: ['Non authentifié'] } }
+  if (!user) return { error: { _form: ['Non authentifiÃ©'] } }
 
   const identity = await resolveClientIdentity(supabase, user)
 
@@ -54,7 +54,7 @@ export async function createTicketAction(input: unknown) {
   const serviceType = deriveServiceType(problemCategory)
 
   // The DB has a single `referent_school_id` column (no separate `school_id`).
-  // We use it for the school that actually handles the ticket — i.e. the one
+  // We use it for the school that actually handles the ticket â€” i.e. the one
   // chosen by the client (`schoolId`). When that's a fallback hardcoded id
   // (no row in partner_schools), persist null so the FK isn't violated.
   const persistedSchoolId = schoolId.startsWith('plume-default-') ? null : schoolId
@@ -75,7 +75,7 @@ export async function createTicketAction(input: unknown) {
     wingHistory,
   })
 
-  // Insert payload — restricted to columns that actually exist in
+  // Insert payload â€” restricted to columns that actually exist in
   // public.service_requests on the live DB. NOT NULL columns covered:
   // user_id, service_type, first_name, last_name, email, phone, description.
   const insertPayload = {
@@ -84,7 +84,7 @@ export async function createTicketAction(input: unknown) {
     first_name:     identity.firstName,
     last_name:      identity.lastName,
     email:          identity.email,
-    phone:          identity.phone, // '' when unknown — column is NOT NULL
+    phone:          identity.phone, // '' when unknown â€” column is NOT NULL
     service_type:   serviceType,
     status:         'pending' as RequestStatus,
     product_brand:  wingBrand,
@@ -95,10 +95,10 @@ export async function createTicketAction(input: unknown) {
     purchase_date:  purchaseDate,
     // Recent migrations
     referent_school_id:        persistedSchoolId,
-    // school_id mirrors referent_school_id — c'est la colonne utilisée par
-    // la RLS pour scoper les tickets par école. Doit rester en sync (cf.
-    // applySchoolResolutionAction qui ne touche pas à school_id quand
-    // l'école escalade vers un atelier).
+    // school_id mirrors referent_school_id â€” c'est la colonne utilisÃ©e par
+    // la RLS pour scoper les tickets par Ã©cole. Doit rester en sync (cf.
+    // applySchoolResolutionAction qui ne touche pas Ã  school_id quand
+    // l'Ã©cole escalade vers un atelier).
     school_id:                 persistedSchoolId,
     school_change_reason_code: schoolChangeReasonCode ?? null,
     school_change_reason_note: schoolChangeReasonNote ?? null,
@@ -118,7 +118,7 @@ export async function createTicketAction(input: unknown) {
     return { error: { _form: [`Erreur lors de l'envoi de la demande${detail}`] } }
   }
 
-  // Photos: separate ticket_photos table (best-effort — failure shouldn't
+  // Photos: separate ticket_photos table (best-effort â€” failure shouldn't
   // block the ticket since it's already created)
   if (photoPaths.length > 0) {
     const photoRows = photoPaths.map((p, idx) => ({
@@ -132,16 +132,16 @@ export async function createTicketAction(input: unknown) {
     if (photoError) console.warn('Photo insert failed:', photoError.message)
   }
 
-  // Audit trail (best-effort — table may not exist on legacy envs)
+  // Audit trail (best-effort â€” table may not exist on legacy envs)
   const { error: histError } = await supabase.from('ticket_status_history').insert({
     ticket_id:  ticket.id,
     old_status: null,
     new_status: 'submitted',
     changed_by: user.id,
   })
-  if (histError) console.warn('ticket_status_history insert failed:', histError.message)
+  if (histError) console.error('[SAV] ticket_status_history insert failed:', histError.message)
 
-  // First chat message — posts the client's personalised message as the
+  // First chat message â€” posts the client's personalised message as the
   // opening reply so the school sees it in the conversation thread.
   // Best-effort: skipped silently if empty or if ticket_messages is missing.
   const trimmedClientMessage = clientMessage?.trim() ?? ''
@@ -157,7 +157,7 @@ export async function createTicketAction(input: unknown) {
     if (msgError) console.warn('client message insert failed:', msgError.message)
   }
 
-  // Email notifications (best-effort) — never block ticket creation.
+  // Email notifications (best-effort) â€” never block ticket creation.
   // Both dispatches run in parallel; failures are logged but swallowed.
   try {
     const schoolDetail = persistedSchoolId
@@ -173,7 +173,7 @@ export async function createTicketAction(input: unknown) {
         email:      identity.email,
       },
       school: {
-        name:       schoolDetail?.name ?? 'Votre école partenaire',
+        name:       schoolDetail?.name ?? 'Votre Ã©cole partenaire',
         email:      schoolDetail?.email ?? null,
         city:       schoolDetail?.city ?? null,
       },
@@ -216,4 +216,5 @@ export async function createTicketAction(input: unknown) {
   // success here is more flexible than throwing redirect() from the server.
   return { ok: true as const, ticketId: ticket.id }
 }
+
 
