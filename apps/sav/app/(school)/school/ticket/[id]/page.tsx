@@ -131,6 +131,10 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           schoolResolution={ticket.school_resolution ?? null}
           assignedWorkshopLabel={ticket.assigned_workshop_label}
           isPlumeUrgent={ticket.is_plume_urgent ?? false}
+          schoolWorkshopTracking={ticket.school_workshop_tracking ?? null}
+          schoolWorkshopLabelUrl={ticket.school_workshop_label_url ?? null}
+          workshopReturnTracking={ticket.workshop_return_tracking ?? null}
+          workshopReturnLabelUrl={ticket.workshop_return_label_url ?? null}
         />
       </section>
 

@@ -4,10 +4,12 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   acknowledgeTicketAction,
+  markTicketCompletedAction,
   markWingReceivedSchoolAction,
   startSchoolCheckAction,
 } from '@/features/tickets/actions'
 import { ScanGateModal } from '@/features/tickets/components/ScanGateModal'
+import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
 import { formatDateTime } from '@/features/tickets/utils'
 import type { RequestStatus, SchoolResolution } from '@/features/tickets/types'
 import { SchoolResolutionPanel } from './SchoolResolutionPanel'
@@ -28,9 +30,15 @@ interface SchoolStepPanelProps {
   assignedWorkshopLabel:   string | null
   /** Flag d'urgence Plume HQ (utilisé par la modal de décision). */
   isPlumeUrgent:           boolean
+  /** Trackings GLS — utilisés par la modal "Renvoyer l'aile". */
+  schoolWorkshopTracking:  string | null
+  schoolWorkshopLabelUrl:  string | null
+  workshopReturnTracking:  string | null
+  workshopReturnLabelUrl:  string | null
 }
 
-type StepKey = 'ack' | 'wing' | 'check' | 'decision'
+type StepKey = 'ack' | 'wing' | 'check' | 'decision' | 'return'
+type ReturnOption = 'client_pickup' | 'carrier_to_client' | 'to_workshop'
 
 interface StepCtx {
   status:            RequestStatus
@@ -96,6 +104,19 @@ const STEPS: StepDef[] = [
     isDone:     (c) => c.schoolResolution !== null,
     requiresScan: false,
   },
+  // ── 5. Renvoyer l'aile (client revient / poste / atelier) ───────────────
+  {
+    key:        'return',
+    label:      "Renvoyer l'aile",
+    helpText:   "Comment l'aile retourne au client ou part à l'atelier.",
+    emoji:      '✈️',
+    isActive:   (c) => c.schoolResolution !== null,
+    isDone:     (c) =>
+      c.status === 'wing_returned' ||
+      c.status === 'escalated_to_workshop' ||
+      c.status === 'completed',
+    requiresScan: false,
+  },
 ]
 
 // Libellés humains pour chaque résolution — utilisés dans le helpText de
@@ -120,11 +141,18 @@ export function SchoolStepPanel({
   schoolResolution,
   assignedWorkshopLabel,
   isPlumeUrgent,
+  schoolWorkshopTracking,
+  schoolWorkshopLabelUrl,
+  workshopReturnTracking,
+  workshopReturnLabelUrl,
 }: SchoolStepPanelProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [scanGateFor, setScanGateFor] = useState<StepKey | null>(null)
   const [decisionModalOpen, setDecisionModalOpen] = useState(false)
+  const [returnModalOpen, setReturnModalOpen] = useState(false)
+  const [returnOption, setReturnOption] = useState<ReturnOption | null>(null)
+  const [returnError, setReturnError] = useState<string | null>(null)
 
   const ctx: StepCtx = { status, isCheckValidated, schoolResolution }
 
@@ -133,6 +161,12 @@ export function SchoolStepPanel({
       // Ouvre la modal contenant SchoolResolutionPanel — remplace l'ancien
       // mécanisme de switch d'onglet + scroll vers la section "Décision".
       setDecisionModalOpen(true)
+      return
+    }
+    if (key === 'return') {
+      setReturnOption(null)
+      setReturnError(null)
+      setReturnModalOpen(true)
       return
     }
 
@@ -161,6 +195,21 @@ export function SchoolStepPanel({
     })
   }
 
+  function handleClientPickupConfirm() {
+    setReturnError(null)
+    startTransition(async () => {
+      const fd = new FormData()
+      fd.set('ticketId', ticketId)
+      const r = await markTicketCompletedAction(fd)
+      if (r && 'error' in r && r.error) {
+        const msg = (r.error._form as string[] | undefined)?.[0] ?? 'Erreur'
+        setReturnError(msg)
+        return
+      }
+      setReturnModalOpen(false)
+    })
+  }
+
   function handleStep(key: StepKey) {
     const step = STEPS.find((s) => s.key === key)
     if (step?.requiresScan) {
@@ -185,6 +234,7 @@ export function SchoolStepPanel({
     wing:     wingReceivedSchoolAt,
     check:    null, // matérialisé par le remplissage de school_checklist
     decision: null, // matérialisé par le remplissage de school_resolution
+    return:   null, // matérialisé par le tracking GLS / passage en completed
   }
 
   return (
@@ -331,6 +381,158 @@ export function SchoolStepPanel({
           </div>
         </div>
       )}
+
+      {returnModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="return-modal-title"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setReturnModalOpen(false)
+          }}
+        >
+          <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-xl sm:rounded-3xl">
+            <div className="flex items-start justify-between gap-3 border-b border-brand-stone px-5 py-4">
+              <div>
+                <h2
+                  id="return-modal-title"
+                  className="text-base font-semibold text-brand-ink"
+                >
+                  ✈️ Renvoyer l&apos;aile
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Comment l&apos;aile quitte l&apos;école ?
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReturnModalOpen(false)}
+                aria-label="Fermer"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-brand-cream hover:text-brand-ink"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="overflow-y-auto px-5 py-4 space-y-3">
+              {/* Card 1 — Client pickup */}
+              <ReturnOptionCard
+                emoji="🤝"
+                title="Le client revient chercher son aile"
+                description="Le client se déplace à l'école. Pas d'expédition."
+                isSelected={returnOption === 'client_pickup'}
+                onClick={() => { setReturnOption('client_pickup'); setReturnError(null) }}
+              >
+                <p className="text-xs text-slate-600">
+                  Confirmer fermera le ticket (passage en <strong>completed</strong>).
+                </p>
+                <button
+                  type="button"
+                  onClick={handleClientPickupConfirm}
+                  disabled={isPending}
+                  className="btn-primary mt-3 w-full"
+                >
+                  {isPending ? '…' : '✓ Confirmer — l\'aile est remise au client'}
+                </button>
+              </ReturnOptionCard>
+
+              {/* Card 2 — Carrier to client */}
+              <ReturnOptionCard
+                emoji="📦"
+                title="Renvoyer par transporteur au client"
+                description="Envoi postal GLS depuis l'école vers l'adresse du client."
+                isSelected={returnOption === 'carrier_to_client'}
+                onClick={() => { setReturnOption('carrier_to_client'); setReturnError(null) }}
+              >
+                <ShippingLabelButton
+                  ticketId={ticketId}
+                  leg="workshop_to_return"
+                  initialTracking={workshopReturnTracking}
+                  initialLabelUrl={workshopReturnLabelUrl}
+                  defaultReturnDestination="client"
+                  triggerLabel="Générer le bon de transport retour client"
+                  hint="GLS viendra chercher le colis à l'école."
+                />
+              </ReturnOptionCard>
+
+              {/* Card 3 — To workshop */}
+              <ReturnOptionCard
+                emoji="🔧"
+                title="Envoyer à l'atelier"
+                description={
+                  assignedWorkshopLabel
+                    ? `L'aile part chez ${assignedWorkshopLabel}.`
+                    : "L'aile part à l'atelier choisi lors de la décision."
+                }
+                isSelected={returnOption === 'to_workshop'}
+                onClick={() => { setReturnOption('to_workshop'); setReturnError(null) }}
+              >
+                <ShippingLabelButton
+                  ticketId={ticketId}
+                  leg="school_to_workshop"
+                  initialTracking={schoolWorkshopTracking}
+                  initialLabelUrl={schoolWorkshopLabelUrl}
+                  triggerLabel="Générer le bon école → atelier"
+                  requireScan
+                  wingSerial={wingSerial}
+                />
+              </ReturnOptionCard>
+
+              {returnError && (
+                <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {returnError}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
+  )
+}
+
+function ReturnOptionCard({
+  emoji,
+  title,
+  description,
+  isSelected,
+  onClick,
+  children,
+}: {
+  emoji:       string
+  title:       string
+  description: string
+  isSelected:  boolean
+  onClick:     () => void
+  children:    React.ReactNode
+}) {
+  return (
+    <div
+      className={`rounded-2xl border-2 transition-all ${
+        isSelected
+          ? 'border-brand-gold bg-brand-gold/5 shadow-soft'
+          : 'border-brand-stone bg-white hover:border-brand-gold/40'
+      }`}
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex w-full items-start gap-3 p-4 text-left active:scale-[0.99]"
+      >
+        <span aria-hidden className="text-2xl">{emoji}</span>
+        <div className="flex-1">
+          <p className="text-sm font-semibold text-brand-ink">{title}</p>
+          <p className="mt-0.5 text-xs text-slate-600">{description}</p>
+        </div>
+        <span className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold ${
+          isSelected ? 'border-brand-gold bg-brand-gold text-white'
+                     : 'border-brand-stone bg-white text-transparent'
+        }`} aria-hidden>✓</span>
+      </button>
+      {isSelected && (
+        <div className="border-t border-brand-stone/60 p-4">{children}</div>
+      )}
+    </div>
   )
 }
