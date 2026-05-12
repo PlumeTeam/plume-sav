@@ -150,12 +150,21 @@ const STEPS: StepDef[] = [
     scanSubtitle: "Scannez le QR cousu sur l'aile (ou sur le sac) pour confirmer la réception.",
   },
   // ── 3. Check de l'aile (scan flashcode + briefing + wizard) ─────────────
+  //
+  // Bug historique (cul-de-sac) : si le moniteur lançait le wizard puis fermait
+  // l'onglet sans le valider, le statut restait à `school_checking` et
+  // `isCheckValidated` à false. L'ancienne condition `c.status === 'wing_received_school'`
+  // rendait l'étape ni active ni done → aucun bouton cliquable, blocage total.
+  // On inclut donc `school_checking` dans isActive pour permettre de reprendre
+  // le check à tout moment tant qu'il n'est pas validé.
   {
     key:        'check',
     label:      "Check de l'aile",
     helpText:   "Inspection visuelle, comportement, structure. Ouvre le wizard de diagnostic.",
     emoji:      '🔍',
-    isActive:   (c) => c.status === 'wing_received_school' && !c.isCheckValidated,
+    isActive:   (c) =>
+      (c.status === 'wing_received_school' || c.status === 'school_checking') &&
+      !c.isCheckValidated,
     isDone:     (c) => c.isCheckValidated,
     requiresScan: true,
     scanTitle:    "Avant le check",
@@ -479,6 +488,21 @@ export function SchoolStepPanel({
                   className="btn-primary mt-3 w-full sm:hidden"
                 >
                   {isPending ? '…' : step.label}
+                </button>
+              )}
+
+              {/* Bypass scan QR — réservé à la phase de test/démo. Permet de
+                  passer l'étape sans déclencher la caméra (utile pour démos
+                  client / iteration sans aile physique). À retirer ou gater par
+                  feature flag avant la mise en ligne client. */}
+              {isActive && step.requiresScan && (
+                <button
+                  type="button"
+                  onClick={() => executeStep(step.key)}
+                  disabled={isPending}
+                  className="mt-2 w-full text-center text-[11px] text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline"
+                >
+                  Passer le scan (test)
                 </button>
               )}
             </div>
