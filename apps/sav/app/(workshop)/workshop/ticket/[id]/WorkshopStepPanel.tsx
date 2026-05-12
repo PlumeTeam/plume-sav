@@ -2,11 +2,13 @@
 
 import { useState, useTransition } from 'react'
 import {
+  finishWorkshopPreCheckAction,
   markWingReceivedWorkshopAction,
-  startWorkshopDiagnosisAction,
-  startWorkshopRepairAction,
   markWorkshopDoneAction,
   markWingReturnedAction,
+  startWorkshopDiagnosisAction,
+  startWorkshopPreCheckAction,
+  startWorkshopRepairAction,
 } from '@/features/tickets/actions'
 import { ScanGateModal } from '@/features/tickets/components/ScanGateModal'
 import { formatDateTime, statusGte } from '@/features/tickets/utils'
@@ -18,12 +20,21 @@ interface WorkshopStepPanelProps {
   /** N° de série de l'aile, pour vérification au scan flashcode. */
   wingSerial:              string | null
   wingReceivedWorkshopAt:  string | null
+  preCheckStartedAt:       string | null
+  preCheckCompletedAt:     string | null
+  preCheckFeeEurConfig:    number   // tarif courant lu depuis plume_settings
   workshopDiagnosisAt:     string | null
   workshopRepairDoneAt:    string | null
   wingReturnedAt:          string | null
 }
 
-type StepKey = 'received' | 'diagnose' | 'repair' | 'done' | 'returned'
+// Étapes linéaires (hors triage post-réception et pré-check qui sont des
+// branches optionnelles affichées séparément).
+type StepKey = 'received' | 'repair' | 'done' | 'returned'
+
+// Clés réutilisées pour la modal de scan flashcode (T4) — comprend aussi
+// les transitions hors STEPS (ex: démarrage du diagnostic depuis le triage).
+type ScanGateKey = StepKey | 'diagnose_direct'
 
 interface StepDef {
   key:        StepKey
@@ -36,7 +47,7 @@ interface StepDef {
   doneFrom:   RequestStatus
   /** Colonne timestamp à afficher quand l'étape est franchie. */
   tsKey:      keyof Pick<WorkshopStepPanelProps,
-    'wingReceivedWorkshopAt' | 'workshopDiagnosisAt' | 'workshopRepairDoneAt' | 'wingReturnedAt'
+    'wingReceivedWorkshopAt' | 'workshopRepairDoneAt' | 'wingReturnedAt'
   > | null
   /** Si true, exige un scan flashcode avant l'action (Module Flashcode atelier T4). */
   requiresScan:  boolean
@@ -57,18 +68,9 @@ const STEPS: StepDef[] = [
     scanTitle:    "Réception de l'aile",
     scanSubtitle: "Scannez le QR cousu sur l'aile (ou sur le sac) pour confirmer la réception à l'atelier.",
   },
-  {
-    key:        'diagnose',
-    label:      'Diagnostic en cours',
-    helpText:   "Lance le diagnostic technique. Vous pouvez remplir la checklist en parallèle.",
-    emoji:      '🔬',
-    activeWhen: ['wing_received_workshop'],
-    doneFrom:   'workshop_diagnosing',
-    tsKey:      'workshopDiagnosisAt',
-    requiresScan: true,
-    scanTitle:    'Avant le pré-check',
-    scanSubtitle: "Scannez l'aile pour lancer le diagnostic sur le bon ticket.",
-  },
+  // Le diagnostic (T6) est déclenché par la branche pré-check OU par le
+  // bouton "problème évident" du bloc triage — on ne le matérialise pas
+  // comme une étape unique avec activeWhen ici, il est rendu manuellement.
   {
     key:        'repair',
     label:      'Réparation en cours',
@@ -76,7 +78,7 @@ const STEPS: StepDef[] = [
     emoji:      '🔧',
     activeWhen: ['workshop_diagnosing'],
     doneFrom:   'workshop_repairing',
-    tsKey:      null, // pas de colonne dédiée — démarrage matérialisé par le statut
+    tsKey:      null,
     requiresScan: true,
     scanTitle:    'Avant la réparation',
     scanSubtitle: "Scannez l'aile pour confirmer que vous attaquez la bonne aile.",
@@ -106,11 +108,28 @@ const STEPS: StepDef[] = [
 ]
 
 export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
-  const { ticketId, status, wingSerial } = props
+  const {
+    ticketId,
+    status,
+    wingSerial,
+    preCheckStartedAt,
+    preCheckCompletedAt,
+    preCheckFeeEurConfig,
+    workshopDiagnosisAt,
+  } = props
   const [isPending, startTransition] = useTransition()
   const [recipient, setRecipient] = useState<'school' | 'client'>('school')
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'error'; msg: string } | null>(null)
-  const [scanGateFor, setScanGateFor] = useState<StepKey | null>(null)
+  const [scanGateFor, setScanGateFor] = useState<ScanGateKey | null>(null)
+
+  // Pré-check : observations en cours de saisie + état UI (form ouvert/fermé)
+  const [preCheckOpen, setPreCheckOpen] = useState(false)
+  const [observations, setObservations] = useState('')
+
+  function showFeedback(type: 'ok' | 'error', msg: string) {
+    setFeedback({ type, msg })
+    if (type === 'ok') setTimeout(() => setFeedback(null), 2200)
+  }
 
   function executeStep(key: StepKey) {
     startTransition(async () => {
@@ -120,7 +139,6 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
 
       const r =
         key === 'received' ? await markWingReceivedWorkshopAction(fd) :
-        key === 'diagnose' ? await startWorkshopDiagnosisAction(fd)   :
         key === 'repair'   ? await startWorkshopRepairAction(fd)      :
         key === 'done'     ? await markWorkshopDoneAction(fd)         :
         key === 'returned' ? await markWingReturnedAction(fd)         :
@@ -129,10 +147,9 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
       if (!r) return
       if ('error' in r && r.error) {
         const msg = (r.error._form as string[] | undefined)?.[0] ?? 'Erreur'
-        setFeedback({ type: 'error', msg })
+        showFeedback('error', msg)
       } else {
-        setFeedback({ type: 'ok', msg: 'Étape validée.' })
-        setTimeout(() => setFeedback(null), 1800)
+        showFeedback('ok', 'Étape validée.')
       }
     })
   }
@@ -148,15 +165,92 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
     }
   }
 
+  function executeDiagnoseDirect() {
+    startTransition(async () => {
+      const fd = new FormData()
+      fd.set('ticketId', ticketId)
+      const r = await startWorkshopDiagnosisAction(fd)
+      if (r && 'error' in r && r.error) {
+        const msg = (r.error._form as string[] | undefined)?.[0] ?? 'Erreur'
+        showFeedback('error', msg)
+      } else {
+        showFeedback('ok', 'Diagnostic démarré.')
+      }
+    })
+  }
+
+  function handleStartPreCheck() {
+    startTransition(async () => {
+      const fd = new FormData()
+      fd.set('ticketId', ticketId)
+      const r = await startWorkshopPreCheckAction(fd)
+      if (r && 'error' in r && r.error) {
+        const flat = r.error as Record<string, string[] | undefined>
+        const msg = flat._form?.[0] ?? flat.ticketId?.[0] ?? 'Erreur'
+        showFeedback('error', msg)
+      } else {
+        setPreCheckOpen(true)
+        showFeedback('ok', 'Pré-check démarré.')
+      }
+    })
+  }
+
+  function handleFinishPreCheck(e: React.FormEvent) {
+    e.preventDefault()
+    if (observations.trim().length < 10) {
+      showFeedback('error', 'Observations trop courtes (10 caractères min)')
+      return
+    }
+    startTransition(async () => {
+      const fd = new FormData()
+      fd.set('ticketId', ticketId)
+      fd.set('observations', observations.trim())
+      const r = await finishWorkshopPreCheckAction(fd)
+      if (r && 'error' in r && r.error) {
+        const flat = r.error as Record<string, string[] | undefined>
+        const msg = flat._form?.[0] ?? flat.observations?.[0] ?? 'Erreur'
+        showFeedback('error', msg)
+      } else {
+        setPreCheckOpen(false)
+        setObservations('')
+        showFeedback('ok', 'Pré-check terminé — diagnostic en cours.')
+      }
+    })
+  }
+
   function handleScanSuccess(_method: 'camera' | 'demo' | 'manual') {
-    if (scanGateFor) {
-      const k = scanGateFor
-      setScanGateFor(null)
+    if (!scanGateFor) return
+    const k = scanGateFor
+    setScanGateFor(null)
+    if (k === 'diagnose_direct') {
+      executeDiagnoseDirect()
+    } else {
       executeStep(k)
     }
   }
 
-  const activeScanStep = scanGateFor ? STEPS.find((s) => s.key === scanGateFor) : null
+  // Métadonnées de la modal de scan — couvre les StepDef + le cas "diagnose_direct".
+  const SCAN_META: Record<ScanGateKey, { title: string; subtitle: string }> = {
+    received: {
+      title:    "Réception de l'aile",
+      subtitle: "Scannez le QR cousu sur l'aile (ou sur le sac) pour confirmer la réception à l'atelier.",
+    },
+    diagnose_direct: {
+      title:    'Avant le diagnostic',
+      subtitle: "Scannez l'aile pour démarrer le diagnostic sur le bon ticket.",
+    },
+    repair: {
+      title:    'Avant la réparation',
+      subtitle: "Scannez l'aile pour confirmer que vous attaquez la bonne aile.",
+    },
+    done: { title: '', subtitle: '' },
+    returned: {
+      title:    "Avant l'expédition retour",
+      subtitle: "Scannez l'aile une dernière fois avant de la confier au transporteur.",
+    },
+  }
+
+  const activeScanMeta = scanGateFor ? SCAN_META[scanGateFor] : null
 
   // Ticket pas encore escaladé → on affiche un placeholder explicatif.
   if (!statusGte(status, 'escalated_to_workshop')) {
@@ -167,6 +261,16 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
       </div>
     )
   }
+
+  // Visibilité conditionnelle :
+  //  - `received` : toujours visible (escalated → wing_received)
+  //  - triage     : visible uniquement à wing_received_workshop, avant pré-check
+  //  - pre_check  : visible dès que la branche est engagée
+  //  - diagnostic : affiché en "fait" dès qu'on a dépassé pre_checking
+  //  - repair / done / returned : séquence linéaire post-diagnostic
+  const hasPreCheckStarted = status === 'workshop_pre_checking' || !!preCheckStartedAt
+  const preCheckIsCurrent  = status === 'workshop_pre_checking'
+  const diagnosisDone      = statusGte(status, 'workshop_diagnosing') && status !== 'workshop_pre_checking'
 
   return (
     <>
@@ -179,113 +283,187 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
           </p>
         )}
 
-        {STEPS.map((step, idx) => {
-          const isDone   = statusGte(status, step.doneFrom)
-          const isActive = step.activeWhen.includes(status) && !isDone
-          const isLocked = !isActive && !isDone
-          const at       = step.tsKey ? props[step.tsKey] : null
+        {STEPS.filter((s) => s.key === 'received').map((step) => (
+          <SequentialStep
+            key={step.key}
+            step={step}
+            idx={1}
+            status={status}
+            props={props}
+            isPending={isPending}
+            onClick={() => handleStep(step.key)}
+            onBypassScan={() => executeStep(step.key)}
+          />
+        ))}
 
-          return (
-            <div
-              key={step.key}
-              className={`rounded-card border p-4 transition-colors ${
-                isDone
-                  ? 'border-emerald-200 bg-emerald-50/50'
-                  : isActive
-                    ? 'border-brand-gold bg-brand-gold/5 shadow-plume'
-                    : 'border-brand-stone bg-white opacity-60'
-              }`}
+        {/* Branche triage post-réception : tant que le ticket n'a pas dépassé
+            wing_received_workshop / workshop_pre_checking, on propose
+            au technicien de choisir la suite. */}
+        {status === 'wing_received_workshop' && !hasPreCheckStarted && (
+          <div className="rounded-card border border-brand-gold bg-brand-gold/5 p-4 shadow-plume">
+            <p className="text-sm font-semibold text-brand-ink">
+              <span className="mr-1.5" aria-hidden>🧭</span>
+              Quelle est la prochaine étape&nbsp;?
+            </p>
+            <p className="mt-1 text-xs text-slate-600">
+              À la réception, indique si le problème est évident ou s&apos;il faut
+              un pré-check rapide (~1h, facturé {preCheckFeeEurConfig} € à Plume).
+            </p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setScanGateFor('diagnose_direct')}
+                disabled={isPending}
+                className="btn-primary text-sm"
+              >
+                🎯 Problème évident → diagnostic
+              </button>
+              <button
+                type="button"
+                onClick={handleStartPreCheck}
+                disabled={isPending}
+                className="btn-secondary text-sm"
+              >
+                🔎 Pas clair → démarrer pré-check
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={executeDiagnoseDirect}
+              disabled={isPending}
+              className="mt-2 w-full text-center text-[11px] text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline"
             >
-              <div className="flex items-start gap-3 sm:gap-4">
-                <div
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-bold ${
-                    isDone
-                      ? 'bg-emerald-500 text-white'
-                      : isActive
-                        ? 'bg-brand-gold text-white'
-                        : 'bg-brand-stone text-slate-400'
-                  }`}
-                  aria-hidden
-                >
-                  {isDone ? '✓' : idx + 1}
-                </div>
+              Passer le scan & démarrer diagnostic (test)
+            </button>
+          </div>
+        )}
 
-                <div className="min-w-0 flex-1">
-                  <p className={`text-sm font-semibold ${isDone ? 'text-slate-500 line-through decoration-emerald-500/60' : isLocked ? 'text-slate-400' : 'text-brand-ink'}`}>
-                    <span className="mr-1.5" aria-hidden>{step.emoji}</span>
-                    {step.label}
-                    {step.requiresScan && !isDone && (
-                      <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-brand-gold/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
-                        📷 Scan requis
-                      </span>
-                    )}
+        {/* Carte pré-check : visible dès qu'on l'a démarré (en cours ou terminé) */}
+        {hasPreCheckStarted && (
+          <div
+            className={`rounded-card border p-4 ${
+              preCheckIsCurrent
+                ? 'border-brand-gold bg-brand-gold/5 shadow-plume'
+                : 'border-emerald-200 bg-emerald-50/50'
+            }`}
+          >
+            <div className="flex items-start gap-4">
+              <div
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-bold ${
+                  preCheckIsCurrent
+                    ? 'bg-brand-gold text-white'
+                    : 'bg-emerald-500 text-white'
+                }`}
+                aria-hidden
+              >
+                {preCheckIsCurrent ? '⏱' : '✓'}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className={`text-sm font-semibold ${preCheckIsCurrent ? 'text-brand-ink' : 'text-slate-500'}`}>
+                  <span className="mr-1.5" aria-hidden>🔎</span>
+                  Pré-check ({preCheckFeeEurConfig} € facturés à Plume)
+                </p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Durée &lt; 1 h. Documente les observations pour décider la suite.
+                </p>
+                {preCheckStartedAt && (
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Démarré le {formatDateTime(preCheckStartedAt)}
                   </p>
-                  <p className="mt-0.5 text-xs text-slate-500">{step.helpText}</p>
-
-                  {/* Recipient picker — only on the "returned" active step */}
-                  {step.key === 'returned' && isActive && (
-                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
-                      <span className="text-slate-500">Destination&nbsp;:</span>
-                      <label className="flex items-center gap-1.5">
-                        <input
-                          type="radio"
-                          name="recipient"
-                          value="school"
-                          checked={recipient === 'school'}
-                          onChange={() => setRecipient('school')}
-                          className="h-3.5 w-3.5 accent-brand-gold"
-                        />
-                        <span>École partenaire</span>
-                      </label>
-                      <label className="flex items-center gap-1.5">
-                        <input
-                          type="radio"
-                          name="recipient"
-                          value="client"
-                          checked={recipient === 'client'}
-                          onChange={() => setRecipient('client')}
-                          className="h-3.5 w-3.5 accent-brand-gold"
-                        />
-                        <span>Client direct</span>
-                      </label>
-                    </div>
-                  )}
-
-                  {at && (
-                    <p className="mt-1 text-[11px] text-emerald-700">
-                      ✓ Validé le {formatDateTime(at)}
-                    </p>
-                  )}
-                </div>
-
-                {isActive && (
-                  <button
-                    type="button"
-                    onClick={() => handleStep(step.key)}
-                    disabled={isPending}
-                    className="btn-primary shrink-0"
-                  >
-                    {isPending ? '…' : step.label}
-                  </button>
+                )}
+                {preCheckCompletedAt && (
+                  <p className="mt-0.5 text-[11px] text-emerald-700">
+                    ✓ Terminé le {formatDateTime(preCheckCompletedAt)}
+                  </p>
                 )}
               </div>
-
-              {/* Bypass scan QR — réservé à la phase de test/démo. Permet
-                  d'avancer sans déclencher la caméra (démos sans aile physique).
-                  À retirer ou gater par feature flag avant la mise en ligne. */}
-              {isActive && step.requiresScan && (
+              {preCheckIsCurrent && !preCheckOpen && (
                 <button
                   type="button"
-                  onClick={() => executeStep(step.key)}
+                  onClick={() => setPreCheckOpen(true)}
                   disabled={isPending}
-                  className="mt-2 w-full text-center text-[11px] text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline"
+                  className="btn-primary shrink-0"
                 >
-                  Passer le scan (test)
+                  Clôturer le pré-check
                 </button>
               )}
             </div>
-          )
-        })}
+
+            {preCheckIsCurrent && preCheckOpen && (
+              <form onSubmit={handleFinishPreCheck} className="mt-3 space-y-2">
+                <label className="block text-xs font-medium text-slate-600">
+                  Observations
+                </label>
+                <textarea
+                  value={observations}
+                  onChange={(e) => setObservations(e.target.value)}
+                  rows={4}
+                  maxLength={5000}
+                  placeholder="Ce que vous avez constaté pendant le pré-check (état général, déformations, suspentes, etc.)…"
+                  className="field-input resize-none"
+                  required
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={isPending || observations.trim().length < 10}
+                    className="btn-primary flex-1"
+                  >
+                    {isPending ? '…' : 'Terminer & démarrer diagnostic'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreCheckOpen(false)}
+                    className="btn-secondary"
+                    disabled={isPending}
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
+
+        {/* Étape diagnostic — démarrée par la branche triage ou par la fin du
+            pré-check. On affiche juste l'état "fait" pour la lisibilité. */}
+        {diagnosisDone && (
+          <div className="flex items-start gap-4 rounded-card border border-emerald-200 bg-emerald-50/50 p-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-base font-bold text-white" aria-hidden>
+              ✓
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-slate-500 line-through decoration-emerald-500/60">
+                <span className="mr-1.5" aria-hidden>🔬</span>
+                Diagnostic démarré
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Remplissez la checklist diagnostic et notez le devis dans la section dédiée.
+              </p>
+              {workshopDiagnosisAt && (
+                <p className="mt-1 text-[11px] text-emerald-700">
+                  ✓ Validé le {formatDateTime(workshopDiagnosisAt)}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Suite linéaire post-diagnostic */}
+        {STEPS.filter((s) => s.key !== 'received').map((step, idx) => (
+          <SequentialStep
+            key={step.key}
+            step={step}
+            idx={idx + 3 /* received=1, diagnostic=2, donc repair commence à 3 */}
+            status={status}
+            props={props}
+            isPending={isPending}
+            onClick={() => handleStep(step.key)}
+            onBypassScan={() => executeStep(step.key)}
+            recipient={step.key === 'returned' ? recipient : undefined}
+            onRecipientChange={step.key === 'returned' ? setRecipient : undefined}
+          />
+        ))}
       </div>
 
       <ScanGateModal
@@ -293,9 +471,128 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
         onClose={() => setScanGateFor(null)}
         onScanSuccess={handleScanSuccess}
         expectedSerial={wingSerial}
-        title={activeScanStep?.scanTitle ?? 'Scan flashcode'}
-        subtitle={activeScanStep?.scanSubtitle ?? ''}
+        title={activeScanMeta?.title ?? 'Scan flashcode'}
+        subtitle={activeScanMeta?.subtitle ?? ''}
       />
     </>
+  )
+}
+
+interface SequentialStepProps {
+  step:               StepDef
+  idx:                number
+  status:             RequestStatus
+  props:              WorkshopStepPanelProps
+  isPending:          boolean
+  onClick:            () => void
+  onBypassScan:       () => void
+  recipient?:         'school' | 'client'
+  onRecipientChange?: (r: 'school' | 'client') => void
+}
+
+function SequentialStep({
+  step, idx, status, props, isPending, onClick, onBypassScan, recipient, onRecipientChange,
+}: SequentialStepProps) {
+  const isDone   = statusGte(status, step.doneFrom)
+  const isActive = step.activeWhen.includes(status) && !isDone
+  const isLocked = !isActive && !isDone
+  const at       = step.tsKey ? props[step.tsKey] : null
+
+  return (
+    <div
+      className={`rounded-card border p-4 transition-colors ${
+        isDone
+          ? 'border-emerald-200 bg-emerald-50/50'
+          : isActive
+            ? 'border-brand-gold bg-brand-gold/5 shadow-plume'
+            : 'border-brand-stone bg-white opacity-60'
+      }`}
+    >
+      <div className="flex items-start gap-3 sm:gap-4">
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-bold ${
+            isDone
+              ? 'bg-emerald-500 text-white'
+              : isActive
+                ? 'bg-brand-gold text-white'
+                : 'bg-brand-stone text-slate-400'
+          }`}
+          aria-hidden
+        >
+          {isDone ? '✓' : idx}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className={`text-sm font-semibold ${isDone ? 'text-slate-500 line-through decoration-emerald-500/60' : isLocked ? 'text-slate-400' : 'text-brand-ink'}`}>
+            <span className="mr-1.5" aria-hidden>{step.emoji}</span>
+            {step.label}
+            {step.requiresScan && !isDone && (
+              <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-brand-gold/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                📷 Scan requis
+              </span>
+            )}
+          </p>
+          <p className="mt-0.5 text-xs text-slate-500">{step.helpText}</p>
+
+          {/* Recipient picker — only on the "returned" active step */}
+          {step.key === 'returned' && isActive && onRecipientChange && (
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+              <span className="text-slate-500">Destination&nbsp;:</span>
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="recipient"
+                  value="school"
+                  checked={recipient === 'school'}
+                  onChange={() => onRecipientChange('school')}
+                  className="h-3.5 w-3.5 accent-brand-gold"
+                />
+                <span>École partenaire</span>
+              </label>
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="recipient"
+                  value="client"
+                  checked={recipient === 'client'}
+                  onChange={() => onRecipientChange('client')}
+                  className="h-3.5 w-3.5 accent-brand-gold"
+                />
+                <span>Client direct</span>
+              </label>
+            </div>
+          )}
+
+          {at && (
+            <p className="mt-1 text-[11px] text-emerald-700">
+              ✓ Validé le {formatDateTime(at)}
+            </p>
+          )}
+        </div>
+
+        {isActive && (
+          <button
+            type="button"
+            onClick={onClick}
+            disabled={isPending}
+            className="btn-primary shrink-0"
+          >
+            {isPending ? '…' : step.label}
+          </button>
+        )}
+      </div>
+
+      {/* Bypass scan QR — réservé à la phase de test/démo (cf. T4). */}
+      {isActive && step.requiresScan && (
+        <button
+          type="button"
+          onClick={onBypassScan}
+          disabled={isPending}
+          className="mt-2 w-full text-center text-[11px] text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline"
+        >
+          Passer le scan (test)
+        </button>
+      )}
+    </div>
   )
 }

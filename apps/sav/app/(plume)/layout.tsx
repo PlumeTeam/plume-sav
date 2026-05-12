@@ -17,10 +17,11 @@ export default async function PlumeLayout({ children }: { children: React.ReactN
         spaceLabel="Plume HQ"
         spaceColor="navy"
         links={[
-          { href: '/plume',    label: 'Dashboard' },
-          { href: '/school',   label: 'Vue École' },
-          { href: '/workshop', label: 'Vue Atelier' },
-          { href: '/client',   label: 'Vue Client' },
+          { href: '/plume',          label: 'Dashboard' },
+          { href: '/plume/settings', label: 'Réglages'  },
+          { href: '/school',         label: 'Vue École' },
+          { href: '/workshop',       label: 'Vue Atelier' },
+          { href: '/client',         label: 'Vue Client' },
         ]}
         userEmail={user?.email}
         multiRole

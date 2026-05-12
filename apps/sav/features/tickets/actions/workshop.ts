@@ -19,9 +19,15 @@ import type {
   WizardProblemCategory,
   WorkshopDecision,
 } from '../types'
-import { repairDecisionSchema, workshopChecklistSchema } from '../schemas'
+import {
+  finishWorkshopPreCheckSchema,
+  repairDecisionSchema,
+  startWorkshopPreCheckSchema,
+  workshopChecklistSchema,
+} from '../schemas'
 import { sendClientStepUpdateEmail, type ClientStepEmail, type TicketEmailContext } from '../email'
 import { computeRepairDecision, computeWarrantyStatus } from '../utils'
+import { getPreCheckFeeEur } from '@/features/settings/queries'
 import { requestStatusToSavStatus } from './_helpers'
 import { advanceTicketStep } from './_step-advance'
 
@@ -64,18 +70,76 @@ export async function markWingReceivedWorkshopAction(formData: FormData) {
 }
 
 /**
- * Ã‰tape 5 â€” L'atelier commence le diagnostic technique.
- * wing_received_workshop â†’ workshop_diagnosing
+ * Étape 5 — L'atelier commence le diagnostic technique.
+ * Accepte deux statuts de départ :
+ *  - wing_received_workshop      (le problème est évident → diagnostic direct)
+ *  - workshop_pre_checking       (après pré-check → diagnostic confirmé)
  */
 export async function startWorkshopDiagnosisAction(formData: FormData) {
   const ticketId = String(formData.get('ticketId') ?? '')
   if (!ticketId) return { error: { _form: ['Identifiant manquant'] } }
   return advanceTicketStep({
     ticketId,
-    from:            ['wing_received_workshop'],
+    from:            ['wing_received_workshop', 'workshop_pre_checking'],
     to:              'workshop_diagnosing',
     timestampColumn: 'workshop_diagnosis_at',
     emailStep:       'workshop_diagnosing',
+  })
+}
+
+/**
+ * Étape 5 bis — Démarre un pré-check (~1h max) quand le problème n'est pas
+ * évident à la réception. Tarif fixe facturé à Plume (cf. plume_settings).
+ * wing_received_workshop → workshop_pre_checking
+ */
+export async function startWorkshopPreCheckAction(formData: FormData) {
+  const parsed = startWorkshopPreCheckSchema.safeParse({
+    ticketId: formData.get('ticketId'),
+  })
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors }
+
+  return advanceTicketStep({
+    ticketId:        parsed.data.ticketId,
+    from:            ['wing_received_workshop'],
+    to:              'workshop_pre_checking',
+    timestampColumn: 'pre_check_started_at',
+    // Pas d'email client : étape interne atelier+Plume (Plume paye), pas
+    // d'événement utile pour le client.
+    emailStep:       null,
+    historyNote:     'Pré-check démarré (problème pas clair à la réception)',
+  })
+}
+
+/**
+ * Étape 5 bis (fin) — Clôt le pré-check : enregistre les observations, fige
+ * le tarif sur le ticket et passe en workshop_diagnosing (T6).
+ */
+export async function finishWorkshopPreCheckAction(formData: FormData) {
+  const parsed = finishWorkshopPreCheckSchema.safeParse({
+    ticketId:     formData.get('ticketId'),
+    observations: formData.get('observations'),
+  })
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors }
+
+  const { ticketId, observations } = parsed.data
+
+  // Snapshot du tarif : on lit plume_settings AU MOMENT de la complétion
+  // pour qu'une modif ultérieure du tarif n'affecte pas la facturation
+  // de ce ticket.
+  const feeEur = await getPreCheckFeeEur()
+
+  return advanceTicketStep({
+    ticketId,
+    from:            ['workshop_pre_checking'],
+    to:              'workshop_diagnosing',
+    timestampColumn: 'workshop_diagnosis_at',
+    emailStep:       'workshop_diagnosing',
+    patch: {
+      pre_check_completed_at: new Date().toISOString(),
+      pre_check_observations: observations,
+      pre_check_fee_eur:      feeEur,
+    },
+    historyNote: `Pré-check terminé (facturé ${feeEur} € à Plume)`,
   })
 }
 
