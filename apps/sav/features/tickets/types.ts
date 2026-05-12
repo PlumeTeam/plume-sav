@@ -239,6 +239,7 @@ export const STATUS_CONFIG: Partial<Record<RequestStatus, { label: string; color
   school_resolved:         { label: 'Résolu école',      color: 'text-emerald-800', bg: 'bg-emerald-100' },
   escalated_to_workshop:   { label: 'Vers atelier',      color: 'text-violet-800',  bg: 'bg-violet-100' },
   wing_received_workshop:  { label: 'Atelier reçu',      color: 'text-violet-800',  bg: 'bg-violet-100' },
+  workshop_pre_checking:   { label: 'Pré-check atelier', color: 'text-violet-800',  bg: 'bg-violet-100' },
   workshop_diagnosing:     { label: 'Diagnostic atelier',color: 'text-violet-800',  bg: 'bg-violet-100' },
   workshop_repairing:      { label: 'En réparation',     color: 'text-violet-800',  bg: 'bg-violet-100' },
   workshop_done:           { label: 'Réparé',            color: 'text-emerald-800', bg: 'bg-emerald-100' },

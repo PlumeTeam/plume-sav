@@ -186,6 +186,9 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
             status={ticket.status}
             wingSerial={ticket.serial_number ?? null}
             wingReceivedWorkshopAt={ticket.wing_received_workshop_at}
+            preCheckStartedAt={ticket.pre_check_started_at}
+            preCheckCompletedAt={ticket.pre_check_completed_at}
+            preCheckFeeEurConfig={plumeSettings.preCheckFeeEur}
             workshopDiagnosisAt={ticket.workshop_diagnosis_at}
             workshopRepairDoneAt={ticket.workshop_repair_done_at}
             wingReturnedAt={ticket.wing_returned_at}
@@ -333,6 +336,30 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
             </div>
           )}
         </section>
+
+        {/* Pré-check : trace des observations + tarif figé (facturé à Plume) */}
+        {ticket.pre_check_observations && (
+          <section className="card p-5">
+            <h2 className="section-title mb-3">Pré-check</h2>
+            <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">
+              {ticket.pre_check_observations}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {ticket.pre_check_fee_eur != null && (
+                <span className="rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
+                  💰 {ticket.pre_check_fee_eur} € facturés à Plume
+                </span>
+              )}
+              {ticket.pre_check_started_at && ticket.pre_check_completed_at && (
+                <span className="rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
+                  ⏱ {formatDate(ticket.pre_check_started_at)}
+                  {' → '}
+                  {formatDate(ticket.pre_check_completed_at)}
+                </span>
+              )}
+            </div>
+          </section>
+        )}
 
         {(ticket.diagnosis_notes || ticket.estimated_cost != null) && (
           <section className="card p-5">

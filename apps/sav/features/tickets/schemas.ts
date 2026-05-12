@@ -147,6 +147,23 @@ export const workshopChecklistSchema = z.object({
   notes:       z.string().max(5000).optional(),
 })
 
+// Atelier : démarrage du pré-check (T5 bis, branche "problème pas clair").
+// Pas de payload supplémentaire — c'est juste une transition d'état.
+export const startWorkshopPreCheckSchema = z.object({
+  ticketId: z.string().uuid(),
+})
+
+// Atelier : clôture du pré-check — observations obligatoires (au moins 10
+// caractères pour éviter les bouts de phrase vides). Tarif figé côté serveur
+// depuis plume_settings, pas envoyé par le client.
+export const finishWorkshopPreCheckSchema = z.object({
+  ticketId:     z.string().uuid(),
+  observations: z.string()
+    .trim()
+    .min(10, 'Décrivez vos observations (10 caractères min)')
+    .max(5000, 'Observations trop longues (5000 caractères max)'),
+})
+
 // École : assigne un atelier au ticket pour la communication, sans changer
 // le statut/résolution (pas d'escalade — juste "voilà à qui je parle").
 export const assignWorkshopSchema = z.object({

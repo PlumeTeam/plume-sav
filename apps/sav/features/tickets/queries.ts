@@ -88,18 +88,21 @@ function enrichWithCoords(s: PartnerSchool): PartnerSchool {
 export interface PlumeSettings {
   repairReplacementThresholdEur: number
   warrantyDurationMonths:        number
+  /** Tarif fixe (€) facturé à Plume pour un pré-check atelier (~1h max). */
+  preCheckFeeEur:                number
 }
 
 const DEFAULT_PLUME_SETTINGS: PlumeSettings = {
   repairReplacementThresholdEur: 1500,
   warrantyDurationMonths:        24,
+  preCheckFeeEur:                50,
 }
 
 export async function getPlumeSettings(): Promise<PlumeSettings> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('plume_settings')
-    .select('repair_replacement_threshold_eur, warranty_duration_months')
+    .select('repair_replacement_threshold_eur, warranty_duration_months, pre_check_fee_eur')
     .eq('id', 1)
     .maybeSingle()
 
@@ -110,9 +113,11 @@ export async function getPlumeSettings(): Promise<PlumeSettings> {
 
   const threshold = Number(data.repair_replacement_threshold_eur)
   const warranty  = Number(data.warranty_duration_months)
+  const fee       = Number(data.pre_check_fee_eur)
   return {
     repairReplacementThresholdEur: Number.isFinite(threshold) ? threshold : DEFAULT_PLUME_SETTINGS.repairReplacementThresholdEur,
     warrantyDurationMonths:        Number.isFinite(warranty)  ? warranty  : DEFAULT_PLUME_SETTINGS.warrantyDurationMonths,
+    preCheckFeeEur:                Number.isFinite(fee)       ? fee       : DEFAULT_PLUME_SETTINGS.preCheckFeeEur,
   }
 }
 

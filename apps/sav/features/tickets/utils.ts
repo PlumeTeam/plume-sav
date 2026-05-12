@@ -74,6 +74,7 @@ const STATUS_ORDER: RequestStatus[] = [
   'school_resolved',
   'escalated_to_workshop',
   'wing_received_workshop',
+  'workshop_pre_checking',
   'workshop_diagnosing',
   'workshop_repairing',
   'workshop_done',
@@ -103,6 +104,7 @@ const TIMELINE_INDEX_BY_STATUS: Partial<Record<RequestStatus, number>> = {
   school_resolved:         6, // école a clôturé → on saute à "Terminé"
   escalated_to_workshop:   4,
   wing_received_workshop:  4,
+  workshop_pre_checking:   4,
   workshop_diagnosing:     4,
   workshop_repairing:      5,
   workshop_done:           5,

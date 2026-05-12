@@ -16,6 +16,7 @@ export type RequestStatus =
   | 'school_resolved'
   | 'escalated_to_workshop'
   | 'wing_received_workshop'
+  | 'workshop_pre_checking'
   | 'workshop_diagnosing'
   | 'workshop_repairing'
   | 'workshop_done'
@@ -138,6 +139,11 @@ export interface Database {
           workshop_diagnosis_at:     string | null
           workshop_repair_done_at:   string | null
           wing_returned_at:          string | null
+          // Pré-check atelier (migration 20260512000000)
+          pre_check_started_at:      string | null
+          pre_check_completed_at:    string | null
+          pre_check_observations:    string | null
+          pre_check_fee_eur:         number | null
           // Shipping legs (migration 20260510000000)
           client_school_tracking:      string | null
           client_school_label_url:     string | null
@@ -231,6 +237,10 @@ export interface Database {
           workshop_diagnosis_at?:     string | null
           workshop_repair_done_at?:   string | null
           wing_returned_at?:          string | null
+          pre_check_started_at?:      string | null
+          pre_check_completed_at?:    string | null
+          pre_check_observations?:    string | null
+          pre_check_fee_eur?:         number | null
           client_school_tracking?:      string | null
           client_school_label_url?:     string | null
           client_school_carrier?:       string | null
@@ -319,6 +329,10 @@ export interface Database {
           workshop_diagnosis_at?:     string | null
           workshop_repair_done_at?:   string | null
           wing_returned_at?:          string | null
+          pre_check_started_at?:      string | null
+          pre_check_completed_at?:    string | null
+          pre_check_observations?:    string | null
+          pre_check_fee_eur?:         number | null
           client_school_tracking?:      string | null
           client_school_label_url?:     string | null
           client_school_carrier?:       string | null
@@ -431,6 +445,7 @@ export interface Database {
           id: number
           repair_replacement_threshold_eur: number
           warranty_duration_months: number
+          pre_check_fee_eur: number
           updated_at: string
           updated_by: string | null
         }
@@ -438,6 +453,7 @@ export interface Database {
           id?: number
           repair_replacement_threshold_eur?: number
           warranty_duration_months?: number
+          pre_check_fee_eur?: number
           updated_at?: string
           updated_by?: string | null
         }
@@ -445,6 +461,7 @@ export interface Database {
           id?: number
           repair_replacement_threshold_eur?: number
           warranty_duration_months?: number
+          pre_check_fee_eur?: number
           updated_at?: string
           updated_by?: string | null
         }

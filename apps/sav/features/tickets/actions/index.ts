@@ -15,10 +15,12 @@ export {
   startSchoolCheckAction,
 } from './school'
 export {
+  finishWorkshopPreCheckAction,
   markWingReceivedWorkshopAction,
   markWorkshopDoneAction,
   saveWorkshopChecklistAction,
   startWorkshopDiagnosisAction,
+  startWorkshopPreCheckAction,
   startWorkshopRepairAction,
   submitRepairDecisionAction,
 } from './workshop'
