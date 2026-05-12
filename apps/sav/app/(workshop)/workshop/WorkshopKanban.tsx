@@ -3,8 +3,10 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
+import { TicketContactsBlock } from '@/features/tickets/components/TicketContactsBlock'
 import { formatDate } from '@/features/tickets/utils'
-import type { TicketWithPhotos, RequestStatus } from '@/features/tickets/types'
+import type { RequestStatus } from '@/features/tickets/types'
+import type { TicketWithContacts } from '@/features/tickets/contacts'
 
 type KanbanColumn = {
   id:       string
@@ -56,7 +58,7 @@ const URGENCY_LABELS: Record<UrgencyFilter, string> = {
 }
 
 interface WorkshopKanbanProps {
-  tickets: TicketWithPhotos[]
+  tickets: TicketWithContacts[]
 }
 
 export function WorkshopKanban({ tickets }: WorkshopKanbanProps) {
@@ -84,7 +86,7 @@ export function WorkshopKanban({ tickets }: WorkshopKanbanProps) {
 
   const byColumn = useMemo(
     () =>
-      COLUMNS.reduce<Record<string, TicketWithPhotos[]>>((acc, col) => {
+      COLUMNS.reduce<Record<string, TicketWithContacts[]>>((acc, col) => {
         acc[col.id] = filteredTickets.filter((t) => col.statuses.includes(t.status))
         return acc
       }, {}),
@@ -202,7 +204,7 @@ function WorkshopTicketCard({
   ticket,
   compact = false,
 }: {
-  ticket: TicketWithPhotos
+  ticket: TicketWithContacts
   compact?: boolean
 }) {
   const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
@@ -237,10 +239,17 @@ function WorkshopTicketCard({
         {ticketRef}
       </p>
       {!compact && (
-        <div className="mt-2 flex items-center justify-between">
-          <StatusBadge status={ticket.status} size="sm" />
-          <span className="text-xs text-slate-400">{formatDate(ticket.created_at)}</span>
-        </div>
+        <>
+          <div className="mt-2 flex items-center justify-between">
+            <StatusBadge status={ticket.status} size="sm" />
+            <span className="text-xs text-slate-400">{formatDate(ticket.created_at)}</span>
+          </div>
+          {/* Coordonnées des parties prenantes — uniquement sur les cartes
+              pleine largeur. Le kanban desktop (compact) reste dense. */}
+          <div className="mt-3">
+            <TicketContactsBlock contacts={ticket.contacts} />
+          </div>
+        </>
       )}
     </Link>
   )
