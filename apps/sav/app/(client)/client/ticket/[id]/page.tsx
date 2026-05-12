@@ -11,6 +11,7 @@ import { CommentThread } from '@/features/tickets/components/CommentThread'
 import { ClientDeclarationView } from '@/features/tickets/components/ClientDeclarationView'
 import { WingLocationCard } from '@/features/tickets/components/WingLocationCard'
 import { formatDate } from '@/features/tickets/utils'
+import { filterMessagesForRole } from '@/features/tickets/channels'
 import type { ClientShippingAddress } from '@/features/tickets/types'
 import { MessageForm } from './MessageForm'
 import { ClientTicketTabs } from './ClientTicketTabs'
@@ -42,8 +43,10 @@ export default async function TicketDetailPage({ params }: PageProps) {
     : null
 
   const sortedPhotos   = [...ticket.ticket_photos].sort((a, b) => a.sort_order - b.sort_order)
-  const publicMessages = ticket.ticket_messages
-    .filter((m) => m.visibility_level === 'all')
+  // Le client voit ses 3 canaux (school_client, client_workshop, group) + les
+  // messages legacy avec visibility_level='all'. filterMessagesForRole couvre
+  // les deux régimes.
+  const publicMessages = filterMessagesForRole(ticket.ticket_messages, 'client')
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
   const ticketRef  = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
   const isRejected = ticket.status === 'rejected' || ticket.status === 'cancelled'

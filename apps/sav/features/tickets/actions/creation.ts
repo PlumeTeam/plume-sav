@@ -153,6 +153,7 @@ export async function createTicketAction(input: unknown) {
       content:          trimmedClientMessage,
       is_internal:      false,
       visibility_level: 'all',
+      channel:          'school_client',
     })
     if (msgError) console.warn('client message insert failed:', msgError.message)
   }

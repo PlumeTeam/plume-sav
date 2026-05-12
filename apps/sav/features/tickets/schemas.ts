@@ -176,6 +176,12 @@ export const roleMessageSchema = z.object({
   // Optional explicit visibility — overrides the legacy is_internal mapping.
   // Used by the new school action cards to differentiate "À l'atelier" vs "Au client".
   visibilityLevel: z.enum(['all', 'school_plume', 'workshop_plume', 'plume_only']).optional(),
+  // 5-channel system (cf. apps/sav/features/tickets/channels.ts). Quand
+  // fourni, l'action valide que le rôle effectif peut poster dans ce canal
+  // et écrit ticket_messages.channel pour le filtrage server-side.
+  channel: z.enum([
+    'school_client', 'client_workshop', 'workshop_school', 'group', 'workshop_plume',
+  ]).optional(),
 })
 
 // ============================================================

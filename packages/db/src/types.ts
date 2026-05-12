@@ -375,6 +375,7 @@ export interface Database {
           content: string
           is_internal: boolean
           visibility_level: string
+          channel: string | null
           created_at: string
         }
         Insert: {
@@ -385,6 +386,7 @@ export interface Database {
           content: string
           is_internal?: boolean
           visibility_level?: string
+          channel?: string | null
           created_at?: string
         }
         Update: {
@@ -395,6 +397,7 @@ export interface Database {
           content?: string
           is_internal?: boolean
           visibility_level?: string
+          channel?: string | null
           created_at?: string
         }
         Relationships: [

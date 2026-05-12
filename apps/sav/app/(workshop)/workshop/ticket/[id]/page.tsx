@@ -11,6 +11,7 @@ import { PlumeNoteComposer } from '@/features/tickets/components/PlumeNoteCompos
 import { TicketChannelSwitch, type TicketChannel } from '@/features/tickets/components/TicketChannelSwitch'
 import { readSchoolCheckInspector, readSchoolCheckPayload } from '@/features/tickets/inspection/steps'
 import { SchoolCheckSummary } from '@/features/tickets/inspection/SchoolCheckSummary'
+import { filterMessagesForRole } from '@/features/tickets/channels'
 import { DiagnosisChecklist } from '@/features/tickets/components/DiagnosisChecklist'
 import { WORKSHOP_TECHNICAL_CHECKLIST } from '@/features/tickets/constants'
 import { saveWorkshopChecklistAction } from '@/features/tickets/actions'
@@ -76,52 +77,86 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
 
   const isPlumeAdmin = currentRoles.includes('plume_admin')
 
-  // Workshop sees:
-  //  - public messages (visibility 'all')
-  //  - the school↔workshop↔plume channel (visibility 'workshop_plume')
-  //  - their own messages
-  // Hides 'school_plume' (private school↔plume) and 'plume_only' (admin notes).
-  // Plume admins (en vue support) voient les notes 'plume_only' en plus.
-  const visibleMessages = ticket.ticket_messages
-    .filter((m) =>
-      m.visibility_level === 'all' ||
-      m.visibility_level === 'workshop_plume' ||
-      (isPlumeAdmin && (m.visibility_level === 'plume_only' || m.visibility_level === 'school_plume')) ||
-      m.sender_role === 'workshop'
-    )
-    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  // 4 canaux côté atelier dans le système 5-canaux :
+  //  - client_workshop   : ouvert après mise en relation par l'école
+  //  - workshop_school   : coordination tech avec l'école
+  //  - group             : canal commun (école + client + atelier)
+  //  - workshop_plume    : privé atelier ↔ Plume HQ (client/école jamais)
+  // Le 5e canal (school_client) est école↔client privé — l'atelier ne le voit
+  // pas du tout, conformément à la spec. Plume admin voit en plus tout le
+  // legacy (plume_only / school_plume) via filterMessagesForRole.
+  const visibleMessages = filterMessagesForRole(
+    ticket.ticket_messages,
+    isPlumeAdmin ? 'plume' : 'workshop',
+  ).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
-  // 2 canaux côté atelier : Client (visibility 'all') / École (workshop_plume).
-  // Plume HQ peut intervenir dans le canal école — pas de canal direct
-  // atelier ↔ Plume séparé (RLS workshop ne lit que 'all' et 'workshop_plume').
+  const clientWorkshopActive = ticket.assigned_workshop_id != null
+
   const workshopChannels: TicketChannel[] = [
     {
-      id:         'client',
-      label:      'Avec le client',
-      emoji:      '👤',
-      visibility: 'all',
+      id:        'group',
+      label:     'Discussion de groupe',
+      emoji:     '👥',
+      channel:   'group',
       composer: {
         senderRole:      'workshop',
         visibilityLevel: 'all',
-        placeholder:     'Mise à jour, demande de précision au client…',
-        submitLabel:     'Envoyer au client',
+        channel:         'group',
+        placeholder:     'Message pour le groupe (école + client + atelier)…',
+        submitLabel:     'Envoyer au groupe',
         helperText:      "Visible par le client, l'école & Plume HQ",
       },
-      emptyText: 'Aucun message public sur ce ticket pour le moment.',
+      emptyText: 'Aucun message dans le canal de groupe.',
     },
     {
-      id:         'school',
-      label:      "Avec l'école",
-      emoji:      '🏫',
-      visibility: 'workshop_plume',
+      id:        'client',
+      label:     'Avec le client',
+      emoji:     '👤',
+      channel:   'client_workshop',
+      composer: {
+        senderRole:      'workshop',
+        visibilityLevel: 'all',
+        channel:         'client_workshop',
+        placeholder:     'Mise à jour, demande de précision au client…',
+        submitLabel:     'Envoyer au client',
+        helperText:      "Privé client ↔ atelier — l'école ne voit pas",
+        disabledReason: clientWorkshopActive
+          ? undefined
+          : "Canal verrouillé : l'école doit d'abord vous mettre en relation avec le client.",
+      },
+      emptyText: clientWorkshopActive
+        ? 'Aucun échange direct avec le client pour le moment.'
+        : "Canal verrouillé tant que l'école ne vous a pas mis en relation avec le client.",
+    },
+    {
+      id:        'school',
+      label:     "Avec l'école",
+      emoji:     '🏫',
+      channel:   'workshop_school',
       composer: {
         senderRole:      'workshop',
         visibilityLevel: 'workshop_plume',
+        channel:         'workshop_school',
         placeholder:     "Diagnostic, devis, demande d'info à l'école…",
         submitLabel:     "Envoyer à l'école",
-        helperText:      "Visible par l'école & Plume HQ — le client ne voit pas",
+        helperText:      "Privé atelier ↔ école — le client ne voit pas",
       },
       emptyText: "Aucun échange avec l'école pour le moment.",
+    },
+    {
+      id:        'plume',
+      label:     'Avec Plume',
+      emoji:     '🦅',
+      channel:   'workshop_plume',
+      composer: {
+        senderRole:      'workshop',
+        visibilityLevel: 'plume_only',
+        channel:         'workshop_plume',
+        placeholder:     "Question, escalade ou alerte à Plume HQ…",
+        submitLabel:     'Envoyer à Plume HQ',
+        helperText:      'Privé atelier ↔ Plume — client et école ne voient JAMAIS ce canal',
+      },
+      emptyText: 'Aucun échange avec Plume HQ pour le moment.',
     },
   ]
 

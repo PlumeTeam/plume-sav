@@ -8,6 +8,7 @@ export type TicketMessage = Database['public']['Tables']['ticket_messages']['Row
 export type TicketStatusHistory = Database['public']['Tables']['ticket_status_history']['Row']
 
 export type { TicketStatus, RequestStatus, ServiceType, ProblemCategory, UrgencyLevel, PhotoType, MessageSenderRole, SchoolResolution }
+export type { MessageChannel } from './channels'
 
 export type TicketWithPhotos = Ticket & {
   ticket_photos: TicketPhoto[]

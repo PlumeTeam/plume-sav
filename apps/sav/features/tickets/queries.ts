@@ -276,7 +276,7 @@ async function hydrateTicket(supabase: any, row: Record<string, unknown>): Promi
       ),
     supabase
       .from('ticket_messages')
-      .select('id, ticket_id, sender_id, sender_role, content, is_internal, visibility_level, created_at')
+      .select('id, ticket_id, sender_id, sender_role, content, is_internal, visibility_level, channel, created_at')
       .eq('ticket_id', ticketId)
       .order('created_at', { ascending: true })
       .then(
