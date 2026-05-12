@@ -308,6 +308,20 @@ export function SchoolStepPanel({
     setReturnScanGateFor(opt)
   }
 
+  // Bypass scan QR — réservé à la phase de test/démo. Marque l'option comme
+  // « scannée » sans déclencher la caméra, ce qui affiche directement le bouton
+  // de génération du bon de transport. À retirer / gater par feature flag avant
+  // la mise en ligne client.
+  function skipReturnScan(opt: ReturnOption) {
+    setReturnError(null)
+    setScannedReturnOptions((prev) => {
+      const next = new Set(prev)
+      next.add(opt)
+      return next
+    })
+    setReturnOption(opt)
+  }
+
   function handleReturnScanSuccess(_method: 'camera' | 'demo' | 'manual') {
     if (!returnScanGateFor) return
     const opt = returnScanGateFor
@@ -696,6 +710,13 @@ export function SchoolStepPanel({
               >
                 📷 Scanner l&apos;aile
               </button>
+              <button
+                type="button"
+                onClick={() => skipReturnScan('carrier_to_client')}
+                className="mt-2 w-full text-center text-[11px] text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline"
+              >
+                Passer le scan (test)
+              </button>
             </>
           )
         }
@@ -723,6 +744,13 @@ export function SchoolStepPanel({
                 className="btn-primary mt-3 w-full"
               >
                 📷 Scanner l&apos;aile
+              </button>
+              <button
+                type="button"
+                onClick={() => skipReturnScan('to_workshop')}
+                className="mt-2 w-full text-center text-[11px] text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline"
+              >
+                Passer le scan (test)
               </button>
             </>
           )
