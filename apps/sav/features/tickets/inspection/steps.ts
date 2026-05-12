@@ -15,27 +15,33 @@ export type InflationSurfaceConsistency = 'yes' | 'no' | 'unsure'
 export type TearSize         = 'lt5' | '5to10' | '10to15' | 'gt15'
 export type SeamDistance     = 'close' | 'far'
 
-export interface InflationPhoto {
-  /** Chemin dans le bucket `tickets` (Supabase Storage). */
-  storagePath: string
-}
-
 export type Phase1 = {
   // Écran 1 — Inspection visuelle générale
   visibleDamage?:      YesNo
   damageDescription?:  string
+  damagePhotoPaths?:   string[]
 
   // Écran 2 — Tissu
   fabricCondition?:    FabricCondition
   visibleTears?:       YesNo
   tearSize?:           TearSize
   seamDistance?:       SeamDistance
+  tearsNote?:          string
+  tearsPhotoPaths?:    string[]
 
   // Écran 3 — Coutures et structure
   openSeams?:          YesNo
+  openSeamsNote?:      string
+  openSeamsPhotoPaths?:string[]
   linesCondition?:     LinesCondition
+  linesNote?:          string
+  linesPhotoPaths?:    string[]
   maillonsInverted?:   YesNoIdk
+  maillonsNote?:       string
+  maillonsPhotoPaths?: string[]
   risersCondition?:    RisersCondition
+  risersNote?:         string
+  risersPhotoPaths?:   string[]
 }
 
 export type Phase2 =
@@ -52,11 +58,9 @@ export type Phase2 =
       inflationSymmetry?:           InflationSymmetry
       inflationNormalBehavior?:     YesNo
       inflationNotes?:              string
-      /** Photos optionnelles jointes au check de gonflage. Stockées dans le
-       *  bucket `tickets`, leurs chemins persistent dans le payload de la
-       *  checklist (pas de ligne `ticket_photos` côté SAV : ces clichés sont
-       *  attachés au check, pas au ticket global). */
-      inflationPhotos?:             InflationPhoto[]
+      /** Photos optionnelles jointes au check de gonflage (chemins dans le
+       *  bucket `tickets`). Même shape que damagePhotoPaths & cie en Phase 1. */
+      inflationPhotoPaths?:         string[]
     }
 
 export type Phase3 =

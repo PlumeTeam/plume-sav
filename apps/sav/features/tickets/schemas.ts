@@ -92,10 +92,12 @@ export const createTicketSchema = z.object({
 })
 
 // École : sauvegarde de la checklist de premier diagnostic
+// notes contient un JSON sérialisé (SchoolCheckPayload) qui peut inclure
+// plusieurs storage paths de photos par question — d'où la marge confortable.
 export const schoolChecklistSchema = z.object({
   ticketId:    z.string().uuid(),
   checkedIds:  z.array(z.string()).default([]),
-  notes:       z.string().max(2000).optional(),
+  notes:       z.string().max(16000).optional(),
 })
 
 // École : choix d'une issue
