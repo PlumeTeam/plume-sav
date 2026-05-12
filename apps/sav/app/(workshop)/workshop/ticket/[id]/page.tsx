@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getWorkshopTicketDetail, getPartnerSchoolById } from '@/features/tickets/queries'
+import { getPartnerSchoolById, getPlumeSettings, getWorkshopTicketDetail } from '@/features/tickets/queries'
 import { markTicketReadByWorkshopAction } from '@/features/tickets/messages-actions-workshop'
 import { markTicketReadByPlumeAction } from '@/features/tickets/messages-actions-plume'
 import { getCurrentUserRoles } from '@/features/auth/queries'
@@ -19,7 +19,9 @@ import { formatDate } from '@/features/tickets/utils'
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
 import { WorkshopActionBar } from './WorkshopActionBar'
 import { WorkshopStepPanel } from './WorkshopStepPanel'
-import type { WorkshopReturnDestination } from '@/features/tickets/types'
+import { WorkshopRepairDecisionPanel } from './WorkshopRepairDecisionPanel'
+import { statusGte } from '@/features/tickets/utils'
+import type { WarrantyStatus, WorkshopDecision, WorkshopReturnDestination } from '@/features/tickets/types'
 
 // Garantie : 2 ans à compter de la date d'achat (politique Plume Paragliders).
 // Retourne null si on n'a pas la date — l'UI doit alors masquer le badge.
@@ -56,9 +58,10 @@ export const dynamic = 'force-dynamic'
 type ChecklistJson = { checkedIds?: string[]; notes?: string | null } | null
 
 export default async function WorkshopTicketDetailPage({ params }: PageProps) {
-  const [ticket, currentRoles] = await Promise.all([
+  const [ticket, currentRoles, plumeSettings] = await Promise.all([
     getWorkshopTicketDetail(params.id),
     getCurrentUserRoles(),
+    getPlumeSettings(),
   ])
   if (!ticket) notFound()
 
@@ -191,6 +194,21 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
 
   const returnDest = (ticket.workshop_return_destination ?? null) as WorkshopReturnDestination | null
 
+  // T6 — décision réparation/remplacement n'est proposée qu'après réception
+  // de l'aile à l'atelier (pré-check effectué). On reste tolérant : si la
+  // décision est déjà prise, on l'affiche même au-delà.
+  const showRepairDecision = statusGte(ticket.status, 'wing_received_workshop')
+  const repairDecisionInitial = {
+    estimatedCost:   ticket.workshop_estimated_repair_cost != null
+      ? Number(ticket.workshop_estimated_repair_cost)
+      : null,
+    decision:        (ticket.workshop_decision ?? null) as WorkshopDecision | null,
+    warrantyStatus:  (ticket.workshop_decision_warranty_status ?? null) as WarrantyStatus | null,
+    warrantyCovered: ticket.workshop_decision_warranty_covered ?? null,
+    decisionAt:      ticket.workshop_decision_at ?? null,
+    note:            ticket.workshop_decision_note ?? null,
+  }
+
   return (
     <div className="min-h-screen">
       <header className="bg-brand-cream">
@@ -306,6 +324,24 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
             hideNotes
           />
         </section>
+
+        {/* T6 — Décision réparation vs remplacement (post pré-check) */}
+        {showRepairDecision && (
+          <section className="card p-5">
+            <h2 className="section-title mb-3">Décision : réparation ou remplacement&nbsp;?</h2>
+            <p className="mb-4 text-sm text-slate-600">
+              Coût estimé saisi → on compare au seuil Plume pour décider entre réparation et aile neuve. La garantie 2 ans
+              est lue automatiquement depuis la date d&apos;achat de l&apos;aile.
+            </p>
+            <WorkshopRepairDecisionPanel
+              ticketId={ticket.id}
+              purchaseDate={ticket.purchase_date}
+              thresholdEur={plumeSettings.repairReplacementThresholdEur}
+              warrantyDurationMonths={plumeSettings.warrantyDurationMonths}
+              initial={repairDecisionInitial}
+            />
+          </section>
+        )}
 
         {/* Bon de transport retour atelier → école/client */}
         {shouldOfferReturnShipping && (

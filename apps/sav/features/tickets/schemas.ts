@@ -242,6 +242,27 @@ export const adminRemindSchoolSchema = z.object({
   ticketId: z.string().uuid(),
 })
 
+// T6 — Décision atelier : coût estimé + (optionnel) prise en charge exceptionnelle
+// hors garantie. Le décompte repair/replacement est calculé côté serveur en
+// relisant plume_settings (jamais reçu du client — sinon contournable).
+export const repairDecisionSchema = z.object({
+  ticketId: z.string().uuid(),
+  estimatedCost: z.preprocess(
+    (v) => (v !== '' && v != null ? Number(v) : undefined),
+    z.number({ invalid_type_error: 'Coût invalide' })
+      .min(0, 'Le coût doit être positif')
+      .max(100000, 'Coût trop élevé'),
+  ),
+  // True = Plume prend en charge alors qu'on est hors garantie (exception).
+  // Ignoré côté serveur si la garantie est encore active (couverture automatique).
+  warrantyOverride: z.preprocess(
+    (v) => v === 'true' || v === true,
+    z.boolean(),
+  ).optional(),
+  // Justification — requise UNIQUEMENT pour l'override hors garantie.
+  note: z.string().trim().max(2000).optional(),
+})
+
 export const diagnosisSchema = z.object({
   ticketId: z.string().uuid(),
   diagnosisNotes: z.string().max(5000).optional(),
@@ -275,6 +296,7 @@ export type AddMessageInput = z.infer<typeof addMessageSchema>
 export type UpdateStatusInput = z.infer<typeof updateStatusSchema>
 export type RoleMessageInput = z.infer<typeof roleMessageSchema>
 export type DiagnosisInput = z.infer<typeof diagnosisSchema>
+export type RepairDecisionInput = z.infer<typeof repairDecisionSchema>
 export type SchoolChecklistInput   = z.infer<typeof schoolChecklistSchema>
 export type SchoolResolutionInput  = z.infer<typeof schoolResolutionSchema>
 export type WorkshopChecklistInput = z.infer<typeof workshopChecklistSchema>

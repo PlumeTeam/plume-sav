@@ -19,6 +19,7 @@ export {
   saveWorkshopChecklistAction,
   startWorkshopDiagnosisAction,
   startWorkshopRepairAction,
+  submitRepairDecisionAction,
 } from './workshop'
 export {
   acknowledgeTicketAction,

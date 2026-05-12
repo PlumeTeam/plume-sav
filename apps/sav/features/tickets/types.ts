@@ -73,6 +73,15 @@ export type ShipmentLeg =
 
 export type WorkshopReturnDestination = 'school' | 'client'
 
+// T6 — Décision atelier après pré-check
+//  - repair       : coût estimé ≤ seuil plume_settings → réparation
+//  - replacement  : coût estimé > seuil → aile neuve
+export type WorkshopDecision = 'repair' | 'replacement'
+
+// Statut de garantie au moment de la décision atelier — figé à la prise
+// de décision pour traçabilité (purchase_date pouvant être corrigé plus tard).
+export type WarrantyStatus = 'under_warranty' | 'out_of_warranty'
+
 // Adresse postale du client — capturée à la volée la 1ère fois qu'il
 // génère un bon de transport. Stockée en JSONB sur le ticket.
 export interface ClientShippingAddress {
