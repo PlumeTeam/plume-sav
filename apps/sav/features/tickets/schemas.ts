@@ -45,7 +45,9 @@ export const createTicketSchema = z.object({
     repairDescription:  z.string().max(1000).optional(),
     waterContact:       z.enum(['none', 'fresh', 'salt']).nullable().optional(),
     treeContact:        z.enum(['yes', 'no']).nullable().optional(),
-    surfaceContact:     z.enum(['none', 'sand', 'snow', 'other']).nullable().optional(),
+    // Multi-select : un client peut combiner sable + neige + autre.
+    // Tableau vide / undefined = aucune condition signalée (équivaut à l'ancien 'none').
+    surfaceContact:     z.array(z.enum(['sand', 'snow', 'other'])).optional(),
     surfaceContactNote: z.string().max(200).optional(),
     generalCondition:   z.enum(['excellent', 'good', 'worn', 'bad']).nullable().optional(),
   }).optional(),

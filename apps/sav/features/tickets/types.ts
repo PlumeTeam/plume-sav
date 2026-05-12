@@ -38,7 +38,9 @@ export interface WizardWingInfo {
 // Numeric inputs are stored as strings to keep the user's literal input until
 // we serialise into the ticket description.
 export type WaterContactKind   = 'none' | 'fresh' | 'salt'
-export type SurfaceContactKind = 'none' | 'sand' | 'snow' | 'other'
+// Multi-select : un client peut combiner plusieurs conditions (sable + neige).
+// Vide / undefined = aucune condition rapportée.
+export type SurfaceContactKind = 'sand' | 'snow' | 'other'
 export type WingCondition      = 'excellent' | 'good' | 'worn' | 'bad'
 
 export interface WizardWingHistory {
@@ -48,8 +50,8 @@ export interface WizardWingHistory {
   repairDescription?:  string
   waterContact?:       WaterContactKind | null
   treeContact?:        'yes' | 'no' | null  // arbrissage
-  surfaceContact?:     SurfaceContactKind | null
-  surfaceContactNote?: string  // free text when surfaceContact === 'other'
+  surfaceContact?:     SurfaceContactKind[]  // [] / undefined = aucune
+  surfaceContactNote?: string  // free text when surfaceContact includes 'other'
   generalCondition?:   WingCondition | null
 }
 

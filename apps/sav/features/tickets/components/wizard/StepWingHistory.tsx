@@ -21,7 +21,6 @@ const WATER_OPTIONS: Array<{ value: WaterContactKind; emoji: string; label: stri
 ]
 
 const SURFACE_OPTIONS: Array<{ value: SurfaceContactKind; emoji: string; label: string }> = [
-  { value: 'none',  emoji: '⛔', label: 'Non' },
   { value: 'sand',  emoji: '🏜️', label: 'Sable / dunes' },
   { value: 'snow',  emoji: '❄️', label: 'Neige' },
   { value: 'other', emoji: '❓', label: 'Autre' },
@@ -45,8 +44,14 @@ export function StepWingHistory({ onNext, onBack }: StepWingHistoryProps) {
   const [repairDescription,   setRepairDescription]   = useState(wingHistory.repairDescription ?? '')
   const [waterContact,        setWaterContact]        = useState<WaterContactKind | null>(wingHistory.waterContact ?? null)
   const [treeContact,         setTreeContact]         = useState<'yes' | 'no' | null>(wingHistory.treeContact ?? null)
-  const [surfaceContact,      setSurfaceContact]      = useState<SurfaceContactKind | null>(wingHistory.surfaceContact ?? null)
+  const [surfaceContact,      setSurfaceContact]      = useState<SurfaceContactKind[]>(wingHistory.surfaceContact ?? [])
   const [surfaceContactNote,  setSurfaceContactNote]  = useState(wingHistory.surfaceContactNote ?? '')
+
+  function toggleSurface(value: SurfaceContactKind) {
+    setSurfaceContact((prev) =>
+      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]
+    )
+  }
   const [generalCondition,    setGeneralCondition]    = useState<WingCondition | null>(wingHistory.generalCondition ?? null)
 
   function handleNext() {
@@ -57,8 +62,8 @@ export function StepWingHistory({ onNext, onBack }: StepWingHistoryProps) {
       repairDescription:  alreadyRepaired === 'yes' ? repairDescription.trim() || undefined : undefined,
       waterContact,
       treeContact,
-      surfaceContact,
-      surfaceContactNote: surfaceContact === 'other' ? surfaceContactNote.trim() || undefined : undefined,
+      surfaceContact: surfaceContact.length > 0 ? surfaceContact : undefined,
+      surfaceContactNote: surfaceContact.includes('other') ? surfaceContactNote.trim() || undefined : undefined,
       generalCondition,
     })
     onNext()
@@ -177,19 +182,22 @@ export function StepWingHistory({ onNext, onBack }: StepWingHistoryProps) {
         </Section>
 
         {/* 6. Sable / neige / dunes ? */}
-        <Section label="Contact avec sable, neige ou dunes ?">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Section
+          label="Contact avec sable, neige ou dunes ?"
+          hint="Plusieurs choix possibles — laissez vide si aucune condition."
+        >
+          <div className="grid grid-cols-3 gap-2">
             {SURFACE_OPTIONS.map((opt) => (
               <ChoiceButton
                 key={opt.value}
-                selected={surfaceContact === opt.value}
-                onClick={() => setSurfaceContact(opt.value)}
+                selected={surfaceContact.includes(opt.value)}
+                onClick={() => toggleSurface(opt.value)}
                 emoji={opt.emoji}
                 label={opt.label}
               />
             ))}
           </div>
-          {surfaceContact === 'other' && (
+          {surfaceContact.includes('other') && (
             <div className="mt-3 animate-slide-up">
               <input
                 type="text"

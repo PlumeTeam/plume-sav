@@ -85,7 +85,6 @@ export const WATER_CONTACT_LABELS: Record<string, string> = {
 }
 
 export const SURFACE_CONTACT_LABELS: Record<string, string> = {
-  none:  'Non',
   sand:  'Sable / dunes',
   snow:  'Neige',
   other: 'Autre',
@@ -105,7 +104,7 @@ export type WingHistoryInput = {
   repairDescription?:  string
   waterContact?:       'none' | 'fresh' | 'salt' | null
   treeContact?:        'yes' | 'no' | null
-  surfaceContact?:     'none' | 'sand' | 'snow' | 'other' | null
+  surfaceContact?:     Array<'sand' | 'snow' | 'other'>
   surfaceContactNote?: string
   generalCondition?:   'excellent' | 'good' | 'worn' | 'bad' | null
 }
@@ -131,12 +130,14 @@ export function formatWingHistory(h: WingHistoryInput | undefined): string[] {
   } else if (h.treeContact === 'no') {
     lines.push('  â€¢ Arbrissage : Non')
   }
-  if (h.surfaceContact) {
-    const surface = SURFACE_CONTACT_LABELS[h.surfaceContact] ?? h.surfaceContact
-    const note = h.surfaceContact === 'other' && h.surfaceContactNote
+  if (h.surfaceContact && h.surfaceContact.length > 0) {
+    const surfaces = h.surfaceContact
+      .map((v) => SURFACE_CONTACT_LABELS[v] ?? v)
+      .join(', ')
+    const note = h.surfaceContact.includes('other') && h.surfaceContactNote
       ? ` (${h.surfaceContactNote})`
       : ''
-    lines.push(`  â€¢ Sable/neige/dunes : ${surface}${note}`)
+    lines.push(`  â€¢ Sable/neige/dunes : ${surfaces}${note}`)
   }
   if (h.generalCondition) {
     lines.push(`  â€¢ Ã‰tat gÃ©nÃ©ral : ${CONDITION_LABELS[h.generalCondition] ?? h.generalCondition}`)
