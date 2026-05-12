@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { saveSchoolChecklistAction } from '@/features/tickets/actions'
 import { createClient } from '@/lib/supabase/client'
@@ -793,6 +793,7 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
           inspectorName={inspectorName}
           phase1={phase1}
           phase2={phase2}
+          photos={photos}
           globalNote={globalNote}
           onGlobalNoteChange={setGlobalNote}
           onBack={() => go('back')}
@@ -1061,6 +1062,7 @@ interface ReviewScreenProps {
   inspectorName:      string
   phase1:             Phase1
   phase2:             Phase2
+  photos:             Record<PhotoSlot, LocalInspectionPhoto[]>
   globalNote:         string
   onGlobalNoteChange: (s: string) => void
   onBack:             () => void
@@ -1071,7 +1073,7 @@ interface ReviewScreenProps {
 }
 
 function ReviewScreen({
-  inspectorName, phase1, phase2, globalNote, onGlobalNoteChange,
+  inspectorName, phase1, phase2, photos, globalNote, onGlobalNoteChange,
   onBack, onSubmit, isPending, feedback, uploadProgress,
 }: ReviewScreenProps) {
   return (
@@ -1103,6 +1105,7 @@ function ReviewScreen({
             status="alert"
           />
         )}
+        <ReviewPhotos label="Dommages" photos={photos.damage} />
       </ReviewSection>
 
       <ReviewSection title="Tissu">
@@ -1130,6 +1133,7 @@ function ReviewScreen({
             />
           </>
         )}
+        <ReviewPhotos label="Déchirures" photos={photos.tears} />
       </ReviewSection>
 
       <ReviewSection title="Coutures et structure">
@@ -1138,21 +1142,25 @@ function ReviewScreen({
           value={phase1.openSeams ? YESNO_LABELS[phase1.openSeams] : '—'}
           status={yesNoStatus(phase1.openSeams, 'alert')}
         />
+        <ReviewPhotos label="Coutures" photos={photos.openSeams} />
         <ReviewRow
           label="Suspentes"
           value={phase1.linesCondition ? LINES_CONDITION_LABELS[phase1.linesCondition] : '—'}
           status={linesStatus(phase1.linesCondition)}
         />
+        <ReviewPhotos label="Suspentes" photos={photos.lines} />
         <ReviewRow
           label="Maillons inversés"
           value={phase1.maillonsInverted ? YESNOIDK_LABELS[phase1.maillonsInverted] : '—'}
           status={maillonsStatus(phase1.maillonsInverted)}
         />
+        <ReviewPhotos label="Maillons" photos={photos.maillons} />
         <ReviewRow
           label="Élévateurs"
           value={phase1.risersCondition ? RISERS_CONDITION_LABELS[phase1.risersCondition] : '—'}
           status={risersStatus(phase1.risersCondition)}
         />
+        <ReviewPhotos label="Élévateurs" photos={photos.risers} />
       </ReviewSection>
 
       <ReviewSection title="Check gonflage" skipped={phase2.skipped}>
@@ -1194,9 +1202,7 @@ function ReviewScreen({
                       : undefined
               }
             />
-            {phase2.inflationPhotoPaths && phase2.inflationPhotoPaths.length > 0 && (
-              <ReviewRow label="Photos jointes" value={`${phase2.inflationPhotoPaths.length} photo${phase2.inflationPhotoPaths.length > 1 ? 's' : ''}`} />
-            )}
+            <ReviewPhotos label="Gonflage" photos={photos.inflation} />
             {phase2.inflationNotes && <ReviewRow label="Remarques" value={phase2.inflationNotes} multiline />}
           </>
         )}
@@ -1314,6 +1320,56 @@ function ReviewRow({
       <p className={`text-sm text-brand-ink ${multiline ? 'whitespace-pre-line' : 'text-right font-semibold'}`}>
         {value}
       </p>
+    </div>
+  )
+}
+
+// Thumbnails strip under the relevant row(s) of the review screen.
+// Pour les photos déjà uploadées : `dataUrl` est l'URL publique Supabase,
+// directement navigable en `target="_blank"`. Pour les photos ajoutées dans
+// la session courante : `dataUrl` est un base64 (utilisable en <img src>)
+// mais Chrome bloque la navigation top-level vers `data:` — on matérialise
+// donc un blob URL via `URL.createObjectURL(file)` pour le lien.
+function ReviewPhotos({ label, photos }: { label: string; photos: LocalInspectionPhoto[] }) {
+  const openUrls = useMemo(
+    () => photos.map((p) => (p.file ? URL.createObjectURL(p.file) : p.dataUrl)),
+    [photos],
+  )
+
+  useEffect(() => {
+    return () => {
+      openUrls.forEach((url) => {
+        if (url.startsWith('blob:')) URL.revokeObjectURL(url)
+      })
+    }
+  }, [openUrls])
+
+  if (photos.length === 0) return null
+
+  return (
+    <div className="px-2 py-1.5">
+      <p className="mb-1.5 text-xs text-slate-500">
+        {label} — {photos.length} photo{photos.length > 1 ? 's' : ''}
+      </p>
+      <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-6">
+        {photos.map((p, i) => (
+          <a
+            key={p.id}
+            href={openUrls[i]}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block aspect-square overflow-hidden rounded-lg ring-1 ring-brand-stone transition hover:ring-2 hover:ring-brand-gold"
+            aria-label={`Ouvrir la photo ${i + 1} en grand`}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={p.dataUrl}
+              alt=""
+              className="h-full w-full object-cover"
+            />
+          </a>
+        ))}
+      </div>
     </div>
   )
 }
