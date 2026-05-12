@@ -51,25 +51,34 @@ export default async function TicketCreatedPage({ params }: PageProps) {
         </h1>
 
         <p className="mt-3 text-sm leading-relaxed text-white/90">
-          {isPostal ? (
-            <>
-              <strong>{schoolName}</strong> a reçu votre demande SAV. Avant
-              d&apos;expédier votre aile, contactez-la (coordonnées ci-dessous)
-              pour confirmer l&apos;adresse et lui annoncer l&apos;envoi.
-            </>
-          ) : (
-            <>
-              <strong>{schoolName}</strong> a reçu votre demande SAV.{' '}
-              <strong className="text-white">Contactez-la pour convenir d&apos;un
-              rendez-vous</strong> avant de vous déplacer — l&apos;équipe n&apos;est
-              pas forcément sur place sans prévenir.
-            </>
-          )}
+          <strong>{schoolName}</strong> a reçu votre demande SAV.
         </p>
 
         <p className="mt-4 font-mono text-[11px] text-white/60">
           Référence&nbsp;: {ticketRef}
         </p>
+      </section>
+
+      {/* ── Prochaine étape (bloc bien visible) ─────────────────── */}
+      <section className="rounded-card border-2 border-brand-gold bg-brand-gold/10 p-5 shadow-plume">
+        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-brand-ink">
+          👉 Prochaine étape
+        </p>
+        {isPostal ? (
+          <p className="text-sm leading-relaxed text-brand-ink">
+            <strong>{schoolName}</strong> va effectuer un pré-check de votre
+            demande à partir des informations renseignées en ligne. Une fois
+            ce pré-check validé, l&apos;école débloquera la possibilité pour
+            vous de générer un bon de transport.{' '}
+            <strong>Vous serez notifié dès que l&apos;école aura validé.</strong>
+          </p>
+        ) : (
+          <p className="text-sm leading-relaxed text-brand-ink">
+            <strong>Contactez votre école</strong> pour fixer un rendez-vous
+            afin de déposer votre aile. Cela permet de s&apos;assurer que
+            l&apos;école sera ouverte au moment de votre venue.
+          </p>
+        )}
       </section>
 
       {/* ── Coordonnées école — gros et au-dessus ───────────────── */}
@@ -163,49 +172,6 @@ export default async function TicketCreatedPage({ params }: PageProps) {
             requireScan
             wingSerial={ticket.serial_number ?? null}
           />
-        </section>
-      )}
-
-      {/* ── Et ensuite ? (postal uniquement) — vue d'ensemble du process ── */}
-      {isPostal && (
-        <section className="rounded-card border border-brand-stone bg-brand-cream p-5">
-          <h2 className="section-title mb-3">Et ensuite ?</h2>
-          <ol className="list-decimal space-y-2 pl-5 text-sm leading-relaxed text-brand-ink marker:font-semibold marker:text-brand-gold">
-            <li>Envoyez votre aile à l&apos;adresse ci-dessus.</li>
-            <li>Communiquez le numéro de suivi à votre école via la messagerie de votre demande.</li>
-            <li>Votre école réceptionnera et inspectera votre aile.</li>
-            <li>Vous serez tenu informé de l&apos;avancement à chaque étape par email.</li>
-            <li>Une fois le problème résolu, votre aile vous sera retournée.</li>
-          </ol>
-        </section>
-      )}
-
-      {/* ── In-person mode: scheduling reminder ─────────────────── */}
-      {!isPostal && (
-        <section className="card p-5">
-          <h2 className="section-title mb-3">Prochaines étapes</h2>
-          <ul className="space-y-2 text-sm text-brand-ink">
-            <li className="flex items-start gap-2">
-              <span aria-hidden className="mt-0.5">📞</span>
-              <span>
-                Appelez ou écrivez à l&apos;école <strong>avant de vous déplacer</strong>{' '}
-                pour convenir d&apos;un créneau de dépôt.
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span aria-hidden className="mt-0.5">🎒</span>
-              <span>
-                Apportez votre aile dans son sac d&apos;origine si possible.
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span aria-hidden className="mt-0.5">💬</span>
-              <span>
-                L&apos;école vous recontactera après inspection via la messagerie
-                de la demande.
-              </span>
-            </li>
-          </ul>
         </section>
       )}
 
