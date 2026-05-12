@@ -33,8 +33,7 @@ export async function loginAction(
   const { error } = await supabase.auth.signInWithPassword({
     email: parsed.data.email,
     password: parsed.data.password,
-    // TODO: Réactiver Turnstile avant mise en prod — remettre captchaToken depuis formData
-    options: { captchaToken: 'bypass' },
+    // TODO: Réactiver Turnstile avant mise en prod — remettre options: { captchaToken } ici
   })
 
   if (error) {
