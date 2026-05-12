@@ -128,6 +128,11 @@ export interface Database {
           auto_approved_shipping:      boolean
           // Lazy-captured client shipping address (added with shipping migration)
           client_shipping_address:     Json | null
+          // School approval of the client's postal shipping (migration 20260512000000)
+          shipping_approved:           boolean | null
+          shipping_refusal_reason:     string | null
+          shipping_decided_at:         string | null
+          shipping_decided_by:         string | null
           created_at: string
           updated_at: string
         }
@@ -200,6 +205,10 @@ export interface Database {
           workshop_return_destination?: 'school' | 'client' | null
           auto_approved_shipping?:      boolean
           client_shipping_address?:     Json | null
+          shipping_approved?:           boolean | null
+          shipping_refusal_reason?:     string | null
+          shipping_decided_at?:         string | null
+          shipping_decided_by?:         string | null
           created_at?: string
           updated_at?: string
         }
@@ -272,6 +281,10 @@ export interface Database {
           workshop_return_destination?: 'school' | 'client' | null
           auto_approved_shipping?:      boolean
           client_shipping_address?:     Json | null
+          shipping_approved?:           boolean | null
+          shipping_refusal_reason?:     string | null
+          shipping_decided_at?:         string | null
+          shipping_decided_by?:         string | null
           created_at?: string
           updated_at?: string
         }

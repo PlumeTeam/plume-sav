@@ -115,6 +115,9 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           schoolWorkshopLabelUrl={ticket.school_workshop_label_url ?? null}
           workshopReturnTracking={ticket.workshop_return_tracking ?? null}
           workshopReturnLabelUrl={ticket.workshop_return_label_url ?? null}
+          deliveryMethod={ticket.delivery_method}
+          shippingApproved={ticket.shipping_approved ?? null}
+          shippingRefusalReason={ticket.shipping_refusal_reason ?? null}
         />
       </section>
 

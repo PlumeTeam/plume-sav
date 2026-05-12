@@ -12,8 +12,9 @@ import {
 import { ScanGateModal } from '@/features/tickets/components/ScanGateModal'
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
 import { formatDateTime } from '@/features/tickets/utils'
-import type { RequestStatus, SchoolResolution } from '@/features/tickets/types'
+import type { DeliveryMethod, RequestStatus, SchoolResolution } from '@/features/tickets/types'
 import { SchoolResolutionPanel } from './SchoolResolutionPanel'
+import { SchoolShippingApprovalCard } from './SchoolShippingApprovalCard'
 
 interface SchoolStepPanelProps {
   ticketId:                string
@@ -36,6 +37,12 @@ interface SchoolStepPanelProps {
   schoolWorkshopLabelUrl:  string | null
   workshopReturnTracking:  string | null
   workshopReturnLabelUrl:  string | null
+  /** Méthode de remise choisie par le client — drive la sous-étape "Valider l'envoi". */
+  deliveryMethod:          DeliveryMethod | null
+  /** Décision école sur l'envoi postal (NULL = pas encore décidé). */
+  shippingApproved:        boolean | null
+  /** Raison saisie par l'école en cas de refus. */
+  shippingRefusalReason:   string | null
 }
 
 type StepKey = 'ack' | 'wing' | 'check' | 'decision' | 'return'
@@ -229,6 +236,9 @@ export function SchoolStepPanel({
   schoolWorkshopLabelUrl,
   workshopReturnTracking,
   workshopReturnLabelUrl,
+  deliveryMethod,
+  shippingApproved,
+  shippingRefusalReason,
 }: SchoolStepPanelProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -504,6 +514,19 @@ export function SchoolStepPanel({
                 >
                   Passer le scan (test)
                 </button>
+              )}
+
+              {/* Sous-étape "Valider l'envoi" — uniquement pour les tickets
+                  postaux. Greffée à l'étape "Message vu" : elle apparaît dès
+                  que l'école a accusé réception (ou même avant si delivery
+                  postal), et reste visible une fois la décision prise pour
+                  servir de récap. */}
+              {step.key === 'ack' && deliveryMethod === 'postal' && (
+                <SchoolShippingApprovalCard
+                  ticketId={ticketId}
+                  shippingApproved={shippingApproved}
+                  shippingRefusalReason={shippingRefusalReason}
+                />
               )}
             </div>
           )

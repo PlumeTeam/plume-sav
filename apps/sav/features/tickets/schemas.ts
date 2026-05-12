@@ -250,6 +250,18 @@ export const diagnosisSchema = z.object({
   partsNeeded: z.string().max(2000).optional(),
 })
 
+// École : validation de l'envoi postal de l'aile par le client.
+// `approve` ne porte rien d'autre que le ticketId. `refuse` exige une raison
+// non vide qui sera affichée au client dans son dashboard.
+export const approveShippingSchema = z.object({
+  ticketId: z.string().uuid(),
+})
+
+export const refuseShippingSchema = z.object({
+  ticketId: z.string().uuid(),
+  reason:   z.string().trim().min(10, 'Expliquez la raison du refus (10 caractères min.)').max(2000),
+})
+
 export type WingInfoInput = z.infer<typeof wingInfoSchema>
 export type ProblemInput = z.infer<typeof problemSchema>
 export type CreateTicketInput = z.infer<typeof createTicketSchema>
