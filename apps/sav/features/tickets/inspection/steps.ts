@@ -70,16 +70,6 @@ export type Phase2 =
       inflationPhotoPaths?:         string[]
     }
 
-export type Phase3 =
-  | { skipped: true }
-  | {
-      skipped:                false
-      flightStraight?:        YesNo
-      flightTurnNormal?:      YesNo
-      flightBrakesSymmetric?: YesNo
-      flightNotes?:           string
-    }
-
 export type SchoolCheckPayload = {
   __wizard__:        true
   version:           2
@@ -89,7 +79,6 @@ export type SchoolCheckPayload = {
   reportedCategory?: string
   phase1:            Phase1
   phase2:            Phase2
-  phase3:            Phase3
   /** Free-form synthesis the school types on the review screen. */
   globalNote?:       string
   /** Legacy bridge — derived ids of "positive findings" so the school detail

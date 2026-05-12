@@ -10,7 +10,6 @@ import {
   type SchoolCheckPayload,
   type Phase1,
   type Phase2,
-  type Phase3,
   type FabricCondition,
   type LinesCondition,
   type RisersCondition,
@@ -55,14 +54,15 @@ interface CheckWizardProps {
   initial:           SchoolCheckPayload | null
 }
 
-// 7 screens total — names kept short for the URL-less navigation.
+// 6 screens total — names kept short for the URL-less navigation.
+// Pas de test en vol : faire voler une aile signalée en SAV exposerait
+// l'école à un risque de responsabilité.
 type Screen =
   | 'inspector'
   | 'visual_general'
   | 'fabric'
   | 'seams_structure'
   | 'inflation'
-  | 'flight'
   | 'review'
 
 const ORDER: Screen[] = [
@@ -71,7 +71,6 @@ const ORDER: Screen[] = [
   'fabric',
   'seams_structure',
   'inflation',
-  'flight',
   'review',
 ]
 
@@ -86,7 +85,6 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
   const [inspectorName, setInspectorName] = useState<string>(initial?.inspectorName ?? '')
   const [phase1, setPhase1] = useState<Phase1>(initial?.phase1 ?? {})
   const [phase2, setPhase2] = useState<Phase2>(initial?.phase2 ?? { skipped: false })
-  const [phase3, setPhase3] = useState<Phase3>(initial?.phase3 ?? { skipped: false })
   const [globalNote, setGlobalNote] = useState<string>(initial?.globalNote ?? '')
 
   // Photos joined to each "Oui" question in phase 1. Pre-uploaded paths from
@@ -132,10 +130,6 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
 
   function skipPhase2() {
     setPhase2({ skipped: true })
-    go('next')
-  }
-  function skipPhase3() {
-    setPhase3({ skipped: true })
     go('next')
   }
 
@@ -194,11 +188,6 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
     if (phase2.skipped) return true
     return !!phase2.inflationSurfaceConsistency && !!phase2.inflationTendency
   }, [phase2])
-
-  const flightValid = useMemo(() => {
-    if (phase3.skipped) return true
-    return !!phase3.flightStraight && !!phase3.flightTurnNormal && !!phase3.flightBrakesSymmetric
-  }, [phase3])
 
   const inspectorValid = inspectorName.trim().length >= 2
 
@@ -327,7 +316,6 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
       if (!phase2.skipped && (phase2.inflationTendency === 'closes_easily' || phase2.inflationTendency === 'lazy')) {
         checkedIds.push('inflation_abnormal')
       }
-      if (!phase3.skipped && phase3.flightStraight === 'no')          checkedIds.push('flight_not_straight')
       // Always include a sentinel so isCheckValidated stays truthy even if
       // every answer happens to be "all good".
       checkedIds.push('check_completed')
@@ -340,7 +328,6 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
         ...(reportedCategory ? { reportedCategory } : {}),
         phase1:        phase1WithPaths,
         phase2:        phase2WithPaths,
-        phase3,
         ...(globalNote.trim() ? { globalNote: globalNote.trim() } : {}),
         checkedIds,
       }
@@ -801,79 +788,11 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
         </ScreenLayout>
       )}
 
-      {screen === 'flight' && (
-        <ScreenLayout
-          phase="Phase 3 — Check en vol (optionnel)"
-          title="Avez-vous pu faire un test en vol ?"
-          subtitle="Test en vol — utile pour valider un comportement ressenti par le client."
-          footer={
-            <NavButtons
-              onBack={() => go('back')}
-              onNext={() => go('next')}
-              nextDisabled={!flightValid}
-              tertiaryLabel="Passer cette phase →"
-              onTertiary={skipPhase3}
-            />
-          }
-        >
-          <Field label="Test en vol effectué ?">
-            <SegmentedChoice<'yes' | 'no'>
-              options={[
-                { value: 'yes', label: 'Oui'  },
-                { value: 'no',  label: 'Non'  },
-              ]}
-              value={phase3.skipped ? 'no' : (phase3.flightStraight || phase3.flightTurnNormal || phase3.flightBrakesSymmetric ? 'yes' : undefined)}
-              onChange={(v) => {
-                if (v === 'no') setPhase3({ skipped: true })
-                else            setPhase3({ skipped: false })
-              }}
-            />
-          </Field>
-
-          {!phase3.skipped && (
-            <>
-              <Field label="Vol droit ?">
-                <YesNoSelector
-                  value={phase3.flightStraight}
-                  onChange={(v) => setPhase3({ ...phase3, flightStraight: v })}
-                />
-              </Field>
-
-              <Field label="Comportement normal en virage ?">
-                <YesNoSelector
-                  value={phase3.flightTurnNormal}
-                  onChange={(v) => setPhase3({ ...phase3, flightTurnNormal: v })}
-                />
-              </Field>
-
-              <Field label="Freins symétriques ?">
-                <YesNoSelector
-                  value={phase3.flightBrakesSymmetric}
-                  onChange={(v) => setPhase3({ ...phase3, flightBrakesSymmetric: v })}
-                />
-              </Field>
-
-              <Field label="Remarques en vol (optionnel)">
-                <textarea
-                  value={phase3.flightNotes ?? ''}
-                  onChange={(e) => setPhase3({ ...phase3, flightNotes: e.target.value })}
-                  rows={3}
-                  maxLength={2000}
-                  placeholder="Sensations, comportements observés…"
-                  className="field-input resize-y"
-                />
-              </Field>
-            </>
-          )}
-        </ScreenLayout>
-      )}
-
       {screen === 'review' && (
         <ReviewScreen
           inspectorName={inspectorName}
           phase1={phase1}
           phase2={phase2}
-          phase3={phase3}
           globalNote={globalNote}
           onGlobalNoteChange={setGlobalNote}
           onBack={() => go('back')}
@@ -1076,7 +995,6 @@ interface ReviewScreenProps {
   inspectorName:      string
   phase1:             Phase1
   phase2:             Phase2
-  phase3:             Phase3
   globalNote:         string
   onGlobalNoteChange: (s: string) => void
   onBack:             () => void
@@ -1087,7 +1005,7 @@ interface ReviewScreenProps {
 }
 
 function ReviewScreen({
-  inspectorName, phase1, phase2, phase3, globalNote, onGlobalNoteChange,
+  inspectorName, phase1, phase2, globalNote, onGlobalNoteChange,
   onBack, onSubmit, isPending, feedback, uploadProgress,
 }: ReviewScreenProps) {
   return (
@@ -1156,17 +1074,6 @@ function ReviewScreen({
               <ReviewRow label="Photos jointes" value={`${phase2.inflationPhotoPaths.length} photo${phase2.inflationPhotoPaths.length > 1 ? 's' : ''}`} />
             )}
             {phase2.inflationNotes && <ReviewRow label="Remarques" value={phase2.inflationNotes} multiline />}
-          </>
-        )}
-      </ReviewSection>
-
-      <ReviewSection title="Check en vol" skipped={phase3.skipped}>
-        {!phase3.skipped && (
-          <>
-            <ReviewRow label="Vol droit" value={phase3.flightStraight ? YESNO_LABELS[phase3.flightStraight] : '—'} />
-            <ReviewRow label="Virage normal" value={phase3.flightTurnNormal ? YESNO_LABELS[phase3.flightTurnNormal] : '—'} />
-            <ReviewRow label="Freins symétriques" value={phase3.flightBrakesSymmetric ? YESNO_LABELS[phase3.flightBrakesSymmetric] : '—'} />
-            {phase3.flightNotes && <ReviewRow label="Remarques" value={phase3.flightNotes} multiline />}
           </>
         )}
       </ReviewSection>
