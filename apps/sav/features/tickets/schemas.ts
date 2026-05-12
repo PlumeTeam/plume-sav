@@ -229,6 +229,37 @@ export const adminCloseTicketSchema = z.object({
   note:     z.string().trim().min(3, 'Note obligatoire (3 caractères min)').max(2000),
 })
 
+// ============================================================
+// Clôture explicite d'un ticket (T7) — école / atelier / Plume HQ
+// ============================================================
+//
+// Le client est exclu côté Server Action (validation du rôle). Le statut
+// final (outcome) est obligatoire ; la note est optionnelle sauf pour
+// `other` (vérifié par superRefine).
+export const closeTicketSchema = z.object({
+  ticketId: z.string().uuid(),
+  outcome:  z.enum([
+    'resolved_in_consultation',
+    'repaired',
+    'replaced',
+    'no_repair_needed',
+    'invalid',
+    'client_cancelled',
+    'other',
+  ], { errorMap: () => ({ message: 'Choisissez un statut final' }) }),
+  note: z.string().trim().max(2000, 'Note trop longue (2000 caractères max)').optional(),
+}).superRefine((data, ctx) => {
+  if (data.outcome === 'other' && (!data.note || data.note.length < 3)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['note'],
+      message: 'Précisez la raison (3 caractères min) — obligatoire pour « Autre »',
+    })
+  }
+})
+
+export type CloseTicketInput = z.infer<typeof closeTicketSchema>
+
 // Relance email d'une école qui n'a pas pris en charge son ticket.
 export const adminRemindSchoolSchema = z.object({
   ticketId: z.string().uuid(),

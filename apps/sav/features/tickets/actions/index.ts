@@ -20,6 +20,7 @@ export {
 } from './workshop'
 export {
   acknowledgeTicketAction,
+  closeTicketAction,
   markTicketCompletedAction,
   markWingReturnedAction,
 } from './lifecycle'

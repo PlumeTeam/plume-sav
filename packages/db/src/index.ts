@@ -9,4 +9,5 @@ export type {
   PhotoType,
   MessageSenderRole,
   SchoolResolution,
+  ClosureOutcome,
 } from './types'

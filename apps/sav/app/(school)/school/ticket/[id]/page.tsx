@@ -8,10 +8,12 @@ import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { TicketChannelSwitch, type TicketChannel } from '@/features/tickets/components/TicketChannelSwitch'
 import { readSchoolCheckInspector } from '@/features/tickets/inspection/steps'
 import { formatDate, formatDateTime } from '@/features/tickets/utils'
+import { CloseTicketButton } from '@/features/tickets/components/CloseTicketButton'
+import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
 import { SchoolStepPanel } from './SchoolStepPanel'
 import { SchoolTicketTabs } from './SchoolTicketTabs'
 import { SchoolWorkshopChannel } from './SchoolWorkshopChannel'
-import type { TicketMessage } from '@/features/tickets/types'
+import type { CloserRole, ClosureOutcome, TicketMessage } from '@/features/tickets/types'
 
 interface PageProps { params: { id: string } }
 
@@ -60,9 +62,21 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
   // Nom du moniteur qui a effectué le check, extrait du payload V2.
   const checkInspector = readSchoolCheckInspector(ticket.school_checklist)
 
+  const isClosed = !!ticket.closed_at
+  const closerRole: CloserRole = 'school'
+
   // ── Tab 1: État ─────────────────────────────────────────────────────────
   const stateTab = (
     <>
+      {/* Bannière clôture (T7) — si le ticket a été clôturé, afficher
+          le statut final, l'acteur et la date en haut de l'onglet. */}
+      <TicketClosureCard
+        closedAt={ticket.closed_at}
+        closedByRole={ticket.closed_by_role as CloserRole | null}
+        closureOutcome={ticket.closure_outcome as ClosureOutcome | null}
+        closureNote={ticket.closure_note}
+      />
+
       {/* Delivery method banner */}
       {ticket.delivery_method && (
         <section className={`card flex items-start gap-3 p-4 border-2 ${
@@ -123,6 +137,25 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
         <h2 className="section-title mb-4">Suivi</h2>
         <TicketTimeline status={ticket.status} />
       </section>
+
+      {/* Bouton de clôture explicite (T7) — visible tant que le ticket n'est
+          pas déjà clôturé. L'école peut clôturer à tout moment du parcours
+          (résolution sur place, annulation client, demande non valide…). */}
+      {!isClosed && (
+        <section className="card p-5">
+          <h2 className="section-title mb-2">Clôturer ce ticket</h2>
+          <p className="mb-4 text-sm text-slate-600">
+            Quand le SAV est terminé, choisissez le statut final pour fermer
+            définitivement le ticket. Il restera consultable dans votre historique.
+          </p>
+          <CloseTicketButton
+            ticketId={ticket.id}
+            ticketRef={ticketRef}
+            closerRole={closerRole}
+            variant="ghost"
+          />
+        </section>
+      )}
     </>
   )
 

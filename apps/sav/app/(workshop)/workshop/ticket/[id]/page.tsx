@@ -15,9 +15,11 @@ import { WORKSHOP_TECHNICAL_CHECKLIST } from '@/features/tickets/constants'
 import { saveWorkshopChecklistAction } from '@/features/tickets/actions'
 import { formatDate } from '@/features/tickets/utils'
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
+import { CloseTicketButton } from '@/features/tickets/components/CloseTicketButton'
+import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
 import { WorkshopActionBar } from './WorkshopActionBar'
 import { WorkshopStepPanel } from './WorkshopStepPanel'
-import type { WorkshopReturnDestination } from '@/features/tickets/types'
+import type { CloserRole, ClosureOutcome, WorkshopReturnDestination } from '@/features/tickets/types'
 
 // Lien public de suivi GLS — accepte tout numéro de tracking en query param.
 function buildGlsTrackingUrl(tracking: string): string {
@@ -117,6 +119,19 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
 
   const returnDest = (ticket.workshop_return_destination ?? null) as WorkshopReturnDestination | null
 
+  const isClosed     = !!ticket.closed_at
+  // L'atelier peut clôturer dès qu'il a quelque chose à conclure : check
+  // diagnostic posé, ou réparation en cours. Avant ça, c'est prématuré.
+  const canCloseFromWorkshop =
+    !isClosed && [
+      'wing_received_workshop',
+      'workshop_diagnosing',
+      'workshop_repairing',
+      'workshop_done',
+      'wing_returned',
+    ].includes(ticket.status)
+  const closerRole: CloserRole = isPlumeAdmin ? 'plume_admin' : 'workshop'
+
   return (
     <div className="min-h-screen">
       <header className="bg-brand-cream">
@@ -139,6 +154,13 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
       </header>
 
       <main className="mx-auto max-w-4xl space-y-3 p-4 pb-12">
+        <TicketClosureCard
+          closedAt={ticket.closed_at}
+          closedByRole={ticket.closed_by_role as CloserRole | null}
+          closureOutcome={ticket.closure_outcome as ClosureOutcome | null}
+          closureNote={ticket.closure_note}
+        />
+
         <section className="card p-5">
           <h2 className="section-title mb-4">Étapes atelier</h2>
           <WorkshopStepPanel
@@ -253,6 +275,19 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
             estimatedHours={ticket.estimated_hours}
             partsNeeded={ticket.parts_needed}
           />
+          {(canCloseFromWorkshop || isPlumeAdmin) && (
+            <div className="mt-4 border-t border-brand-stone/40 pt-4">
+              <p className="mb-2 text-xs text-slate-500">
+                Quand le SAV est terminé : déclarez le statut final pour clôturer le ticket.
+              </p>
+              <CloseTicketButton
+                ticketId={ticket.id}
+                ticketRef={ticketRef}
+                closerRole={closerRole}
+                variant="ghost"
+              />
+            </div>
+          )}
         </section>
 
         {(ticket.diagnosis_notes || ticket.estimated_cost != null) && (

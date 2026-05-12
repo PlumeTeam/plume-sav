@@ -37,6 +37,17 @@ export type PhotoType = 'overview' | 'damage_closeup' | 'serial_tag' | 'other'
 
 export type MessageSenderRole = 'client' | 'school' | 'workshop' | 'plume_admin'
 
+// Statut final SAV — choisi à la clôture (migration 20260512200000 — T7).
+// Le client ne peut pas clôturer ; seuls école/atelier/Plume HQ ont le droit.
+export type ClosureOutcome =
+  | 'resolved_in_consultation' // Résolu en consultation (école — pas d'atelier)
+  | 'repaired'                 // Réparé (atelier)
+  | 'replaced'                 // Remplacé (atelier ou Plume HQ — neuf en échange)
+  | 'no_repair_needed'         // Pas de réparation nécessaire (comportement normal, etc.)
+  | 'invalid'                  // Demande non valide / hors SAV
+  | 'client_cancelled'         // Annulé par le client
+  | 'other'                    // Autre — note de clôture obligatoire
+
 // Résolution choisie par l'école au terme du diagnostic — voir migration 20260503120000
 export type SchoolResolution =
   | 'resolved_by_school'
@@ -128,6 +139,12 @@ export interface Database {
           auto_approved_shipping:      boolean
           // Lazy-captured client shipping address (added with shipping migration)
           client_shipping_address:     Json | null
+          // Ticket closure (migration 20260512200000 — T7)
+          closed_by:        string | null
+          closed_at:        string | null
+          closed_by_role:   'school' | 'workshop' | 'plume_admin' | null
+          closure_outcome:  ClosureOutcome | null
+          closure_note:     string | null
           created_at: string
           updated_at: string
         }
@@ -200,6 +217,11 @@ export interface Database {
           workshop_return_destination?: 'school' | 'client' | null
           auto_approved_shipping?:      boolean
           client_shipping_address?:     Json | null
+          closed_by?:        string | null
+          closed_at?:        string | null
+          closed_by_role?:   'school' | 'workshop' | 'plume_admin' | null
+          closure_outcome?:  ClosureOutcome | null
+          closure_note?:     string | null
           created_at?: string
           updated_at?: string
         }
@@ -272,6 +294,11 @@ export interface Database {
           workshop_return_destination?: 'school' | 'client' | null
           auto_approved_shipping?:      boolean
           client_shipping_address?:     Json | null
+          closed_by?:        string | null
+          closed_at?:        string | null
+          closed_by_role?:   'school' | 'workshop' | 'plume_admin' | null
+          closure_outcome?:  ClosureOutcome | null
+          closure_note?:     string | null
           created_at?: string
           updated_at?: string
         }
