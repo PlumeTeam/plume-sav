@@ -176,6 +176,30 @@ export const roleMessageSchema = z.object({
   visibilityLevel: z.enum(['all', 'school_plume', 'workshop_plume', 'plume_only']).optional(),
 })
 
+// Message posté sur un canal explicite (T3 atelier). Photos optionnelles —
+// les paths viennent du bucket `tickets` après upload côté client.
+export const channelMessageSchema = z.object({
+  ticketId: z.string().uuid(),
+  channel: z.enum([
+    'school_client',
+    'client_workshop',
+    'workshop_school',
+    'group',
+    'workshop_plume',
+  ]),
+  // Contenu OU au moins une photo — l'un des deux suffit.
+  content: z.string().trim().max(5000).optional().default(''),
+  attachmentPaths: z.array(z.string().min(1)).max(8).default([]),
+}).superRefine((data, ctx) => {
+  if (!data.content && data.attachmentPaths.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['content'],
+      message: 'Ajoutez un message ou une photo',
+    })
+  }
+})
+
 // ============================================================
 // Bons de transport GLS (migration 20260510000000)
 // ============================================================
@@ -255,6 +279,7 @@ export type AddMessageInput = z.infer<typeof addMessageSchema>
 export type UpdateStatusInput = z.infer<typeof updateStatusSchema>
 export type RoleMessageInput = z.infer<typeof roleMessageSchema>
 export type DiagnosisInput = z.infer<typeof diagnosisSchema>
+export type ChannelMessageInput = z.infer<typeof channelMessageSchema>
 export type SchoolChecklistInput   = z.infer<typeof schoolChecklistSchema>
 export type SchoolResolutionInput  = z.infer<typeof schoolResolutionSchema>
 export type WorkshopChecklistInput = z.infer<typeof workshopChecklistSchema>

@@ -275,12 +275,28 @@ async function hydrateTicket(supabase: any, row: Record<string, unknown>): Promi
       ),
     supabase
       .from('ticket_messages')
-      .select('id, ticket_id, sender_id, sender_role, content, is_internal, visibility_level, created_at')
+      .select('id, ticket_id, sender_id, sender_role, content, is_internal, visibility_level, channel, attachment_paths, created_at')
       .eq('ticket_id', ticketId)
       .order('created_at', { ascending: true })
       .then(
         (r: { data: unknown; error: { message: string } | null }) => r,
-        (err: Error) => ({ data: null, error: { message: err.message } })
+        (err: Error) => {
+          // Fallback : sur une DB où la migration channels n'est pas encore
+          // appliquée, on retombe sur le SELECT historique pour ne pas casser
+          // l'affichage des messages legacy.
+          if (/channel|attachment_paths/i.test(err.message)) {
+            return supabase
+              .from('ticket_messages')
+              .select('id, ticket_id, sender_id, sender_role, content, is_internal, visibility_level, created_at')
+              .eq('ticket_id', ticketId)
+              .order('created_at', { ascending: true })
+              .then(
+                (r: { data: unknown; error: { message: string } | null }) => r,
+                (e: Error) => ({ data: null, error: { message: e.message } })
+              )
+          }
+          return { data: null, error: { message: err.message } }
+        }
       ),
   ])
 

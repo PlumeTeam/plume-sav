@@ -8,5 +8,6 @@ export type {
   UrgencyLevel,
   PhotoType,
   MessageSenderRole,
+  MessageChannel,
   SchoolResolution,
 } from './types'

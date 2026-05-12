@@ -37,6 +37,17 @@ export type PhotoType = 'overview' | 'damage_closeup' | 'serial_tag' | 'other'
 
 export type MessageSenderRole = 'client' | 'school' | 'workshop' | 'plume_admin'
 
+// Canaux de discussion explicites sur ticket_messages (migration 20260512000000).
+// Remplace à terme le système legacy `visibility_level` (qu'on conserve pour
+// rétrocompat). Quand `channel IS NULL`, la visibilité passe par
+// `visibility_level` ; sinon par les policies RLS de la migration ci-dessus.
+export type MessageChannel =
+  | 'school_client'
+  | 'client_workshop'
+  | 'workshop_school'
+  | 'group'
+  | 'workshop_plume'
+
 // Résolution choisie par l'école au terme du diagnostic — voir migration 20260503120000
 export type SchoolResolution =
   | 'resolved_by_school'
@@ -362,6 +373,8 @@ export interface Database {
           content: string
           is_internal: boolean
           visibility_level: string
+          channel: MessageChannel | null
+          attachment_paths: string[]
           created_at: string
         }
         Insert: {
@@ -372,6 +385,8 @@ export interface Database {
           content: string
           is_internal?: boolean
           visibility_level?: string
+          channel?: MessageChannel | null
+          attachment_paths?: string[]
           created_at?: string
         }
         Update: {
@@ -382,6 +397,8 @@ export interface Database {
           content?: string
           is_internal?: boolean
           visibility_level?: string
+          channel?: MessageChannel | null
+          attachment_paths?: string[]
           created_at?: string
         }
         Relationships: [
@@ -403,6 +420,7 @@ export interface Database {
       urgency_level: UrgencyLevel
       photo_type: PhotoType
       message_sender_role: MessageSenderRole
+      message_channel: MessageChannel
       request_status: RequestStatus
       service_type: ServiceType
     }

@@ -1,5 +1,6 @@
 ﻿export { createTicketAction } from './creation'
 export {
+  addChannelMessageAction,
   addMessageAction,
   addRoleMessageAction,
   updateTicketStatusAction,

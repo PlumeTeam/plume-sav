@@ -7,6 +7,7 @@ import { PARTNER_WORKSHOPS } from '../constants'
 import { getPartnerSchoolById } from '../queries'
 import type {
   ClientShippingAddress,
+  MessageChannel,
   MessageSenderRole,
   ProblemCategory,
   RequestStatus,
@@ -19,6 +20,7 @@ import type {
 } from '../types'
 import {
   addMessageSchema,
+  channelMessageSchema,
   roleMessageSchema,
   updateStatusSchema,
 } from '../schemas'
@@ -176,4 +178,75 @@ export async function addRoleMessageAction(formData: FormData) {
   return { success: true }
 }
 
+// ============================================================
+// T3 — Discussion par canal explicite (atelier)
+// ============================================================
+// Poste un message sur un canal nommé (school_client, client_workshop,
+// workshop_school, group, workshop_plume). Le sender_role est dérivé du
+// rôle authentifié — pas du formulaire — pour éviter l'usurpation.
+// La RLS finit le contrôle (cf. migration 20260512000000).
+export async function addChannelMessageAction(formData: FormData) {
+  const attachmentPathsRaw = formData.getAll('attachmentPaths').map((v) => String(v))
 
+  const parsed = channelMessageSchema.safeParse({
+    ticketId:        formData.get('ticketId'),
+    channel:         formData.get('channel'),
+    content:         formData.get('content') ?? '',
+    attachmentPaths: attachmentPathsRaw,
+  })
+  if (!parsed.success) {
+    return { error: parsed.error.flatten().fieldErrors }
+  }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: { _form: ['Non authentifié'] } }
+
+  const { ticketId, channel, content, attachmentPaths } = parsed.data
+
+  // Dérive le sender_role du rôle effectif. plume_admin tag toujours
+  // 'plume_admin' ; atelier → 'workshop' ; école → 'school' ; sinon 'client'.
+  const userRoles = await getCurrentUserRoles()
+  let senderRole: MessageSenderRole
+  if (userRoles.includes('plume_admin')) {
+    senderRole = 'plume_admin'
+  } else if (userRoles.includes('workshop')) {
+    senderRole = 'workshop'
+  } else if (userRoles.includes('school')) {
+    senderRole = 'school'
+  } else {
+    senderRole = 'client'
+  }
+
+  // Mapping de cohérence visibility_level — utile pour les rôles qui
+  // continuent à lire via le système legacy (UI client/école pas encore
+  // refondues). On garde une visibilité large quand le canal inclut le
+  // client (school_client, client_workshop, group), restrictive sinon.
+  const visibilityLevel =
+    channel === 'group' || channel === 'school_client' || channel === 'client_workshop'
+      ? 'all'
+      : channel === 'workshop_plume'
+        ? 'plume_only'
+        : 'workshop_plume'
+
+  const { error } = await supabase.from('ticket_messages').insert({
+    ticket_id:        ticketId,
+    sender_id:        user.id,
+    sender_role:      senderRole,
+    content:          content || '(photo)',
+    is_internal:      visibilityLevel !== 'all',
+    visibility_level: visibilityLevel,
+    channel:          channel as MessageChannel,
+    attachment_paths: attachmentPaths,
+  })
+
+  if (error) {
+    return { error: { _form: [`Erreur lors de l'envoi (${error.message})`] } }
+  }
+
+  revalidatePath(`/workshop/ticket/${ticketId}`)
+  revalidatePath(`/school/ticket/${ticketId}`)
+  revalidatePath(`/client/ticket/${ticketId}`)
+  revalidatePath(`/plume/messages/${ticketId}`)
+  return { success: true }
+}
