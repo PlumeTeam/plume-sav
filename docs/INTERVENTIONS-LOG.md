@@ -30,6 +30,29 @@ Chaque entrée doit suivre ce gabarit pour rester scannable. Date au format `YYY
 
 ---
 
+## 2026-05-12 — Vérification serial vs aile sélectionnée (Tâche 2 plan dashboard client)
+
+**Intent** : Étape « Quelle aile ? » — quand le client sélectionne une aile dans la liste puis scanne/saisit un sérial, comparer les deux. Si mismatch → erreur explicite + blocage Continuer.
+**Status** : ✅ livré
+
+### Ce qui a été fait
+- `apps/sav/features/tickets/components/wizard/WingScanCard.tsx` : `selectedSerial` (jusqu'ici inutilisé, préfixé `_`) est désormais le garde-fou principal de `resolveSerial`. Si non-null et `normalized !== selectedSerial.toUpperCase()` → état d'erreur avec message « Le numéro de série ne correspond pas à l'aile sélectionnée. Vérifiez que vous avez la bonne aile en main, ou changez votre sélection dans la liste. »
+- Mode démo : utilise `selectedSerial` comme cible si présent (sinon `wings[0].serial_number`) pour rester cohérent avec la sélection.
+- `useEffect([selectedSerial])` : reset à `idle` quand le client change d'aile dans la liste (la confirmation précédente devient caduque).
+- Nouveau callback `onVerificationErrorChange(hasError)` : remonte au parent l'état de mismatch (préfixe `MISMATCH_ERROR_PREFIX` pour distinguer cette erreur des « aile inconnue »).
+- `apps/sav/features/tickets/components/wizard/StepWingInfo.tsx` : ajoute `hasSerialMismatch` (state), branche le callback, désactive « Continuer » via `nextDisabled={!selectedId || hasSerialMismatch}`. Cliquer une aile dans la liste lève l'erreur de vérif (correction de sélection).
+
+### Ce qui reste à faire
+- Tests Vitest sur la logique de `resolveSerial` (mismatch + match + inconnu) — pas faits car pas de tests existants sur ce composant.
+- E2E Playwright sur le scénario « sélection A + scan B → erreur » non écrit (auth requise, pas dans le scope).
+
+### Pièges rencontrés
+- `useEffect([state, onVerificationErrorChange])` : sans `useCallback` côté parent, le callback se recrée à chaque render → l'effet boucle. `useCallback(..., [])` côté `StepWingInfo` stabilise.
+- Le manual flow étape 2 appelle `resolveSerial` après double saisie OK : si le sérial ne matche pas `selectedSerial`, on bascule de `manual-step2` vers `error`. Le sous-composant `ManualStep2` est démonté → pas de fuite, comportement correct.
+- Préfixe `MISMATCH_ERROR_PREFIX` : nécessaire pour ne pas bloquer Continuer en cas d'erreur « Aucune aile correspondant » (qui peut survenir mais n'a pas le même sens — la sélection est intacte).
+
+---
+
 ## 2026-05-10 — Module Flashcode v3 + GitNexus + refactor actions.ts
 
 **Intent** : Construire un système de scan QR pour traçabilité physique des ailes (anti-erreur, anti-perte). Installer un knowledge graph (GitNexus) pour alléger le contexte Claude. Refactor les fichiers obèses.

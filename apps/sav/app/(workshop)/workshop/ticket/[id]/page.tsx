@@ -1,15 +1,16 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getWorkshopTicketDetail } from '@/features/tickets/queries'
+import { getWorkshopTicketDetail, getPartnerSchoolById } from '@/features/tickets/queries'
 import { markTicketReadByWorkshopAction } from '@/features/tickets/messages-actions-workshop'
 import { markTicketReadByPlumeAction } from '@/features/tickets/messages-actions-plume'
 import { getCurrentUser, getCurrentUserRoles } from '@/features/auth/queries'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
-import { TicketTimeline } from '@/features/tickets/components/TicketTimeline'
+import { ClientJourneyTimeline } from '@/features/tickets/components/ClientJourneyTimeline'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { PlumeNoteComposer } from '@/features/tickets/components/PlumeNoteComposer'
 import { WorkshopChannelTabs } from '@/features/tickets/components/WorkshopChannelTabs'
-import { readSchoolCheckInspector } from '@/features/tickets/inspection/steps'
+import { readSchoolCheckInspector, readSchoolCheckPayload } from '@/features/tickets/inspection/steps'
+import { SchoolCheckSummary } from '@/features/tickets/inspection/SchoolCheckSummary'
 import { DiagnosisChecklist } from '@/features/tickets/components/DiagnosisChecklist'
 import { WORKSHOP_TECHNICAL_CHECKLIST } from '@/features/tickets/constants'
 import { saveWorkshopChecklistAction } from '@/features/tickets/actions'
@@ -18,6 +19,29 @@ import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabel
 import { WorkshopActionBar } from './WorkshopActionBar'
 import { WorkshopStepPanel } from './WorkshopStepPanel'
 import type { WorkshopReturnDestination } from '@/features/tickets/types'
+
+// Garantie : 2 ans à compter de la date d'achat (politique Plume Paragliders).
+// Retourne null si on n'a pas la date — l'UI doit alors masquer le badge.
+const WARRANTY_YEARS = 2
+
+function computeWarranty(purchaseDate: string | null): {
+  status: 'active' | 'expired'
+  endDate: Date
+  daysRemaining: number
+} | null {
+  if (!purchaseDate) return null
+  const start = new Date(purchaseDate)
+  if (Number.isNaN(start.getTime())) return null
+  const end = new Date(start)
+  end.setFullYear(end.getFullYear() + WARRANTY_YEARS)
+  const now = new Date()
+  const daysRemaining = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+  return {
+    status:        daysRemaining > 0 ? 'active' : 'expired',
+    endDate:       end,
+    daysRemaining,
+  }
+}
 
 // Lien public de suivi GLS — accepte tout numéro de tracking en query param.
 function buildGlsTrackingUrl(tracking: string): string {
@@ -46,6 +70,11 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
     markTicketReadByPlumeAction(ticket.id),
   ])
 
+  // École qui traite le ticket = client direct de l'atelier. Best-effort —
+  // si l'id est absent ou la table partner_schools indisponible, on masque
+  // simplement la section dans la vue.
+  const school = ticket.school_id ? await getPartnerSchoolById(ticket.school_id) : null
+
   const isPlumeAdmin = currentRoles.includes('plume_admin')
 
   // T3 — Côté atelier on n'utilise plus visibility_level mais le canal
@@ -59,6 +88,16 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
   // Nom du moniteur qui a effectué le check côté école — exposé à l'atelier
   // pour la traçabilité de l'escalade.
   const schoolCheckInspector = readSchoolCheckInspector(ticket.school_checklist)
+  // Payload V2 du check école — on n'affiche le résumé color-codé que si on a
+  // un payload structuré. Les anciens checks (notes en clair) tombent en null.
+  const schoolCheckPayload = readSchoolCheckPayload(ticket.school_checklist)
+
+  // Garantie aile = 2 ans à compter de purchase_date. Null si la date n'a pas
+  // été remplie au moment de la demande.
+  const warranty = computeWarranty(ticket.purchase_date)
+
+  // Nom client formaté (prénom + nom) ou fallback.
+  const clientName = [ticket.first_name, ticket.last_name].filter(Boolean).join(' ') || '—'
 
   const stored: ChecklistJson = (ticket.workshop_checklist ?? null) as ChecklistJson
   const initialChecked = Array.isArray(stored?.checkedIds) ? stored!.checkedIds! : []
@@ -111,23 +150,30 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
 
         <section className="card p-5">
           <h2 className="section-title mb-4">Suivi global</h2>
-          <TicketTimeline status={ticket.status} />
+          <ClientJourneyTimeline ticket={ticket} />
         </section>
 
-        {/* Contexte de l'escalation école — nom du moniteur + note. La section
-            s'affiche dès qu'au moins l'un des deux est renseigné. */}
-        {(schoolCheckInspector || (ticket.school_resolution === 'escalated_to_workshop' && ticket.school_resolution_note)) && (
+        {/* Check école — synthèse color-codée du diagnostic terrain. Affichée
+            dès qu'un payload V2 structuré est disponible. */}
+        {schoolCheckPayload && (
+          <section className="card p-5">
+            <h2 className="section-title mb-3">Check de l&apos;école</h2>
+            <SchoolCheckSummary raw={ticket.school_checklist} />
+          </section>
+        )}
+
+        {/* Contexte de l'escalation école — note libre laissée par l'école
+            au moment d'escalader. Complémentaire du check structuré. */}
+        {ticket.school_resolution === 'escalated_to_workshop' && ticket.school_resolution_note && (
           <section className="card p-5 bg-brand-gold/5 border-brand-gold/30">
-            <h2 className="section-title mb-3">Briefing de l&apos;école</h2>
-            {schoolCheckInspector && (
+            <h2 className="section-title mb-3">Note d&apos;escalade de l&apos;école</h2>
+            {schoolCheckInspector && !schoolCheckPayload && (
               <div className="mb-3 flex items-center gap-2 rounded-xl bg-white/60 px-3 py-2 text-sm text-brand-ink">
                 <span aria-hidden>👤</span>
                 <span>Check effectué par <strong>{schoolCheckInspector}</strong></span>
               </div>
             )}
-            {ticket.school_resolution === 'escalated_to_workshop' && ticket.school_resolution_note && (
-              <p className="whitespace-pre-line text-sm text-brand-ink">{ticket.school_resolution_note}</p>
-            )}
+            <p className="whitespace-pre-line text-sm text-brand-ink">{ticket.school_resolution_note}</p>
           </section>
         )}
 
@@ -239,21 +285,67 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
           </section>
         )}
 
+        {/* École partenaire — client direct de l'atelier. Affichée d'abord car
+            c'est l'interlocuteur quotidien du technicien. */}
         <section className="card p-5">
-          <h2 className="section-title mb-3">Client</h2>
+          <h2 className="section-title mb-3">École partenaire</h2>
+          {school ? (
+            <div className="space-y-2">
+              <InfoRow label="Nom" value={school.name || '—'} />
+              {(school.city || school.region) && (
+                <InfoRow
+                  label="Localisation"
+                  value={[school.city, school.region].filter(Boolean).join(' · ') || '—'}
+                />
+              )}
+              {school.email && (
+                <InfoRowLink label="Email" value={school.email} href={`mailto:${school.email}`} />
+              )}
+              {school.phone && (
+                <InfoRowLink label="Téléphone" value={school.phone} href={`tel:${school.phone.replace(/\s+/g, '')}`} />
+              )}
+              {school.address && (
+                <div className="pt-1">
+                  <p className="mb-1 text-xs text-slate-500">Adresse</p>
+                  <p className="whitespace-pre-line text-right text-sm text-brand-ink">{school.address}</p>
+                </div>
+              )}
+            </div>
+          ) : ticket.assigned_workshop_label ? (
+            <p className="text-sm text-slate-500">
+              École rattachée non disponible — atelier assigné&nbsp;: {ticket.assigned_workshop_label}
+            </p>
+          ) : (
+            <p className="text-sm text-slate-500">École non renseignée sur ce ticket.</p>
+          )}
+        </section>
+
+        <section className="card p-5">
+          <h2 className="section-title mb-3">Client final (pilote)</h2>
           <div className="space-y-2">
-            <InfoRow label="Nom" value={[ticket.first_name, ticket.last_name].filter(Boolean).join(' ') || '—'} />
-            <InfoRow label="Email" value={ticket.email ?? '—'} />
-            {ticket.phone && <InfoRow label="Téléphone" value={ticket.phone} />}
+            <InfoRow label="Nom" value={clientName} />
+            {ticket.email && (
+              <InfoRowLink label="Email" value={ticket.email} href={`mailto:${ticket.email}`} />
+            )}
+            {ticket.phone && (
+              <InfoRowLink label="Téléphone" value={ticket.phone} href={`tel:${ticket.phone.replace(/\s+/g, '')}`} />
+            )}
           </div>
         </section>
 
         <section className="card p-5">
-          <h2 className="section-title mb-3">Produit</h2>
+          <h2 className="section-title mb-3">Aile</h2>
           <div className="space-y-2">
             <InfoRow label="Marque / Modèle" value={`${ticket.product_brand ?? '—'} ${ticket.product_model ?? '—'}`} />
+            {ticket.wing_size && <InfoRow label="Taille" value={ticket.wing_size} />}
             <InfoRow label="N° de série" value={ticket.serial_number ?? '—'} mono />
             {ticket.purchase_date && <InfoRow label="Date d'achat" value={formatDate(ticket.purchase_date)} />}
+            {warranty && (
+              <div className="flex items-start justify-between gap-4 pt-1">
+                <p className="flex-shrink-0 text-xs text-slate-500">Garantie</p>
+                <WarrantyBadge warranty={warranty} />
+              </div>
+            )}
           </div>
         </section>
 
@@ -304,5 +396,46 @@ function InfoRow({ label, value, mono }: { label: string; value: string; mono?: 
       <p className="flex-shrink-0 text-xs text-slate-500">{label}</p>
       <p className={`text-right text-sm text-brand-ink ${mono ? 'font-mono' : ''}`}>{value.trim() || '—'}</p>
     </div>
+  )
+}
+
+function InfoRowLink({ label, value, href }: { label: string; value: string; href: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <p className="flex-shrink-0 text-xs text-slate-500">{label}</p>
+      <a
+        href={href}
+        className="break-all text-right text-sm font-medium text-brand-gold hover:underline"
+      >
+        {value}
+      </a>
+    </div>
+  )
+}
+
+function WarrantyBadge({ warranty }: { warranty: { status: 'active' | 'expired'; endDate: Date; daysRemaining: number } }) {
+  const isActive = warranty.status === 'active'
+  const isExpiringSoon = isActive && warranty.daysRemaining <= 60
+
+  const classes = isExpiringSoon
+    ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200'
+    : isActive
+      ? 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200'
+      : 'bg-red-50 text-red-700 ring-1 ring-red-200'
+
+  const dotClass = isExpiringSoon ? 'bg-amber-500' : isActive ? 'bg-emerald-500' : 'bg-red-500'
+  const endDateLabel = warranty.endDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+
+  const label = isActive
+    ? isExpiringSoon
+      ? `Sous garantie — expire dans ${warranty.daysRemaining} j`
+      : `Sous garantie — jusqu'au ${endDateLabel}`
+    : `Hors garantie — expirée le ${endDateLabel}`
+
+  return (
+    <span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-medium ${classes}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} aria-hidden />
+      {label}
+    </span>
   )
 }

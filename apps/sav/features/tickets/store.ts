@@ -134,8 +134,9 @@ export const useWizardStore = create<WizardState & WizardActions>()(
       reset: () => set(defaultState),
     }),
     {
-      // Bumped to v2 when the wizard switched from index-based to id-based steps.
-      name: 'plume-ticket-wizard-draft-v2',
+      // Bumped to v3 when surfaceContact became an array (multi-select sable/neige/autre).
+      // v2 drafts auto-discarded — acceptable en mode démo, pas de vrai client.
+      name: 'plume-ticket-wizard-draft-v3',
       storage: createJSONStorage(() => {
         if (typeof window === 'undefined') {
           return {

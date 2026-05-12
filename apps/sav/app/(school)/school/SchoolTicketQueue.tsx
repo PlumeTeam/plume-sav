@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from 'react'
 import { TicketCard } from '@/features/tickets/components/TicketCard'
-import type { TicketWithPhotos, RequestStatus } from '@/features/tickets/types'
+import type { RequestStatus } from '@/features/tickets/types'
+import type { TicketWithContacts } from '@/features/tickets/contacts'
 
 type FilterTab = 'all' | 'pending' | 'active' | 'done'
 
@@ -45,7 +46,7 @@ function matchesFilter(status: RequestStatus, tab: FilterTab): boolean {
 }
 
 interface SchoolTicketQueueProps {
-  tickets: TicketWithPhotos[]
+  tickets: TicketWithContacts[]
 }
 
 export function SchoolTicketQueue({ tickets }: SchoolTicketQueueProps) {

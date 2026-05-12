@@ -24,12 +24,13 @@ function readLastReadAt(ticket: TicketWithPhotos): number {
 
 /**
  * Adds an `unread_count` field to each ticket. Performs ONE batched query for
- * all messages of the given tickets and folds them in-memory.
+ * all messages of the given tickets and folds them in-memory. Generic so the
+ * caller's extra fields (e.g. attached contacts) are preserved on the output.
  */
-export async function attachUnreadCounts(
+export async function attachUnreadCounts<T extends TicketWithPhotos>(
   supabase: SupabaseClient,
-  tickets: TicketWithPhotos[],
-): Promise<TicketWithUnread[]> {
+  tickets: T[],
+): Promise<Array<T & { unread_count: number }>> {
   if (tickets.length === 0) return []
 
   const ticketIds = tickets.map((t) => t.id)

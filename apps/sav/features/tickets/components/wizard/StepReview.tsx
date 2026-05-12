@@ -349,7 +349,7 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
 // French strings used in StepWingHistory's option lists and with the
 // server-side serialisation in actions.ts (formatWingHistory).
 const WATER_LABELS:   Record<string, string> = { none: 'Non', fresh: 'Eau douce', salt: 'Eau salée' }
-const SURFACE_LABELS: Record<string, string> = { none: 'Non', sand: 'Sable / dunes', snow: 'Neige', other: 'Autre' }
+const SURFACE_LABELS: Record<string, string> = { sand: 'Sable / dunes', snow: 'Neige', other: 'Autre' }
 const CONDITION_LABELS: Record<string, string> = {
   excellent: 'Excellent', good: 'Bon', worn: 'Usé', bad: 'Mauvais',
 }
@@ -379,12 +379,14 @@ function WingHistoryRecap({
   if (history.treeContact === 'yes')      rows.push({ label: 'Arbrissage',  value: 'Oui' })
   else if (history.treeContact === 'no')  rows.push({ label: 'Arbrissage',  value: 'Non' })
 
-  if (history.surfaceContact) {
-    const base = SURFACE_LABELS[history.surfaceContact] ?? history.surfaceContact
-    const note = history.surfaceContact === 'other' && history.surfaceContactNote?.trim()
+  if (history.surfaceContact && history.surfaceContact.length > 0) {
+    const labels = history.surfaceContact
+      .map((v) => SURFACE_LABELS[v] ?? v)
+      .join(', ')
+    const note = history.surfaceContact.includes('other') && history.surfaceContactNote?.trim()
       ? ` (${history.surfaceContactNote.trim()})`
       : ''
-    rows.push({ label: 'Sable / neige', value: `${base}${note}` })
+    rows.push({ label: 'Sable / neige', value: `${labels}${note}` })
   }
 
   if (history.generalCondition)

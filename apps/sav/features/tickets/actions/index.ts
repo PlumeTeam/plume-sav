@@ -7,7 +7,9 @@ export {
 } from './messaging'
 export {
   applySchoolResolutionAction,
+  approveShippingAction,
   markWingReceivedSchoolAction,
+  refuseShippingAction,
   saveDiagnosisAction,
   saveSchoolChecklistAction,
   startSchoolCheckAction,
