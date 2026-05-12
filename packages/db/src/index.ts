@@ -10,4 +10,5 @@ export type {
   MessageSenderRole,
   MessageChannel,
   SchoolResolution,
+  ClosureOutcome,
 } from './types'

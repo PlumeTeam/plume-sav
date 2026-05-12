@@ -3,9 +3,9 @@
 import { useState, useTransition } from 'react'
 import {
   adminReassignSchoolAction,
-  adminCloseTicketAction,
   adminRemindSchoolAction,
 } from '@/features/tickets/actions'
+import { CloseTicketDialog } from '@/features/tickets/components/CloseTicketDialog'
 import type { TicketWithPhotos } from '@/features/tickets/types'
 import type { PartnerSchool } from '@/features/tickets/queries'
 
@@ -16,7 +16,7 @@ interface AdminTicketActionsProps {
   onClose:            () => void
 }
 
-type Pane = 'menu' | 'reassign' | 'close' | 'remind'
+type Pane = 'menu' | 'reassign' | 'remind'
 
 export function AdminTicketActions({
   ticket,
@@ -27,15 +27,14 @@ export function AdminTicketActions({
   const [pane, setPane]         = useState<Pane>('menu')
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'error'; msg: string } | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [closeDialogOpen, setCloseDialogOpen] = useState(false)
 
   // Réassignation : sélection d'école + raison
   const [newSchoolId, setNewSchoolId] = useState('')
   const [reason, setReason]           = useState('')
 
-  // Clôture : note obligatoire
-  const [closeNote, setCloseNote] = useState('')
-
   const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
+  const isClosed  = !!ticket.closed_at
 
   function close() {
     setFeedback(null)
@@ -60,23 +59,6 @@ export function AdminTicketActions({
         setFeedback({ type: 'error', msg: formErrors?.[0] ?? 'Erreur réassignation.' })
       } else {
         setFeedback({ type: 'ok', msg: 'Ticket réassigné.' })
-        setTimeout(close, 900)
-      }
-    })
-  }
-
-  function handleClose(e: React.FormEvent) {
-    e.preventDefault()
-    startTransition(async () => {
-      const fd = new FormData()
-      fd.set('ticketId', ticket.id)
-      fd.set('note',     closeNote)
-      const r = await adminCloseTicketAction(fd)
-      if (r?.error) {
-        const formErrors = (r.error as { _form?: string[] })._form
-        setFeedback({ type: 'error', msg: formErrors?.[0] ?? 'Erreur clôture.' })
-      } else {
-        setFeedback({ type: 'ok', msg: 'Ticket clôturé.' })
         setTimeout(close, 900)
       }
     })
@@ -159,12 +141,17 @@ export function AdminTicketActions({
 
             <button
               type="button"
-              onClick={() => setPane('close')}
-              className="flex w-full items-center justify-between rounded-2xl border border-red-200 bg-white p-3 text-left text-sm transition-colors hover:bg-red-50"
+              onClick={() => setCloseDialogOpen(true)}
+              disabled={isClosed}
+              className="flex w-full items-center justify-between rounded-2xl border border-red-200 bg-white p-3 text-left text-sm transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <div>
-                <p className="font-medium text-red-700">🔒 Fermer manuellement</p>
-                <p className="text-xs text-red-600/70">Ticket → terminé. Note obligatoire.</p>
+                <p className="font-medium text-red-700">🔒 Clôturer le ticket</p>
+                <p className="text-xs text-red-600/70">
+                  {isClosed
+                    ? 'Ticket déjà clôturé.'
+                    : 'Choisir le statut final (Réparé / Remplacé / Non valide / …).'}
+                </p>
               </div>
               <span aria-hidden className="text-red-700">→</span>
             </button>
@@ -221,43 +208,6 @@ export function AdminTicketActions({
           </form>
         )}
 
-        {pane === 'close' && (
-          <form onSubmit={handleClose} className="space-y-3">
-            <button
-              type="button"
-              onClick={() => { setPane('menu'); setFeedback(null) }}
-              className="text-xs text-slate-500 hover:underline"
-            >
-              ← Retour
-            </button>
-            <div className="rounded-2xl bg-red-50 p-3 text-xs text-red-700">
-              Cette action passe le ticket en <strong>terminé</strong>. Action visible côté client.
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">
-                Note de clôture (obligatoire)
-              </label>
-              <textarea
-                value={closeNote}
-                onChange={(e) => setCloseNote(e.target.value)}
-                rows={3}
-                className="field-input resize-none"
-                placeholder="Ex. doublon avec ticket #ABC123, demande retirée par le client…"
-                required
-                minLength={3}
-                maxLength={2000}
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={isPending}
-              className="w-full rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isPending ? 'Clôture…' : 'Fermer le ticket'}
-            </button>
-          </form>
-        )}
-
         {pane === 'remind' && (
           <div className="space-y-3">
             <button
@@ -282,6 +232,18 @@ export function AdminTicketActions({
           </div>
         )}
       </div>
+
+      <CloseTicketDialog
+        ticketId={ticket.id}
+        ticketRef={ticketRef}
+        closerRole="plume_admin"
+        open={closeDialogOpen}
+        onClose={() => setCloseDialogOpen(false)}
+        onClosed={() => {
+          setFeedback({ type: 'ok', msg: 'Ticket clôturé.' })
+          setTimeout(close, 900)
+        }}
+      />
     </div>
   )
 }

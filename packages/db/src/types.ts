@@ -37,7 +37,7 @@ export type PhotoType = 'overview' | 'damage_closeup' | 'serial_tag' | 'other'
 
 export type MessageSenderRole = 'client' | 'school' | 'workshop' | 'plume_admin'
 
-// Canaux de discussion explicites sur ticket_messages (migration 20260512000000).
+// Canaux de discussion explicites sur ticket_messages (migration 20260512300000).
 // Remplace à terme le système legacy `visibility_level` (qu'on conserve pour
 // rétrocompat). Quand `channel IS NULL`, la visibilité passe par
 // `visibility_level` ; sinon par les policies RLS de la migration ci-dessus.
@@ -47,6 +47,17 @@ export type MessageChannel =
   | 'workshop_school'
   | 'group'
   | 'workshop_plume'
+
+// Statut final SAV — choisi à la clôture (migration 20260512200000 — T7).
+// Le client ne peut pas clôturer ; seuls école/atelier/Plume HQ ont le droit.
+export type ClosureOutcome =
+  | 'resolved_in_consultation' // Résolu en consultation (école — pas d'atelier)
+  | 'repaired'                 // Réparé (atelier)
+  | 'replaced'                 // Remplacé (atelier ou Plume HQ — neuf en échange)
+  | 'no_repair_needed'         // Pas de réparation nécessaire (comportement normal, etc.)
+  | 'invalid'                  // Demande non valide / hors SAV
+  | 'client_cancelled'         // Annulé par le client
+  | 'other'                    // Autre — note de clôture obligatoire
 
 // Résolution choisie par l'école au terme du diagnostic — voir migration 20260503120000
 export type SchoolResolution =
@@ -144,6 +155,20 @@ export interface Database {
           shipping_refusal_reason:     string | null
           shipping_decided_at:         string | null
           shipping_decided_by:         string | null
+          // Repair vs replacement decision (migration 20260512010000)
+          workshop_estimated_repair_cost:     number | null
+          workshop_decision:                  'repair' | 'replacement' | null
+          workshop_decision_at:               string | null
+          workshop_decision_by:               string | null
+          workshop_decision_warranty_status:  'under_warranty' | 'out_of_warranty' | null
+          workshop_decision_warranty_covered: boolean | null
+          workshop_decision_note:             string | null
+          // Ticket closure (migration 20260512200000 — T7)
+          closed_by:        string | null
+          closed_at:        string | null
+          closed_by_role:   'school' | 'workshop' | 'plume_admin' | null
+          closure_outcome:  ClosureOutcome | null
+          closure_note:     string | null
           created_at: string
           updated_at: string
         }
@@ -220,6 +245,18 @@ export interface Database {
           shipping_refusal_reason?:     string | null
           shipping_decided_at?:         string | null
           shipping_decided_by?:         string | null
+          workshop_estimated_repair_cost?:     number | null
+          workshop_decision?:                  'repair' | 'replacement' | null
+          workshop_decision_at?:               string | null
+          workshop_decision_by?:               string | null
+          workshop_decision_warranty_status?:  'under_warranty' | 'out_of_warranty' | null
+          workshop_decision_warranty_covered?: boolean | null
+          workshop_decision_note?:             string | null
+          closed_by?:        string | null
+          closed_at?:        string | null
+          closed_by_role?:   'school' | 'workshop' | 'plume_admin' | null
+          closure_outcome?:  ClosureOutcome | null
+          closure_note?:     string | null
           created_at?: string
           updated_at?: string
         }
@@ -296,6 +333,18 @@ export interface Database {
           shipping_refusal_reason?:     string | null
           shipping_decided_at?:         string | null
           shipping_decided_by?:         string | null
+          workshop_estimated_repair_cost?:     number | null
+          workshop_decision?:                  'repair' | 'replacement' | null
+          workshop_decision_at?:               string | null
+          workshop_decision_by?:               string | null
+          workshop_decision_warranty_status?:  'under_warranty' | 'out_of_warranty' | null
+          workshop_decision_warranty_covered?: boolean | null
+          workshop_decision_note?:             string | null
+          closed_by?:        string | null
+          closed_at?:        string | null
+          closed_by_role?:   'school' | 'workshop' | 'plume_admin' | null
+          closure_outcome?:  ClosureOutcome | null
+          closure_note?:     string | null
           created_at?: string
           updated_at?: string
         }
@@ -376,6 +425,30 @@ export interface Database {
             referencedColumns: ['id']
           }
         ]
+      }
+      plume_settings: {
+        Row: {
+          id: number
+          repair_replacement_threshold_eur: number
+          warranty_duration_months: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: number
+          repair_replacement_threshold_eur?: number
+          warranty_duration_months?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: number
+          repair_replacement_threshold_eur?: number
+          warranty_duration_months?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       ticket_messages: {
         Row: {

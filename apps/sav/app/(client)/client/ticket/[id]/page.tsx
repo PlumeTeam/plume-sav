@@ -10,9 +10,10 @@ import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabel
 import { CommentThread } from '@/features/tickets/components/CommentThread'
 import { ClientDeclarationView } from '@/features/tickets/components/ClientDeclarationView'
 import { WingLocationCard } from '@/features/tickets/components/WingLocationCard'
+import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
 import { formatDate } from '@/features/tickets/utils'
 import { filterMessagesForRole } from '@/features/tickets/channels'
-import type { ClientShippingAddress } from '@/features/tickets/types'
+import type { ClientShippingAddress, CloserRole, ClosureOutcome } from '@/features/tickets/types'
 import { MessageForm } from './MessageForm'
 import { ClientTicketTabs } from './ClientTicketTabs'
 
@@ -120,6 +121,12 @@ export default async function TicketDetailPage({ params }: PageProps) {
 
   const stateNode = (
     <>
+      <TicketClosureCard
+        closedAt={ticket.closed_at}
+        closedByRole={ticket.closed_by_role as CloserRole | null}
+        closureOutcome={ticket.closure_outcome as ClosureOutcome | null}
+        closureNote={ticket.closure_note}
+      />
       <section className="card p-5">
         <h2 className="section-title mb-4">Suivi de votre demande</h2>
         {isRejected ? (

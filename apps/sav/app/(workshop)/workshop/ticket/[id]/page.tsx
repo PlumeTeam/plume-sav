@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getWorkshopTicketDetail, getPartnerSchoolById } from '@/features/tickets/queries'
+import { getPartnerSchoolById, getPlumeSettings, getWorkshopTicketDetail } from '@/features/tickets/queries'
 import { markTicketReadByWorkshopAction } from '@/features/tickets/messages-actions-workshop'
 import { markTicketReadByPlumeAction } from '@/features/tickets/messages-actions-plume'
 import { getCurrentUser, getCurrentUserRoles } from '@/features/auth/queries'
@@ -16,9 +16,13 @@ import { WORKSHOP_TECHNICAL_CHECKLIST } from '@/features/tickets/constants'
 import { saveWorkshopChecklistAction } from '@/features/tickets/actions'
 import { formatDate } from '@/features/tickets/utils'
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
+import { CloseTicketButton } from '@/features/tickets/components/CloseTicketButton'
+import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
 import { WorkshopActionBar } from './WorkshopActionBar'
 import { WorkshopStepPanel } from './WorkshopStepPanel'
-import type { WorkshopReturnDestination } from '@/features/tickets/types'
+import { WorkshopRepairDecisionPanel } from './WorkshopRepairDecisionPanel'
+import { statusGte } from '@/features/tickets/utils'
+import type { CloserRole, ClosureOutcome, WarrantyStatus, WorkshopDecision, WorkshopReturnDestination } from '@/features/tickets/types'
 
 // Garantie : 2 ans à compter de la date d'achat (politique Plume Paragliders).
 // Retourne null si on n'a pas la date — l'UI doit alors masquer le badge.
@@ -55,10 +59,11 @@ export const dynamic = 'force-dynamic'
 type ChecklistJson = { checkedIds?: string[]; notes?: string | null } | null
 
 export default async function WorkshopTicketDetailPage({ params }: PageProps) {
-  const [ticket, currentRoles, currentUser] = await Promise.all([
+  const [ticket, currentRoles, currentUser, plumeSettings] = await Promise.all([
     getWorkshopTicketDetail(params.id),
     getCurrentUserRoles(),
     getCurrentUser(),
+    getPlumeSettings(),
   ])
   if (!ticket) notFound()
 
@@ -117,6 +122,34 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
 
   const returnDest = (ticket.workshop_return_destination ?? null) as WorkshopReturnDestination | null
 
+  const isClosed     = !!ticket.closed_at
+  // L'atelier peut clôturer dès qu'il a quelque chose à conclure : check
+  // diagnostic posé, ou réparation en cours. Avant ça, c'est prématuré.
+  const canCloseFromWorkshop =
+    !isClosed && [
+      'wing_received_workshop',
+      'workshop_diagnosing',
+      'workshop_repairing',
+      'workshop_done',
+      'wing_returned',
+    ].includes(ticket.status)
+  const closerRole: CloserRole = isPlumeAdmin ? 'plume_admin' : 'workshop'
+
+  // T6 — décision réparation/remplacement n'est proposée qu'après réception
+  // de l'aile à l'atelier (pré-check effectué). On reste tolérant : si la
+  // décision est déjà prise, on l'affiche même au-delà.
+  const showRepairDecision = statusGte(ticket.status, 'wing_received_workshop')
+  const repairDecisionInitial = {
+    estimatedCost:   ticket.workshop_estimated_repair_cost != null
+      ? Number(ticket.workshop_estimated_repair_cost)
+      : null,
+    decision:        (ticket.workshop_decision ?? null) as WorkshopDecision | null,
+    warrantyStatus:  (ticket.workshop_decision_warranty_status ?? null) as WarrantyStatus | null,
+    warrantyCovered: ticket.workshop_decision_warranty_covered ?? null,
+    decisionAt:      ticket.workshop_decision_at ?? null,
+    note:            ticket.workshop_decision_note ?? null,
+  }
+
   return (
     <div className="min-h-screen">
       <header className="bg-brand-cream">
@@ -139,6 +172,13 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
       </header>
 
       <main className="mx-auto max-w-4xl space-y-3 p-4 pb-12">
+        <TicketClosureCard
+          closedAt={ticket.closed_at}
+          closedByRole={ticket.closed_by_role as CloserRole | null}
+          closureOutcome={ticket.closure_outcome as ClosureOutcome | null}
+          closureNote={ticket.closure_note}
+        />
+
         <section className="card p-5">
           <h2 className="section-title mb-4">Étapes atelier</h2>
           <WorkshopStepPanel
@@ -233,6 +273,24 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
           />
         </section>
 
+        {/* T6 — Décision réparation vs remplacement (post pré-check) */}
+        {showRepairDecision && (
+          <section className="card p-5">
+            <h2 className="section-title mb-3">Décision : réparation ou remplacement&nbsp;?</h2>
+            <p className="mb-4 text-sm text-slate-600">
+              Coût estimé saisi → on compare au seuil Plume pour décider entre réparation et aile neuve. La garantie 2 ans
+              est lue automatiquement depuis la date d&apos;achat de l&apos;aile.
+            </p>
+            <WorkshopRepairDecisionPanel
+              ticketId={ticket.id}
+              purchaseDate={ticket.purchase_date}
+              thresholdEur={plumeSettings.repairReplacementThresholdEur}
+              warrantyDurationMonths={plumeSettings.warrantyDurationMonths}
+              initial={repairDecisionInitial}
+            />
+          </section>
+        )}
+
         {/* Bon de transport retour atelier → école/client */}
         {shouldOfferReturnShipping && (
           <section className="card p-5">
@@ -261,6 +319,19 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
             estimatedHours={ticket.estimated_hours}
             partsNeeded={ticket.parts_needed}
           />
+          {(canCloseFromWorkshop || isPlumeAdmin) && (
+            <div className="mt-4 border-t border-brand-stone/40 pt-4">
+              <p className="mb-2 text-xs text-slate-500">
+                Quand le SAV est terminé : déclarez le statut final pour clôturer le ticket.
+              </p>
+              <CloseTicketButton
+                ticketId={ticket.id}
+                ticketRef={ticketRef}
+                closerRole={closerRole}
+                variant="ghost"
+              />
+            </div>
+          )}
         </section>
 
         {(ticket.diagnosis_notes || ticket.estimated_cost != null) && (

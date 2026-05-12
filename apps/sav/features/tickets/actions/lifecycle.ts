@@ -7,6 +7,8 @@ import { PARTNER_WORKSHOPS } from '../constants'
 import { getPartnerSchoolById } from '../queries'
 import type {
   ClientShippingAddress,
+  CloserRole,
+  ClosureOutcome,
   MessageSenderRole,
   ProblemCategory,
   RequestStatus,
@@ -17,6 +19,8 @@ import type {
   TicketUpdate,
   WizardProblemCategory,
 } from '../types'
+import { CLOSURE_OUTCOME_LABELS } from '../types'
+import { closeTicketSchema } from '../schemas'
 import { sendClientStepUpdateEmail, type ClientStepEmail, type TicketEmailContext } from '../email'
 import { requestStatusToSavStatus } from './_helpers'
 import { advanceTicketStep } from './_step-advance'
@@ -74,6 +78,167 @@ export async function markTicketCompletedAction(formData: FormData) {
     to:        'completed',
     emailStep: 'completed',
   })
+}
+
+// ============================================================
+// Cloture explicite d'un ticket (T7)
+// ============================================================
+//
+// Bouton "Cloturer le ticket" present dans les espaces ecole / atelier /
+// Plume HQ. Le client n'a JAMAIS le droit de cloturer (verification de
+// role ci-dessous). Contrairement a `markTicketCompletedAction` qui ne
+// fonctionne qu'aux statuts terminaux, `closeTicketAction` accepte
+// n'importe quel statut non-cloture : permet a l'ecole/atelier/Plume de
+// cloturer meme a mi-parcours (cas remplacement direct, annulation
+// client, demande non valide...).
+//
+// La cloture est idempotente : un appel sur un ticket deja cloture renvoie
+// success sans modifier les colonnes closed_by / closed_at (1ere cloture
+// fait foi pour la tracabilite).
+
+const CLOSER_ROLE_TO_SENDER: Record<CloserRole, MessageSenderRole> = {
+  school:      'school',
+  workshop:    'workshop',
+  plume_admin: 'plume_admin',
+}
+
+/**
+ * Determine le role de cloture a partir des roles user. Plume HQ a priorite
+ * (un admin Plume peut cloturer depuis n'importe quel espace). Sinon on
+ * privilegie workshop puis school. Le client est explicitement rejete.
+ */
+function pickCloserRole(roles: readonly string[]): CloserRole | null {
+  if (roles.includes('plume_admin')) return 'plume_admin'
+  if (roles.includes('workshop'))    return 'workshop'
+  if (roles.includes('school'))      return 'school'
+  return null
+}
+
+export async function closeTicketAction(formData: FormData) {
+  const parsed = closeTicketSchema.safeParse({
+    ticketId: formData.get('ticketId'),
+    outcome:  formData.get('outcome'),
+    note:     formData.get('note') || undefined,
+  })
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: { _form: ['Non authentifie'] } }
+
+  const roles      = await getCurrentUserRoles()
+  const closerRole = pickCloserRole(roles)
+  if (!closerRole) {
+    return {
+      error: {
+        _form: ["Action reservee a l'ecole, l'atelier ou Plume HQ. Le client ne peut pas cloturer un ticket."],
+      },
+    }
+  }
+
+  const { ticketId, outcome, note } = parsed.data
+
+  const { data: current, error: fetchError } = await supabase
+    .from('service_requests')
+    .select('id, status, closed_at, first_name, last_name, email, referent_school_id')
+    .eq('id', ticketId)
+    .single()
+    .returns<{
+      id:                 string
+      status:             RequestStatus
+      closed_at:          string | null
+      first_name:         string | null
+      last_name:          string | null
+      email:              string | null
+      referent_school_id: string | null
+    }>()
+
+  if (fetchError || !current) {
+    return { error: { _form: ['Demande introuvable'] } }
+  }
+
+  // Idempotence : si le ticket est deja cloture, renvoie success sans toucher
+  // closed_by / closed_at (la 1ere cloture fait foi pour la tracabilite).
+  if (current.closed_at) {
+    return { success: true as const, alreadyClosed: true as const }
+  }
+
+  const now = new Date().toISOString()
+
+  const update: Partial<TicketUpdate> = {
+    status:          'completed',
+    sav_status:      'closed',
+    completion_date: now,
+    closed_by:       user.id,
+    closed_at:       now,
+    closed_by_role:  closerRole,
+    closure_outcome: outcome,
+    closure_note:    note ?? null,
+  }
+
+  const { error: updateError } = await supabase
+    .from('service_requests')
+    .update(update)
+    .eq('id', ticketId)
+
+  if (updateError) {
+    return { error: { _form: [`Erreur lors de la cloture (${updateError.message})`] } }
+  }
+
+  // Audit trail (best-effort)
+  const { error: histError } = await supabase.from('ticket_status_history').insert({
+    ticket_id:  ticketId,
+    old_status: requestStatusToSavStatus(current.status),
+    new_status: 'closed' as TicketStatus,
+    changed_by: user.id,
+    note:       `Cloture (${CLOSURE_OUTCOME_LABELS[outcome]})${note ? ` - ${note}` : ''}`,
+  })
+  if (histError) console.error('[SAV] ticket_status_history insert failed:', histError.message)
+
+  // Message public - informe le client de la cloture + raison. Visibilite
+  // 'all' pour que le client le voie dans son thread.
+  await supabase.from('ticket_messages').insert({
+    ticket_id:        ticketId,
+    sender_id:        user.id,
+    sender_role:      CLOSER_ROLE_TO_SENDER[closerRole],
+    content:          `[Ticket cloture - ${CLOSURE_OUTCOME_LABELS[outcome]}]${note ? `\n${note}` : ''}`,
+    is_internal:      false,
+    visibility_level: 'all',
+  })
+
+  // Notification email client (best-effort)
+  if (current.email) {
+    try {
+      const schoolDetail = current.referent_school_id
+        ? await getPartnerSchoolById(current.referent_school_id)
+        : null
+      const ref = `#${current.id.slice(0, 8).toUpperCase()}`
+      const r = await sendClientStepUpdateEmail(supabase, 'completed', {
+        ticketId:    current.id,
+        ticketRef:   ref,
+        clientFirst: current.first_name ?? 'Pilote',
+        clientEmail: current.email,
+        schoolName:  schoolDetail?.name ?? null,
+      })
+      if (!r.ok) console.warn('[closeTicketAction] completion email skipped:', r.error)
+    } catch (e) {
+      console.warn('[closeTicketAction] completion email threw:', e)
+    }
+  }
+
+  revalidatePath(`/client/ticket/${ticketId}`)
+  revalidatePath(`/school/ticket/${ticketId}`)
+  revalidatePath(`/workshop/ticket/${ticketId}`)
+  revalidatePath('/client')
+  revalidatePath('/school')
+  revalidatePath('/workshop')
+  revalidatePath('/plume')
+
+  return {
+    success:      true as const,
+    closedByRole: closerRole,
+    outcome,
+  }
 }
 
 // ============================================================

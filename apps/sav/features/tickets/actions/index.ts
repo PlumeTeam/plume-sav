@@ -20,9 +20,11 @@ export {
   saveWorkshopChecklistAction,
   startWorkshopDiagnosisAction,
   startWorkshopRepairAction,
+  submitRepairDecisionAction,
 } from './workshop'
 export {
   acknowledgeTicketAction,
+  closeTicketAction,
   markTicketCompletedAction,
   markWingReturnedAction,
 } from './lifecycle'

@@ -261,9 +261,61 @@ export const adminCloseTicketSchema = z.object({
   note:     z.string().trim().min(3, 'Note obligatoire (3 caractères min)').max(2000),
 })
 
+// ============================================================
+// Clôture explicite d'un ticket (T7) — école / atelier / Plume HQ
+// ============================================================
+//
+// Le client est exclu côté Server Action (validation du rôle). Le statut
+// final (outcome) est obligatoire ; la note est optionnelle sauf pour
+// `other` (vérifié par superRefine).
+export const closeTicketSchema = z.object({
+  ticketId: z.string().uuid(),
+  outcome:  z.enum([
+    'resolved_in_consultation',
+    'repaired',
+    'replaced',
+    'no_repair_needed',
+    'invalid',
+    'client_cancelled',
+    'other',
+  ], { errorMap: () => ({ message: 'Choisissez un statut final' }) }),
+  note: z.string().trim().max(2000, 'Note trop longue (2000 caractères max)').optional(),
+}).superRefine((data, ctx) => {
+  if (data.outcome === 'other' && (!data.note || data.note.length < 3)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['note'],
+      message: 'Précisez la raison (3 caractères min) — obligatoire pour « Autre »',
+    })
+  }
+})
+
+export type CloseTicketInput = z.infer<typeof closeTicketSchema>
+
 // Relance email d'une école qui n'a pas pris en charge son ticket.
 export const adminRemindSchoolSchema = z.object({
   ticketId: z.string().uuid(),
+})
+
+// T6 — Décision atelier : coût estimé + (optionnel) prise en charge exceptionnelle
+// hors garantie. Le décompte repair/replacement est calculé côté serveur en
+// relisant plume_settings (jamais reçu du client — sinon contournable).
+export const repairDecisionSchema = z.object({
+  ticketId: z.string().uuid(),
+  estimatedCost: z.preprocess(
+    (v) => (v !== '' && v != null ? Number(v) : undefined),
+    z.number({ invalid_type_error: 'Coût invalide' })
+      .min(0, 'Le coût doit être positif')
+      .max(100000, 'Coût trop élevé'),
+  ),
+  // True = Plume prend en charge alors qu'on est hors garantie (exception).
+  // Ignoré côté serveur si la garantie est encore active (couverture automatique).
+  warrantyOverride: z.preprocess(
+    (v) => v === 'true' || v === true,
+    z.boolean(),
+  ).optional(),
+  // Justification — requise UNIQUEMENT pour l'override hors garantie.
+  note: z.string().trim().max(2000).optional(),
 })
 
 export const diagnosisSchema = z.object({
@@ -300,6 +352,7 @@ export type UpdateStatusInput = z.infer<typeof updateStatusSchema>
 export type RoleMessageInput = z.infer<typeof roleMessageSchema>
 export type DiagnosisInput = z.infer<typeof diagnosisSchema>
 export type ChannelMessageInput = z.infer<typeof channelMessageSchema>
+export type RepairDecisionInput = z.infer<typeof repairDecisionSchema>
 export type SchoolChecklistInput   = z.infer<typeof schoolChecklistSchema>
 export type SchoolResolutionInput  = z.infer<typeof schoolResolutionSchema>
 export type WorkshopChecklistInput = z.infer<typeof workshopChecklistSchema>

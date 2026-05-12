@@ -80,6 +80,42 @@ function enrichWithCoords(s: PartnerSchool): PartnerSchool {
   return coords ? { ...s, lat: coords.lat, lng: coords.lng } : s
 }
 
+// T6 — Paramètres globaux Plume (singleton id = 1).
+// Lecture autorisée à tout user authentifié par RLS — l'atelier en a besoin
+// pour calculer la décision repair/replacement, l'école pour comprendre.
+// Si la table ou la row manque, fallback sur les valeurs par défaut produit
+// (seuil 1500 €, garantie 24 mois) pour ne jamais bloquer l'UI atelier.
+export interface PlumeSettings {
+  repairReplacementThresholdEur: number
+  warrantyDurationMonths:        number
+}
+
+const DEFAULT_PLUME_SETTINGS: PlumeSettings = {
+  repairReplacementThresholdEur: 1500,
+  warrantyDurationMonths:        24,
+}
+
+export async function getPlumeSettings(): Promise<PlumeSettings> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('plume_settings')
+    .select('repair_replacement_threshold_eur, warranty_duration_months')
+    .eq('id', 1)
+    .maybeSingle()
+
+  if (error || !data) {
+    if (error) console.warn('[getPlumeSettings] fallback to defaults:', error.message)
+    return DEFAULT_PLUME_SETTINGS
+  }
+
+  const threshold = Number(data.repair_replacement_threshold_eur)
+  const warranty  = Number(data.warranty_duration_months)
+  return {
+    repairReplacementThresholdEur: Number.isFinite(threshold) ? threshold : DEFAULT_PLUME_SETTINGS.repairReplacementThresholdEur,
+    warrantyDurationMonths:        Number.isFinite(warranty)  ? warranty  : DEFAULT_PLUME_SETTINGS.warrantyDurationMonths,
+  }
+}
+
 export async function getPartnerSchools(): Promise<PartnerSchool[]> {
   const supabase = await createClient()
   // partner_schools is a shared-platform table not in the SAV DB types.

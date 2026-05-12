@@ -1,4 +1,4 @@
-import type { Database, TicketStatus, RequestStatus, ServiceType, ProblemCategory, UrgencyLevel, PhotoType, MessageSenderRole, MessageChannel, SchoolResolution } from '@plume/db'
+import type { Database, TicketStatus, RequestStatus, ServiceType, ProblemCategory, UrgencyLevel, PhotoType, MessageSenderRole, MessageChannel, SchoolResolution, ClosureOutcome } from '@plume/db'
 
 export type Ticket = Database['public']['Tables']['service_requests']['Row']
 export type TicketInsert = Database['public']['Tables']['service_requests']['Insert']
@@ -7,7 +7,83 @@ export type TicketPhoto = Database['public']['Tables']['ticket_photos']['Row']
 export type TicketMessage = Database['public']['Tables']['ticket_messages']['Row']
 export type TicketStatusHistory = Database['public']['Tables']['ticket_status_history']['Row']
 
-export type { TicketStatus, RequestStatus, ServiceType, ProblemCategory, UrgencyLevel, PhotoType, MessageSenderRole, MessageChannel, SchoolResolution }
+export type { TicketStatus, RequestStatus, ServiceType, ProblemCategory, UrgencyLevel, PhotoType, MessageSenderRole, MessageChannel, SchoolResolution, ClosureOutcome }
+
+// Rôle SAV autorisé à clôturer un ticket (T7). Le client est exclu — c'est
+// volontaire : seul un acteur du réseau (école / atelier / Plume HQ) peut
+// déclarer le SAV terminé.
+export type CloserRole = Exclude<MessageSenderRole, 'client'>
+
+// Libellés UI pour les statuts finaux. Ordre = ordre d'affichage dans le
+// dropdown de clôture (du plus fréquent au plus rare).
+export const CLOSURE_OUTCOME_OPTIONS: Array<{
+  value:       ClosureOutcome
+  label:       string
+  description: string
+  /** Rôle(s) où ce statut est typiquement pertinent — affichage uniquement
+   *  (pas une contrainte serveur). Tout rôle autorisé peut choisir n'importe
+   *  quel statut, mais on grise les options non pertinentes. */
+  primaryRoles: CloserRole[]
+}> = [
+  {
+    value:        'repaired',
+    label:        'Réparé',
+    description:  "L'aile a été réparée et restituée.",
+    primaryRoles: ['workshop', 'school'],
+  },
+  {
+    value:        'resolved_in_consultation',
+    label:        'Résolu en consultation',
+    description:  "Diagnostic école / atelier sans réparation matérielle.",
+    primaryRoles: ['school', 'workshop'],
+  },
+  {
+    value:        'no_repair_needed',
+    label:        'Pas de réparation nécessaire',
+    description:  "Comportement normal ou problème sans intervention.",
+    primaryRoles: ['school', 'workshop'],
+  },
+  {
+    value:        'replaced',
+    label:        'Remplacé',
+    description:  "Aile remplacée (échange neuf, sous garantie ou commercial).",
+    primaryRoles: ['plume_admin', 'workshop'],
+  },
+  {
+    value:        'client_cancelled',
+    label:        'Annulé par le client',
+    description:  "Le client a retiré sa demande.",
+    primaryRoles: ['school', 'workshop', 'plume_admin'],
+  },
+  {
+    value:        'invalid',
+    label:        'Non valide',
+    description:  "Hors SAV, doublon, ou demande infondée.",
+    primaryRoles: ['plume_admin', 'school'],
+  },
+  {
+    value:        'other',
+    label:        'Autre',
+    description:  "Note de clôture obligatoire pour préciser.",
+    primaryRoles: ['school', 'workshop', 'plume_admin'],
+  },
+]
+
+export const CLOSURE_OUTCOME_LABELS: Record<ClosureOutcome, string> = {
+  resolved_in_consultation: 'Résolu en consultation',
+  repaired:                 'Réparé',
+  replaced:                 'Remplacé',
+  no_repair_needed:         'Pas de réparation nécessaire',
+  invalid:                  'Non valide',
+  client_cancelled:         'Annulé par le client',
+  other:                    'Autre',
+}
+
+export const CLOSER_ROLE_LABELS: Record<CloserRole, string> = {
+  school:      "l'école",
+  workshop:    "l'atelier",
+  plume_admin: 'Plume HQ',
+}
 
 export type TicketWithPhotos = Ticket & {
   ticket_photos: TicketPhoto[]
@@ -71,6 +147,15 @@ export type ShipmentLeg =
   | 'workshop_to_return'  // Atelier → École ou Client (renvoi)
 
 export type WorkshopReturnDestination = 'school' | 'client'
+
+// T6 — Décision atelier après pré-check
+//  - repair       : coût estimé ≤ seuil plume_settings → réparation
+//  - replacement  : coût estimé > seuil → aile neuve
+export type WorkshopDecision = 'repair' | 'replacement'
+
+// Statut de garantie au moment de la décision atelier — figé à la prise
+// de décision pour traçabilité (purchase_date pouvant être corrigé plus tard).
+export type WarrantyStatus = 'under_warranty' | 'out_of_warranty'
 
 // Adresse postale du client — capturée à la volée la 1ère fois qu'il
 // génère un bon de transport. Stockée en JSONB sur le ticket.
