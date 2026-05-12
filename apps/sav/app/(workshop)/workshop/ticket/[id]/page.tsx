@@ -79,8 +79,11 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
 
   // T3 — Côté atelier on n'utilise plus visibility_level mais le canal
   // explicite (school_client, client_workshop, workshop_school, group,
-  // workshop_plume). Tous les messages remontés sont passés au composant
-  // qui se charge du filtrage par onglet.
+  // workshop_plume). school_client est inclus en lecture seule
+  // (transparence — l'atelier consulte sans intervenir). La RLS de la
+  // migration 20260512010000 garantit que l'atelier ne voit que ce qu'il
+  // doit voir ; on filtre juste sur "channel posé" pour exclure les
+  // anciens messages legacy.
   const channelMessages = ticket.ticket_messages.filter((m) => m.channel)
 
   const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
@@ -141,6 +144,7 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
           <WorkshopStepPanel
             ticketId={ticket.id}
             status={ticket.status}
+            wingSerial={ticket.serial_number ?? null}
             wingReceivedWorkshopAt={ticket.wing_received_workshop_at}
             workshopDiagnosisAt={ticket.workshop_diagnosis_at}
             workshopRepairDoneAt={ticket.workshop_repair_done_at}

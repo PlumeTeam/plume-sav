@@ -4,6 +4,7 @@ import { getSchoolTicketDetail } from '@/features/tickets/queries'
 import { markTicketReadBySchoolAction } from '@/features/tickets/messages-actions-school'
 import { CommentThread } from '@/features/tickets/components/CommentThread'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
+import { filterMessagesForRole } from '@/features/tickets/channels'
 import { SchoolMessageComposer } from '../../ticket/[id]/SchoolMessageComposer'
 
 interface PageProps { params: { id: string } }
@@ -16,14 +17,8 @@ export default async function SchoolConversationPage({ params }: PageProps) {
 
   await markTicketReadBySchoolAction(ticket.id)
 
-  // Same visibility filter as the school ticket page (Messages tab) — pas de
-  // canal Plume HQ côté école : seul l'atelier communique avec Plume.
-  const messages = ticket.ticket_messages
-    .filter((m) =>
-      m.visibility_level === 'all' ||
-      m.visibility_level === 'workshop_plume' ||
-      m.sender_role === 'school'
-    )
+  // Channel-aware visibility — l'école voit ses 3 canaux + legacy.
+  const messages = filterMessagesForRole(ticket.ticket_messages, 'school')
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
   const ticketRef = `#${ticket.id.slice(0, 8).toUpperCase()}`

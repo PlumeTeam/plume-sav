@@ -24,6 +24,11 @@ import {
   roleMessageSchema,
   updateStatusSchema,
 } from '../schemas'
+import {
+  ROLE_CHANNELS,
+  visibilityLevelForChannel,
+  type ChannelRole,
+} from '../channels'
 import { sendClientStepUpdateEmail, type ClientStepEmail, type TicketEmailContext } from '../email'
 import { requestStatusToSavStatus } from './_helpers'
 
@@ -47,6 +52,9 @@ export async function addMessageAction(formData: FormData) {
     content: parsed.data.content,
     is_internal: false,
     visibility_level: 'all',
+    // Client → école par défaut. Le canal client↔atelier n'est ouvert
+    // qu'après mise en relation par l'école, depuis un composer dédié.
+    channel: 'school_client',
   })
 
   if (error) return { error: { _form: ["Erreur lors de l'envoi du message"] } }
@@ -117,6 +125,7 @@ export async function addRoleMessageAction(formData: FormData) {
     isInternal:      formData.get('isInternal'),
     senderRole:      formData.get('senderRole'),
     visibilityLevel: formData.get('visibilityLevel') || undefined,
+    channel:         formData.get('channel') || undefined,
   })
   if (!parsed.success) {
     return { error: parsed.error.flatten().fieldErrors }
@@ -124,9 +133,9 @@ export async function addRoleMessageAction(formData: FormData) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: { _form: ['Non authentifiÃ©'] } }
+  if (!user) return { error: { _form: ['Non authentifié'] } }
 
-  const { ticketId, content, isInternal, senderRole: requestedRole, visibilityLevel } = parsed.data
+  const { ticketId, content, isInternal, senderRole: requestedRole, visibilityLevel, channel } = parsed.data
 
   // Trust the user's actual role(s), not the form payload, to prevent spoofing
   // and to re-tag plume_admin messages correctly when an admin uses the school /
@@ -143,23 +152,55 @@ export async function addRoleMessageAction(formData: FormData) {
     // Non-admin: requested role must match a role they actually own.
     senderRole = requestedRole
   } else if (requestedRole === 'client') {
-    // Authenticated ticket owner without an explicit user_roles row â€” RLS still
+    // Authenticated ticket owner without an explicit user_roles row — RLS still
     // enforces ownership (client_insert_messages requires service_request.client_id = auth.uid()).
     senderRole = 'client'
   } else {
-    return { error: { _form: ["Vous n'avez pas le droit de poster avec ce rÃ´le."] } }
+    return { error: { _form: ["Vous n'avez pas le droit de poster avec ce rôle."] } }
   }
 
-  // Explicit visibility wins; otherwise fall back to a sender-role mapping.
-  // Allowed values per CHECK constraint: 'all' | 'school_plume' | 'workshop_plume' | 'plume_only'.
-  const visibility =
-    visibilityLevel ??
-    (isInternal
-      ? senderRole === 'school'      ? 'school_plume'
-      : senderRole === 'workshop'    ? 'workshop_plume'
-      : senderRole === 'plume_admin' ? 'plume_only'
-      : 'all'
-      : 'all')
+  // Validation 5-canaux : si un `channel` est fourni, le rôle effectif doit
+  // figurer dans l'allowlist. Plume admin court-circuite cette vérification.
+  if (channel && !isAdmin) {
+    const channelRole: ChannelRole | null =
+      senderRole === 'client'   ? 'client'
+      : senderRole === 'school' ? 'school'
+      : senderRole === 'workshop' ? 'workshop'
+      : null
+    if (!channelRole) {
+      return { error: { _form: ["Rôle inconnu pour ce canal."] } }
+    }
+    const allowed = ROLE_CHANNELS[channelRole] as readonly string[]
+    if (!allowed.includes(channel)) {
+      return { error: { _form: ["Vous n'avez pas accès à ce canal."] } }
+    }
+  }
+
+  // Garde-fou supplémentaire : le canal client_workshop n'est activé qu'une
+  // fois la mise en relation faite par l'école (assigned_workshop_id != null).
+  if (channel === 'client_workshop') {
+    const { data: ticketRow } = await supabase
+      .from('service_requests')
+      .select('assigned_workshop_id')
+      .eq('id', ticketId)
+      .maybeSingle()
+      .returns<{ assigned_workshop_id: string | null }>()
+    if (!ticketRow?.assigned_workshop_id) {
+      return { error: { _form: ["Ce canal n'est pas encore actif (atelier non assigné)."] } }
+    }
+  }
+
+  // Détermine visibility_level : channel-aware si fourni, sinon legacy.
+  // visibility_level reste obligatoire (CHECK constraint sur la colonne).
+  const visibility = channel
+    ? visibilityLevelForChannel(channel as MessageChannel)
+    : (visibilityLevel ??
+      (isInternal
+        ? senderRole === 'school'      ? 'school_plume'
+        : senderRole === 'workshop'    ? 'workshop_plume'
+        : senderRole === 'plume_admin' ? 'plume_only'
+        : 'all'
+        : 'all'))
 
   const { error } = await supabase.from('ticket_messages').insert({
     ticket_id:        ticketId,
@@ -168,6 +209,7 @@ export async function addRoleMessageAction(formData: FormData) {
     content,
     is_internal:      isInternal,
     visibility_level: visibility,
+    channel:          channel ?? null,
   })
 
   if (error) return { error: { _form: [`Erreur lors de l'envoi (${error.message})`] } }

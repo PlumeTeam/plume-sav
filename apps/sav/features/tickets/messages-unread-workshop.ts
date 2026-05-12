@@ -12,7 +12,15 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-const WORKSHOP_VISIBLE_LEVELS = ['all', 'workshop_plume']
+// 5-canaux : l'atelier voit client_workshop, workshop_school, group,
+// workshop_plume. Fallback legacy (channel NULL) sur visibility_level.
+const WORKSHOP_CHANNELS = ['client_workshop', 'workshop_school', 'group', 'workshop_plume']
+const WORKSHOP_LEGACY_VISIBILITY = ['all', 'workshop_plume']
+
+function isWorkshopVisible(m: { channel?: string | null; visibility_level: string }): boolean {
+  if (m.channel) return WORKSHOP_CHANNELS.includes(m.channel)
+  return WORKSHOP_LEGACY_VISIBILITY.includes(m.visibility_level)
+}
 
 export type WorkshopInboxThread = {
   ticketId:     string
@@ -37,7 +45,7 @@ export async function getWorkshopUnreadTotal(supabase: SupabaseClient): Promise<
   const ticketIds = tickets.map((t: { id: string }) => t.id)
   const { data: messages, error: msgErr } = await supabase
     .from('ticket_messages')
-    .select('ticket_id, sender_role, visibility_level, created_at')
+    .select('ticket_id, sender_role, visibility_level, channel, created_at')
     .in('ticket_id', ticketIds)
   if (msgErr || !messages) return 0
 
@@ -47,9 +55,9 @@ export async function getWorkshopUnreadTotal(supabase: SupabaseClient): Promise<
   }
 
   let total = 0
-  for (const m of messages as Array<{ ticket_id: string; sender_role: string; visibility_level: string; created_at: string }>) {
+  for (const m of messages as Array<{ ticket_id: string; sender_role: string; visibility_level: string; channel: string | null; created_at: string }>) {
     if (m.sender_role === 'workshop') continue
-    if (!WORKSHOP_VISIBLE_LEVELS.includes(m.visibility_level)) continue
+    if (!isWorkshopVisible(m)) continue
     const lastRead = lastReadByTicket.get(m.ticket_id) ?? 0
     if (new Date(m.created_at).getTime() > lastRead) total += 1
   }
@@ -82,15 +90,15 @@ export async function getWorkshopInboxThreads(supabase: SupabaseClient): Promise
 
   const { data: messages } = await supabase
     .from('ticket_messages')
-    .select('id, ticket_id, sender_role, visibility_level, created_at, content')
+    .select('id, ticket_id, sender_role, visibility_level, channel, created_at, content')
     .in('ticket_id', ticketIds)
     .order('created_at', { ascending: true })
 
-  type MessageRow = { id: string; ticket_id: string; sender_role: string; visibility_level: string; created_at: string; content: string }
+  type MessageRow = { id: string; ticket_id: string; sender_role: string; visibility_level: string; channel: string | null; created_at: string; content: string }
   const msgRows = (messages ?? []) as MessageRow[]
 
   return ticketRows.map((t) => {
-    const visibleMessages = msgRows.filter((m) => m.ticket_id === t.id && WORKSHOP_VISIBLE_LEVELS.includes(m.visibility_level))
+    const visibleMessages = msgRows.filter((m) => m.ticket_id === t.id && isWorkshopVisible(m))
     const lastMsg = visibleMessages[visibleMessages.length - 1] ?? null
     const lastReadMs = t.workshop_last_read_at ? new Date(t.workshop_last_read_at).getTime() : 0
     const unread = visibleMessages.filter((m) => m.sender_role !== 'workshop' && new Date(m.created_at).getTime() > lastReadMs).length
