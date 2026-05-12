@@ -183,6 +183,7 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
           <WorkshopStepPanel
             ticketId={ticket.id}
             status={ticket.status}
+            wingSerial={ticket.serial_number ?? null}
             wingReceivedWorkshopAt={ticket.wing_received_workshop_at}
             workshopDiagnosisAt={ticket.workshop_diagnosis_at}
             workshopRepairDoneAt={ticket.workshop_repair_done_at}
