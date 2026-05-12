@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import type { TicketWithPhotos, TicketDetail, TicketStatus, RequestStatus } from './types'
 import { attachUnreadCounts, type TicketWithUnread } from './messages-unread'
+import { attachContactsToList, type TicketWithContacts } from './contacts'
 
 export type ClientWing = {
   id: string
@@ -77,6 +78,42 @@ function enrichWithCoords(s: PartnerSchool): PartnerSchool {
   const fromName = SCHOOL_COORDS_BY_NAME[s.name]
   const coords   = fromId ?? fromName
   return coords ? { ...s, lat: coords.lat, lng: coords.lng } : s
+}
+
+// T6 — Paramètres globaux Plume (singleton id = 1).
+// Lecture autorisée à tout user authentifié par RLS — l'atelier en a besoin
+// pour calculer la décision repair/replacement, l'école pour comprendre.
+// Si la table ou la row manque, fallback sur les valeurs par défaut produit
+// (seuil 1500 €, garantie 24 mois) pour ne jamais bloquer l'UI atelier.
+export interface PlumeSettings {
+  repairReplacementThresholdEur: number
+  warrantyDurationMonths:        number
+}
+
+const DEFAULT_PLUME_SETTINGS: PlumeSettings = {
+  repairReplacementThresholdEur: 1500,
+  warrantyDurationMonths:        24,
+}
+
+export async function getPlumeSettings(): Promise<PlumeSettings> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('plume_settings')
+    .select('repair_replacement_threshold_eur, warranty_duration_months')
+    .eq('id', 1)
+    .maybeSingle()
+
+  if (error || !data) {
+    if (error) console.warn('[getPlumeSettings] fallback to defaults:', error.message)
+    return DEFAULT_PLUME_SETTINGS
+  }
+
+  const threshold = Number(data.repair_replacement_threshold_eur)
+  const warranty  = Number(data.warranty_duration_months)
+  return {
+    repairReplacementThresholdEur: Number.isFinite(threshold) ? threshold : DEFAULT_PLUME_SETTINGS.repairReplacementThresholdEur,
+    warrantyDurationMonths:        Number.isFinite(warranty)  ? warranty  : DEFAULT_PLUME_SETTINGS.warrantyDurationMonths,
+  }
 }
 
 export async function getPartnerSchools(): Promise<PartnerSchool[]> {
@@ -275,7 +312,7 @@ async function hydrateTicket(supabase: any, row: Record<string, unknown>): Promi
       ),
     supabase
       .from('ticket_messages')
-      .select('id, ticket_id, sender_id, sender_role, content, is_internal, visibility_level, created_at')
+      .select('id, ticket_id, sender_id, sender_role, content, is_internal, visibility_level, channel, created_at')
       .eq('ticket_id', ticketId)
       .order('created_at', { ascending: true })
       .then(
@@ -371,7 +408,7 @@ export async function getClientWings(): Promise<ClientWing[]> {
   return rows ?? []
 }
 
-export async function getClientTickets(): Promise<TicketWithUnread[]> {
+export async function getClientTickets(): Promise<Array<TicketWithContacts & { unread_count: number }>> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
@@ -386,8 +423,9 @@ export async function getClientTickets(): Promise<TicketWithUnread[]> {
     console.error('getClientTickets error:', error.message)
     return []
   }
-  const withPhotos = await attachPhotosToList(supabase, (data ?? []) as Array<Record<string, unknown>>)
-  return attachUnreadCounts(supabase, withPhotos)
+  const withPhotos   = await attachPhotosToList(supabase, (data ?? []) as Array<Record<string, unknown>>)
+  const withContacts = await attachContactsToList(supabase, withPhotos)
+  return attachUnreadCounts(supabase, withContacts)
 }
 
 export async function getTicketDetail(ticketId: string): Promise<TicketDetail | null> {
@@ -412,7 +450,7 @@ export async function getTicketDetail(ticketId: string): Promise<TicketDetail | 
 
 // ── School ───────────────────────────────────────────────────────────────────
 
-export async function getSchoolTickets(): Promise<TicketWithPhotos[]> {
+export async function getSchoolTickets(): Promise<TicketWithContacts[]> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
@@ -427,7 +465,8 @@ export async function getSchoolTickets(): Promise<TicketWithPhotos[]> {
     console.error('getSchoolTickets error:', error.message)
     return []
   }
-  return attachPhotosToList(supabase, (data ?? []) as Array<Record<string, unknown>>)
+  const withPhotos = await attachPhotosToList(supabase, (data ?? []) as Array<Record<string, unknown>>)
+  return attachContactsToList(supabase, withPhotos)
 }
 
 export async function getSchoolTicketDetail(ticketId: string): Promise<TicketDetail | null> {
@@ -450,7 +489,7 @@ export async function getSchoolTicketDetail(ticketId: string): Promise<TicketDet
 
 // ── Workshop ─────────────────────────────────────────────────────────────────
 
-export async function getWorkshopTickets(): Promise<TicketWithPhotos[]> {
+export async function getWorkshopTickets(): Promise<TicketWithContacts[]> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
@@ -474,7 +513,8 @@ export async function getWorkshopTickets(): Promise<TicketWithPhotos[]> {
     console.error('getWorkshopTickets error:', error.message)
     return []
   }
-  return attachPhotosToList(supabase, (data ?? []) as Array<Record<string, unknown>>)
+  const withPhotos = await attachPhotosToList(supabase, (data ?? []) as Array<Record<string, unknown>>)
+  return attachContactsToList(supabase, withPhotos)
 }
 
 export async function getWorkshopTicketDetail(ticketId: string): Promise<TicketDetail | null> {
@@ -497,7 +537,7 @@ export async function getWorkshopTicketDetail(ticketId: string): Promise<TicketD
 
 // ── Plume Admin ───────────────────────────────────────────────────────────────
 
-export async function getAllTickets(): Promise<TicketWithPhotos[]> {
+export async function getAllTickets(): Promise<TicketWithContacts[]> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
@@ -512,7 +552,8 @@ export async function getAllTickets(): Promise<TicketWithPhotos[]> {
     console.error('getAllTickets error:', error.message)
     return []
   }
-  return attachPhotosToList(supabase, (data ?? []) as Array<Record<string, unknown>>)
+  const withPhotos = await attachPhotosToList(supabase, (data ?? []) as Array<Record<string, unknown>>)
+  return attachContactsToList(supabase, withPhotos)
 }
 
 export async function getTicketStats(): Promise<TicketStats> {

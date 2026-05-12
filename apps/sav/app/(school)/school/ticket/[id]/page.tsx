@@ -6,6 +6,7 @@ import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { TicketTimeline } from '@/features/tickets/components/TicketTimeline'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { TicketChannelSwitch, type TicketChannel } from '@/features/tickets/components/TicketChannelSwitch'
+import { filterMessagesForRole } from '@/features/tickets/channels'
 import { readSchoolCheckInspector } from '@/features/tickets/inspection/steps'
 import { formatDate, formatDateTime } from '@/features/tickets/utils'
 import { CloseTicketButton } from '@/features/tickets/components/CloseTicketButton'
@@ -29,26 +30,22 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
   // checks ownership via current_user_partner_school_ids() server-side.
   await markTicketReadBySchoolAction(ticket.id)
 
-  // School sees public messages (visibility 'all') + the workshop↔plume
-  // channel (visibility 'workshop_plume') + own messages. Le canal privé
-  // school↔plume ('school_plume') et les notes admin ('plume_only') ne sont
-  // pas exposés ici : seul l'atelier peut communiquer avec Plume HQ.
-  const visibleMessages = ticket.ticket_messages
-    .filter((m) =>
-      m.visibility_level === 'all' ||
-      m.visibility_level === 'workshop_plume' ||
-      m.sender_role === 'school'
-    )
+  // L'école voit ses 3 canaux du système 5-canaux : school_client,
+  // workshop_school, group. Le canal workshop_plume (privé atelier↔Plume)
+  // et client_workshop (privé client↔atelier) sont strictement masqués.
+  // filterMessagesForRole conserve aussi les messages legacy (channel NULL)
+  // selon les anciennes règles de visibility_level.
+  const visibleMessages = filterMessagesForRole(ticket.ticket_messages, 'school')
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
   // The first public client message = the personalised note the client wrote
-  // in the wizard (createTicketAction stores it as the opening reply with
-  // visibility=all). Hoisted out of the thread to render as the spotlight card
-  // at the top of the Messages tab — it's the single most important thing
-  // the school wants to read on arrival.
+  // in the wizard (createTicketAction stores it as the opening reply, channel
+  // 'school_client' depuis la migration 5-canaux). Hoisted out of the thread
+  // to render as the spotlight card at the top of the Messages tab — it's
+  // the single most important thing the school wants to read on arrival.
   const firstClientMessage: TicketMessage | null =
     visibleMessages.find(
-      (m) => m.sender_role === 'client' && m.visibility_level === 'all' && !m.is_internal
+      (m) => m.sender_role === 'client' && !m.is_internal
     ) ?? null
 
   const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
@@ -129,6 +126,9 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           schoolWorkshopLabelUrl={ticket.school_workshop_label_url ?? null}
           workshopReturnTracking={ticket.workshop_return_tracking ?? null}
           workshopReturnLabelUrl={ticket.workshop_return_label_url ?? null}
+          deliveryMethod={ticket.delivery_method}
+          shippingApproved={ticket.shipping_approved ?? null}
+          shippingRefusalReason={ticket.shipping_refusal_reason ?? null}
         />
       </section>
 
@@ -244,18 +244,19 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
 
   const schoolChannels: TicketChannel[] = [
     {
-      id:         'client',
-      label:      'Avec le client',
-      emoji:      '👤',
-      visibility: 'all',
+      id:        'client',
+      label:     'Avec le client',
+      emoji:     '👤',
+      channel:   'school_client',
       excludeInternal:    true,
       excludeMessageIds:  firstClientMessage ? [firstClientMessage.id] : undefined,
       composer: {
         senderRole:      'school',
         visibilityLevel: 'all',
+        channel:         'school_client',
         placeholder:     'Question, mise à jour, demande de précision…',
         submitLabel:     'Envoyer au client',
-        helperText:      "Visible par le client & toute l'équipe Plume",
+        helperText:      "Privé école ↔ client — l'atelier ne voit pas",
       },
       spotlight: clientSpotlight,
       emptyText: firstClientMessage
@@ -263,10 +264,25 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
         : 'Aucun message — démarrez la conversation avec le client ci-dessous.',
     },
     {
+      id:        'group',
+      label:     'Discussion de groupe',
+      emoji:     '👥',
+      channel:   'group',
+      composer: {
+        senderRole:      'school',
+        visibilityLevel: 'all',
+        channel:         'group',
+        placeholder:     'Message pour le groupe (école + client + atelier)…',
+        submitLabel:     'Envoyer au groupe',
+        helperText:      "Visible par le client, l'atelier & Plume HQ",
+      },
+      emptyText: 'Aucun message dans le canal de groupe.',
+    },
+    {
       id:         'workshop',
       label:      "Avec l'atelier",
       emoji:      '🛠️',
-      visibility: 'workshop_plume',
+      channel:    'workshop_school',
       // Composer null + body custom : SchoolWorkshopChannel gère picker +
       // thread + composer en interne pour permettre le choix / changement
       // d'atelier directement dans le flux du chat.
@@ -274,9 +290,11 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
       body: (
         <SchoolWorkshopChannel
           ticketId={ticket.id}
-          messages={visibleMessages.filter(
-            (m) => m.visibility_level === 'workshop_plume'
-          )}
+          messages={visibleMessages.filter((m) => {
+            const ch = (m as TicketMessage & { channel?: string | null }).channel ?? null
+            return ch === 'workshop_school' ||
+              (ch === null && m.visibility_level === 'workshop_plume')
+          })}
           assignedWorkshopId={ticket.assigned_workshop_id}
           assignedWorkshopLabel={ticket.assigned_workshop_label}
         />

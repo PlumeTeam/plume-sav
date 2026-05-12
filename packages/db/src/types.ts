@@ -139,6 +139,19 @@ export interface Database {
           auto_approved_shipping:      boolean
           // Lazy-captured client shipping address (added with shipping migration)
           client_shipping_address:     Json | null
+          // School approval of the client's postal shipping (migration 20260512000000)
+          shipping_approved:           boolean | null
+          shipping_refusal_reason:     string | null
+          shipping_decided_at:         string | null
+          shipping_decided_by:         string | null
+          // Repair vs replacement decision (migration 20260512010000)
+          workshop_estimated_repair_cost:     number | null
+          workshop_decision:                  'repair' | 'replacement' | null
+          workshop_decision_at:               string | null
+          workshop_decision_by:               string | null
+          workshop_decision_warranty_status:  'under_warranty' | 'out_of_warranty' | null
+          workshop_decision_warranty_covered: boolean | null
+          workshop_decision_note:             string | null
           // Ticket closure (migration 20260512200000 — T7)
           closed_by:        string | null
           closed_at:        string | null
@@ -217,6 +230,17 @@ export interface Database {
           workshop_return_destination?: 'school' | 'client' | null
           auto_approved_shipping?:      boolean
           client_shipping_address?:     Json | null
+          shipping_approved?:           boolean | null
+          shipping_refusal_reason?:     string | null
+          shipping_decided_at?:         string | null
+          shipping_decided_by?:         string | null
+          workshop_estimated_repair_cost?:     number | null
+          workshop_decision?:                  'repair' | 'replacement' | null
+          workshop_decision_at?:               string | null
+          workshop_decision_by?:               string | null
+          workshop_decision_warranty_status?:  'under_warranty' | 'out_of_warranty' | null
+          workshop_decision_warranty_covered?: boolean | null
+          workshop_decision_note?:             string | null
           closed_by?:        string | null
           closed_at?:        string | null
           closed_by_role?:   'school' | 'workshop' | 'plume_admin' | null
@@ -294,6 +318,17 @@ export interface Database {
           workshop_return_destination?: 'school' | 'client' | null
           auto_approved_shipping?:      boolean
           client_shipping_address?:     Json | null
+          shipping_approved?:           boolean | null
+          shipping_refusal_reason?:     string | null
+          shipping_decided_at?:         string | null
+          shipping_decided_by?:         string | null
+          workshop_estimated_repair_cost?:     number | null
+          workshop_decision?:                  'repair' | 'replacement' | null
+          workshop_decision_at?:               string | null
+          workshop_decision_by?:               string | null
+          workshop_decision_warranty_status?:  'under_warranty' | 'out_of_warranty' | null
+          workshop_decision_warranty_covered?: boolean | null
+          workshop_decision_note?:             string | null
           closed_by?:        string | null
           closed_at?:        string | null
           closed_by_role?:   'school' | 'workshop' | 'plume_admin' | null
@@ -380,6 +415,30 @@ export interface Database {
           }
         ]
       }
+      plume_settings: {
+        Row: {
+          id: number
+          repair_replacement_threshold_eur: number
+          warranty_duration_months: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: number
+          repair_replacement_threshold_eur?: number
+          warranty_duration_months?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: number
+          repair_replacement_threshold_eur?: number
+          warranty_duration_months?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       ticket_messages: {
         Row: {
           id: string
@@ -389,6 +448,7 @@ export interface Database {
           content: string
           is_internal: boolean
           visibility_level: string
+          channel: string | null
           created_at: string
         }
         Insert: {
@@ -399,6 +459,7 @@ export interface Database {
           content: string
           is_internal?: boolean
           visibility_level?: string
+          channel?: string | null
           created_at?: string
         }
         Update: {
@@ -409,6 +470,7 @@ export interface Database {
           content?: string
           is_internal?: boolean
           visibility_level?: string
+          channel?: string | null
           created_at?: string
         }
         Relationships: [

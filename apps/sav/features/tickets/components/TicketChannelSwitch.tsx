@@ -3,6 +3,7 @@
 import { useState, useTransition, type ReactNode } from 'react'
 import { addRoleMessageAction } from '@/features/tickets/actions'
 import { CommentThread } from './CommentThread'
+import type { MessageChannel } from '../channels'
 import type { TicketMessage, MessageSenderRole } from '../types'
 
 type Visibility = 'all' | 'school_plume' | 'workshop_plume' | 'plume_only'
@@ -13,14 +14,26 @@ interface ComposerConfig {
   placeholder:     string
   submitLabel:     string
   helperText:      string
+  /**
+   * Quand renseigné, le composer écrit `channel` côté DB (système 5 canaux).
+   * Si absent, on retombe sur l'ancien fonctionnement basé sur visibility_level.
+   */
+  channel?:        MessageChannel
+  /** Désactive le composer + raison affichée. */
+  disabledReason?: string
 }
 
 export interface TicketChannel {
   id:        string
   label:     string
   emoji:     string
-  /** visibility_level that defines this channel — used to filter `messages`. */
-  visibility: Visibility
+  /**
+   * Filtre legacy par visibility_level. Conservé pour rétrocompat — les nouveaux
+   * canaux passent par `channel`.
+   */
+  visibility?: Visibility
+  /** Filtre 5-canaux : utilisé en priorité sur `visibility` quand fourni. */
+  channel?:  MessageChannel
   /** When true, ignore messages flagged `is_internal` even on this channel. */
   excludeInternal?: boolean
   /** Message ids hoisted out of the thread (e.g. spotlight card on top). */
@@ -50,7 +63,12 @@ interface Props {
 }
 
 function matchesChannel(m: TicketMessage, c: TicketChannel): boolean {
-  if (m.visibility_level !== c.visibility) return false
+  if (c.channel) {
+    const ch = (m as TicketMessage & { channel?: MessageChannel | null }).channel ?? null
+    if (ch !== c.channel) return false
+  } else if (c.visibility) {
+    if (m.visibility_level !== c.visibility) return false
+  }
   if (c.excludeInternal && m.is_internal)  return false
   if (c.excludeMessageIds?.includes(m.id)) return false
   return true
@@ -154,6 +172,14 @@ function ChannelComposer({ ticketId, cfg }: { ticketId: string; cfg: ComposerCon
   const [content, setContent]   = useState('')
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'error'; msg: string } | null>(null)
 
+  if (cfg.disabledReason) {
+    return (
+      <div className="card border-dashed p-5 text-center">
+        <p className="text-sm text-slate-500">{cfg.disabledReason}</p>
+      </div>
+    )
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!content.trim()) return
@@ -164,6 +190,7 @@ function ChannelComposer({ ticketId, cfg }: { ticketId: string; cfg: ComposerCon
       fd.set('isInternal',      cfg.visibilityLevel === 'all' ? 'false' : 'true')
       fd.set('senderRole',      cfg.senderRole)
       fd.set('visibilityLevel', cfg.visibilityLevel)
+      if (cfg.channel) fd.set('channel', cfg.channel)
 
       const r = await addRoleMessageAction(fd)
       if (r?.error) {

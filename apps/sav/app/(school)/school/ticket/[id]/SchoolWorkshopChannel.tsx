@@ -249,6 +249,7 @@ function WorkshopComposer({ ticketId, workshopLabel }: { ticketId: string; works
       fd.set('isInternal',      'true')
       fd.set('senderRole',      'school')
       fd.set('visibilityLevel', 'workshop_plume')
+      fd.set('channel',         'workshop_school')
 
       const r = await addRoleMessageAction(fd)
       if (r?.error) {

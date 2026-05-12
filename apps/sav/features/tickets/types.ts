@@ -8,6 +8,7 @@ export type TicketMessage = Database['public']['Tables']['ticket_messages']['Row
 export type TicketStatusHistory = Database['public']['Tables']['ticket_status_history']['Row']
 
 export type { TicketStatus, RequestStatus, ServiceType, ProblemCategory, UrgencyLevel, PhotoType, MessageSenderRole, SchoolResolution, ClosureOutcome }
+export type { MessageChannel } from './channels'
 
 // Rôle SAV autorisé à clôturer un ticket (T7). Le client est exclu — c'est
 // volontaire : seul un acteur du réseau (école / atelier / Plume HQ) peut
@@ -114,7 +115,9 @@ export interface WizardWingInfo {
 // Numeric inputs are stored as strings to keep the user's literal input until
 // we serialise into the ticket description.
 export type WaterContactKind   = 'none' | 'fresh' | 'salt'
-export type SurfaceContactKind = 'none' | 'sand' | 'snow' | 'other'
+// Multi-select : un client peut combiner plusieurs conditions (sable + neige).
+// Vide / undefined = aucune condition rapportée.
+export type SurfaceContactKind = 'sand' | 'snow' | 'other'
 export type WingCondition      = 'excellent' | 'good' | 'worn' | 'bad'
 
 export interface WizardWingHistory {
@@ -124,8 +127,8 @@ export interface WizardWingHistory {
   repairDescription?:  string
   waterContact?:       WaterContactKind | null
   treeContact?:        'yes' | 'no' | null  // arbrissage
-  surfaceContact?:     SurfaceContactKind | null
-  surfaceContactNote?: string  // free text when surfaceContact === 'other'
+  surfaceContact?:     SurfaceContactKind[]  // [] / undefined = aucune
+  surfaceContactNote?: string  // free text when surfaceContact includes 'other'
   generalCondition?:   WingCondition | null
 }
 
@@ -145,6 +148,15 @@ export type ShipmentLeg =
   | 'workshop_to_return'  // Atelier → École ou Client (renvoi)
 
 export type WorkshopReturnDestination = 'school' | 'client'
+
+// T6 — Décision atelier après pré-check
+//  - repair       : coût estimé ≤ seuil plume_settings → réparation
+//  - replacement  : coût estimé > seuil → aile neuve
+export type WorkshopDecision = 'repair' | 'replacement'
+
+// Statut de garantie au moment de la décision atelier — figé à la prise
+// de décision pour traçabilité (purchase_date pouvant être corrigé plus tard).
+export type WarrantyStatus = 'under_warranty' | 'out_of_warranty'
 
 // Adresse postale du client — capturée à la volée la 1ère fois qu'il
 // génère un bon de transport. Stockée en JSONB sur le ticket.

@@ -1,4 +1,4 @@
-import type { RequestStatus, Ticket } from './types'
+import type { RequestStatus, Ticket, WarrantyStatus } from './types'
 
 export function formatDate(isoDate: string | null): string {
   if (!isoDate) return '—'
@@ -18,6 +18,31 @@ export function formatDateTime(isoDate: string | null): string {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(isoDate))
+}
+
+// T6 — Calcul de garantie pur (pas d'I/O).
+//  - purchaseDate manquant / non parsable → null (impossible à statuer)
+//  - sinon : sous garantie si maintenant ≤ purchaseDate + warrantyMonths
+export function computeWarrantyStatus(
+  purchaseDate: string | null | undefined,
+  warrantyMonths: number,
+  now: Date = new Date(),
+): WarrantyStatus | null {
+  if (!purchaseDate) return null
+  const purchase = new Date(purchaseDate)
+  if (Number.isNaN(purchase.getTime())) return null
+  const cutoff = new Date(purchase)
+  cutoff.setMonth(cutoff.getMonth() + warrantyMonths)
+  return now.getTime() <= cutoff.getTime() ? 'under_warranty' : 'out_of_warranty'
+}
+
+// Décision auto en fonction du seuil. Pas de garde-fou métier ici — la
+// Server Action revalidera et figera la décision avec le seuil courant.
+export function computeRepairDecision(
+  estimatedCostEur: number,
+  thresholdEur: number,
+): 'repair' | 'replacement' {
+  return estimatedCostEur <= thresholdEur ? 'repair' : 'replacement'
 }
 
 export function getSupabasePublicUrl(storagePath: string): string {

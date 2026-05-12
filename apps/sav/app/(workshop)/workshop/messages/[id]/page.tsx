@@ -6,6 +6,7 @@ import { markTicketReadByWorkshopAction } from '@/features/tickets/messages-acti
 import { markTicketReadByPlumeAction } from '@/features/tickets/messages-actions-plume'
 import { CommentThread } from '@/features/tickets/components/CommentThread'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
+import { filterMessagesForRole } from '@/features/tickets/channels'
 import { WorkshopMessageComposer } from './WorkshopMessageComposer'
 
 interface PageProps { params: { id: string } }
@@ -26,15 +27,12 @@ export default async function WorkshopConversationPage({ params }: PageProps) {
 
   const isPlumeAdmin = currentRoles.includes('plume_admin')
 
-  // Same visibility filter as the workshop ticket page.
-  const messages = ticket.ticket_messages
-    .filter((m) =>
-      m.visibility_level === 'all' ||
-      m.visibility_level === 'workshop_plume' ||
-      (isPlumeAdmin && (m.visibility_level === 'plume_only' || m.visibility_level === 'school_plume')) ||
-      m.sender_role === 'workshop'
-    )
-    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  // Channel-aware visibility: workshop's 4 channels + legacy. Plume admin
+  // (vue support) voit tout en plus.
+  const messages = filterMessagesForRole(
+    ticket.ticket_messages,
+    isPlumeAdmin ? 'plume' : 'workshop',
+  ).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
   const ticketRef = `#${ticket.id.slice(0, 8).toUpperCase()}`
   const productLine = [ticket.product_brand, ticket.product_model].filter(Boolean).join(' ') || 'Aile'

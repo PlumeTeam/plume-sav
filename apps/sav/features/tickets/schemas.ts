@@ -45,7 +45,9 @@ export const createTicketSchema = z.object({
     repairDescription:  z.string().max(1000).optional(),
     waterContact:       z.enum(['none', 'fresh', 'salt']).nullable().optional(),
     treeContact:        z.enum(['yes', 'no']).nullable().optional(),
-    surfaceContact:     z.enum(['none', 'sand', 'snow', 'other']).nullable().optional(),
+    // Multi-select : un client peut combiner sable + neige + autre.
+    // Tableau vide / undefined = aucune condition signalée (équivaut à l'ancien 'none').
+    surfaceContact:     z.array(z.enum(['sand', 'snow', 'other'])).optional(),
     surfaceContactNote: z.string().max(200).optional(),
     generalCondition:   z.enum(['excellent', 'good', 'worn', 'bad']).nullable().optional(),
   }).optional(),
@@ -174,6 +176,12 @@ export const roleMessageSchema = z.object({
   // Optional explicit visibility — overrides the legacy is_internal mapping.
   // Used by the new school action cards to differentiate "À l'atelier" vs "Au client".
   visibilityLevel: z.enum(['all', 'school_plume', 'workshop_plume', 'plume_only']).optional(),
+  // 5-channel system (cf. apps/sav/features/tickets/channels.ts). Quand
+  // fourni, l'action valide que le rôle effectif peut poster dans ce canal
+  // et écrit ticket_messages.channel pour le filtrage server-side.
+  channel: z.enum([
+    'school_client', 'client_workshop', 'workshop_school', 'group', 'workshop_plume',
+  ]).optional(),
 })
 
 // ============================================================
@@ -265,6 +273,27 @@ export const adminRemindSchoolSchema = z.object({
   ticketId: z.string().uuid(),
 })
 
+// T6 — Décision atelier : coût estimé + (optionnel) prise en charge exceptionnelle
+// hors garantie. Le décompte repair/replacement est calculé côté serveur en
+// relisant plume_settings (jamais reçu du client — sinon contournable).
+export const repairDecisionSchema = z.object({
+  ticketId: z.string().uuid(),
+  estimatedCost: z.preprocess(
+    (v) => (v !== '' && v != null ? Number(v) : undefined),
+    z.number({ invalid_type_error: 'Coût invalide' })
+      .min(0, 'Le coût doit être positif')
+      .max(100000, 'Coût trop élevé'),
+  ),
+  // True = Plume prend en charge alors qu'on est hors garantie (exception).
+  // Ignoré côté serveur si la garantie est encore active (couverture automatique).
+  warrantyOverride: z.preprocess(
+    (v) => v === 'true' || v === true,
+    z.boolean(),
+  ).optional(),
+  // Justification — requise UNIQUEMENT pour l'override hors garantie.
+  note: z.string().trim().max(2000).optional(),
+})
+
 export const diagnosisSchema = z.object({
   ticketId: z.string().uuid(),
   diagnosisNotes: z.string().max(5000).optional(),
@@ -279,6 +308,18 @@ export const diagnosisSchema = z.object({
   partsNeeded: z.string().max(2000).optional(),
 })
 
+// École : validation de l'envoi postal de l'aile par le client.
+// `approve` ne porte rien d'autre que le ticketId. `refuse` exige une raison
+// non vide qui sera affichée au client dans son dashboard.
+export const approveShippingSchema = z.object({
+  ticketId: z.string().uuid(),
+})
+
+export const refuseShippingSchema = z.object({
+  ticketId: z.string().uuid(),
+  reason:   z.string().trim().min(10, 'Expliquez la raison du refus (10 caractères min.)').max(2000),
+})
+
 export type WingInfoInput = z.infer<typeof wingInfoSchema>
 export type ProblemInput = z.infer<typeof problemSchema>
 export type CreateTicketInput = z.infer<typeof createTicketSchema>
@@ -286,6 +327,7 @@ export type AddMessageInput = z.infer<typeof addMessageSchema>
 export type UpdateStatusInput = z.infer<typeof updateStatusSchema>
 export type RoleMessageInput = z.infer<typeof roleMessageSchema>
 export type DiagnosisInput = z.infer<typeof diagnosisSchema>
+export type RepairDecisionInput = z.infer<typeof repairDecisionSchema>
 export type SchoolChecklistInput   = z.infer<typeof schoolChecklistSchema>
 export type SchoolResolutionInput  = z.infer<typeof schoolResolutionSchema>
 export type WorkshopChecklistInput = z.infer<typeof workshopChecklistSchema>

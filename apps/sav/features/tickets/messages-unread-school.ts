@@ -2,14 +2,20 @@
 //
 // Mirrors messages-unread.ts (client version) but with school-specific filters:
 //  - "Unread" excludes messages whose sender_role === 'school' (own messages).
-//  - Visible levels: 'all' + 'workshop_plume' (cf. school ticket detail page
-//    filter). Le canal privé 'school_plume' n'est plus exposé côté école —
-//    seul l'atelier communique avec Plume HQ.
+//  - Système 5-canaux : l'école voit school_client, workshop_school, group.
+//    Fallback legacy (channel NULL) : visibility_level ∈ {all, workshop_plume,
+//    school_plume}.
 //  - Compared against service_requests.school_last_read_at.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-const SCHOOL_VISIBLE_LEVELS = ['all', 'workshop_plume']
+const SCHOOL_CHANNELS = ['school_client', 'workshop_school', 'group']
+const SCHOOL_LEGACY_VISIBILITY = ['all', 'workshop_plume', 'school_plume']
+
+function isSchoolVisible(m: { channel?: string | null; visibility_level: string }): boolean {
+  if (m.channel) return SCHOOL_CHANNELS.includes(m.channel)
+  return SCHOOL_LEGACY_VISIBILITY.includes(m.visibility_level)
+}
 
 export type SchoolInboxThread = {
   ticketId:     string
@@ -35,7 +41,7 @@ export async function getSchoolUnreadTotal(supabase: SupabaseClient): Promise<nu
   const ticketIds = tickets.map((t: { id: string }) => t.id)
   const { data: messages, error: msgErr } = await supabase
     .from('ticket_messages')
-    .select('ticket_id, sender_role, visibility_level, created_at')
+    .select('ticket_id, sender_role, visibility_level, channel, created_at')
     .in('ticket_id', ticketIds)
   if (msgErr || !messages) return 0
 
@@ -45,9 +51,9 @@ export async function getSchoolUnreadTotal(supabase: SupabaseClient): Promise<nu
   }
 
   let total = 0
-  for (const m of messages as Array<{ ticket_id: string; sender_role: string; visibility_level: string; created_at: string }>) {
+  for (const m of messages as Array<{ ticket_id: string; sender_role: string; visibility_level: string; channel: string | null; created_at: string }>) {
     if (m.sender_role === 'school') continue
-    if (!SCHOOL_VISIBLE_LEVELS.includes(m.visibility_level)) continue
+    if (!isSchoolVisible(m)) continue
     const lastRead = lastReadByTicket.get(m.ticket_id) ?? 0
     if (new Date(m.created_at).getTime() > lastRead) total += 1
   }
@@ -80,15 +86,15 @@ export async function getSchoolInboxThreads(supabase: SupabaseClient): Promise<S
 
   const { data: messages } = await supabase
     .from('ticket_messages')
-    .select('id, ticket_id, sender_role, visibility_level, created_at, content')
+    .select('id, ticket_id, sender_role, visibility_level, channel, created_at, content')
     .in('ticket_id', ticketIds)
     .order('created_at', { ascending: true })
 
-  type MessageRow = { id: string; ticket_id: string; sender_role: string; visibility_level: string; created_at: string; content: string }
+  type MessageRow = { id: string; ticket_id: string; sender_role: string; visibility_level: string; channel: string | null; created_at: string; content: string }
   const msgRows = (messages ?? []) as MessageRow[]
 
   return ticketRows.map((t) => {
-    const visibleMessages = msgRows.filter((m) => m.ticket_id === t.id && SCHOOL_VISIBLE_LEVELS.includes(m.visibility_level))
+    const visibleMessages = msgRows.filter((m) => m.ticket_id === t.id && isSchoolVisible(m))
     const lastMsg = visibleMessages[visibleMessages.length - 1] ?? null
     const lastReadMs = t.school_last_read_at ? new Date(t.school_last_read_at).getTime() : 0
     const unread = visibleMessages.filter((m) => m.sender_role !== 'school' && new Date(m.created_at).getTime() > lastReadMs).length

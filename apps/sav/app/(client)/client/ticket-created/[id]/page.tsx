@@ -1,28 +1,10 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getTicketDetail, getPartnerSchoolById } from '@/features/tickets/queries'
-import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
-import type { ClientShippingAddress } from '@/features/tickets/types'
 
 interface PageProps { params: { id: string } }
 
 export const dynamic = 'force-dynamic'
-
-// Mirrors the parser used on the ticket detail page — pulls the JSONB address
-// out of the row so ShippingLabelButton can skip the address form when it's
-// already been captured on a previous label generation for this ticket.
-function readClientShippingAddress(raw: unknown): ClientShippingAddress | null {
-  if (!raw || typeof raw !== 'object') return null
-  const r = raw as Record<string, unknown>
-  if (typeof r.street !== 'string' || typeof r.postalCode !== 'string') return null
-  if (typeof r.city !== 'string' || typeof r.country !== 'string') return null
-  return {
-    street:     r.street,
-    postalCode: r.postalCode,
-    city:       r.city,
-    country:    r.country,
-  }
-}
 
 export default async function TicketCreatedPage({ params }: PageProps) {
   const ticket = await getTicketDetail(params.id)
@@ -37,8 +19,6 @@ export default async function TicketCreatedPage({ params }: PageProps) {
   const schoolName = school?.name ?? 'Votre école partenaire'
   const cityRegion = [school?.city, school?.region].filter(Boolean).join(' · ')
 
-  const initialClientAddress = readClientShippingAddress(ticket.client_shipping_address)
-
   return (
     <main className="mx-auto max-w-2xl space-y-5 px-4 py-8">
       {/* ── Hero / Confirmation ─────────────────────────────────── */}
@@ -51,25 +31,35 @@ export default async function TicketCreatedPage({ params }: PageProps) {
         </h1>
 
         <p className="mt-3 text-sm leading-relaxed text-white/90">
-          {isPostal ? (
-            <>
-              <strong>{schoolName}</strong> a reçu votre demande SAV. Avant
-              d&apos;expédier votre aile, contactez-la (coordonnées ci-dessous)
-              pour confirmer l&apos;adresse et lui annoncer l&apos;envoi.
-            </>
-          ) : (
-            <>
-              <strong>{schoolName}</strong> a reçu votre demande SAV.{' '}
-              <strong className="text-white">Contactez-la pour convenir d&apos;un
-              rendez-vous</strong> avant de vous déplacer — l&apos;équipe n&apos;est
-              pas forcément sur place sans prévenir.
-            </>
-          )}
+          <strong>{schoolName}</strong> a reçu votre demande SAV.
         </p>
 
         <p className="mt-4 font-mono text-[11px] text-white/60">
           Référence&nbsp;: {ticketRef}
         </p>
+      </section>
+
+      {/* ── Prochaine étape — bloc d'action proéminent ───────────── */}
+      <section className="rounded-card border-2 border-brand-gold bg-brand-gold/10 p-5 shadow-plume">
+        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-brand-ink">
+          👉 Prochaine étape
+        </p>
+        {isPostal ? (
+          <p className="text-base leading-relaxed text-brand-ink">
+            <strong>{schoolName}</strong> va effectuer un pré-check de votre
+            demande à partir des informations renseignées en ligne. Une fois
+            ce pré-check validé, l&apos;école débloquera la possibilité pour
+            vous de générer un bon de transport, qui vous permettra
+            d&apos;envoyer l&apos;aile à l&apos;école pour vérification.{' '}
+            <strong>Vous serez notifié dès que l&apos;école aura validé.</strong>
+          </p>
+        ) : (
+          <p className="text-base leading-relaxed text-brand-ink">
+            <strong>Contactez votre école</strong> pour fixer un rendez-vous
+            afin de déposer votre aile. Cela permet de s&apos;assurer que
+            l&apos;école sera ouverte au moment de votre venue.
+          </p>
+        )}
       </section>
 
       {/* ── Coordonnées école — gros et au-dessus ───────────────── */}
@@ -116,96 +106,6 @@ export default async function TicketCreatedPage({ params }: PageProps) {
             renseignées. L&apos;école vous contactera dès qu&apos;elle aura traité
             votre demande.
           </p>
-        </section>
-      )}
-
-      {/* ── Adresse postale (mode postal uniquement) ────────────── */}
-      {isPostal && school?.address && (
-        <section className="card p-5">
-          <h2 className="section-title mb-3">Adresse d&apos;envoi</h2>
-          <div className="flex items-start gap-3">
-            <span aria-hidden className="text-2xl">📍</span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-brand-ink">{school.name}</p>
-              <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-700">
-                {school.address}
-              </p>
-            </div>
-          </div>
-        </section>
-      )}
-      {isPostal && school && !school.address && (
-        <section className="card border-amber-300 bg-amber-50/60 p-4">
-          <p className="text-sm text-amber-800">
-            ⚠️ L&apos;adresse postale de l&apos;école n&apos;est pas encore
-            enregistrée. Appelez-la ou écrivez-lui (coordonnées ci-dessus) pour la
-            confirmer avant d&apos;envoyer le colis.
-          </p>
-        </section>
-      )}
-
-      {/* ── Bon de transport GLS (postal uniquement) ────────────── */}
-      {isPostal && (
-        <section className="card p-5">
-          <h2 className="section-title mb-3">Bon de transport GLS</h2>
-          <p className="mb-4 text-sm text-slate-600">
-            {ticket.client_school_label_url
-              ? "Votre bon de transport est prêt — téléchargez-le et collez-le sur votre colis."
-              : "Générez votre bon de transport GLS prépayé. Le coût est pris en charge par Plume."}
-          </p>
-          <ShippingLabelButton
-            ticketId={ticket.id}
-            leg="client_to_school"
-            initialTracking={ticket.client_school_tracking}
-            initialLabelUrl={ticket.client_school_label_url}
-            initialAddress={initialClientAddress}
-            autoApproved={ticket.auto_approved_shipping !== false}
-            requireScan
-            wingSerial={ticket.serial_number ?? null}
-          />
-        </section>
-      )}
-
-      {/* ── Et ensuite ? (postal uniquement) — vue d'ensemble du process ── */}
-      {isPostal && (
-        <section className="rounded-card border border-brand-stone bg-brand-cream p-5">
-          <h2 className="section-title mb-3">Et ensuite ?</h2>
-          <ol className="list-decimal space-y-2 pl-5 text-sm leading-relaxed text-brand-ink marker:font-semibold marker:text-brand-gold">
-            <li>Envoyez votre aile à l&apos;adresse ci-dessus.</li>
-            <li>Communiquez le numéro de suivi à votre école via la messagerie de votre demande.</li>
-            <li>Votre école réceptionnera et inspectera votre aile.</li>
-            <li>Vous serez tenu informé de l&apos;avancement à chaque étape par email.</li>
-            <li>Une fois le problème résolu, votre aile vous sera retournée.</li>
-          </ol>
-        </section>
-      )}
-
-      {/* ── In-person mode: scheduling reminder ─────────────────── */}
-      {!isPostal && (
-        <section className="card p-5">
-          <h2 className="section-title mb-3">Prochaines étapes</h2>
-          <ul className="space-y-2 text-sm text-brand-ink">
-            <li className="flex items-start gap-2">
-              <span aria-hidden className="mt-0.5">📞</span>
-              <span>
-                Appelez ou écrivez à l&apos;école <strong>avant de vous déplacer</strong>{' '}
-                pour convenir d&apos;un créneau de dépôt.
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span aria-hidden className="mt-0.5">🎒</span>
-              <span>
-                Apportez votre aile dans son sac d&apos;origine si possible.
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span aria-hidden className="mt-0.5">💬</span>
-              <span>
-                L&apos;école vous recontactera après inspection via la messagerie
-                de la demande.
-              </span>
-            </li>
-          </ul>
         </section>
       )}
 

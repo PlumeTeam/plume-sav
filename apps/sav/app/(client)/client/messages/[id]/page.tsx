@@ -5,6 +5,7 @@ import { markTicketReadByClientAction } from '@/features/tickets/messages-action
 import { markTicketReadByPlumeAction } from '@/features/tickets/messages-actions-plume'
 import { CommentThread } from '@/features/tickets/components/CommentThread'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
+import { filterMessagesForRole } from '@/features/tickets/channels'
 import { MessageForm } from '../../ticket/[id]/MessageForm'
 
 interface PageProps { params: { id: string } }
@@ -25,9 +26,8 @@ export default async function ClientConversationPage({ params }: PageProps) {
     ? await getPartnerSchoolById(ticket.referent_school_id)
     : null
 
-  // Client only sees public messages.
-  const messages = ticket.ticket_messages
-    .filter((m) => m.visibility_level === 'all')
+  // Channel-aware visibility — le client voit ses 3 canaux + legacy 'all'.
+  const messages = filterMessagesForRole(ticket.ticket_messages, 'client')
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
   const ticketRef = `#${ticket.id.slice(0, 8).toUpperCase()}`

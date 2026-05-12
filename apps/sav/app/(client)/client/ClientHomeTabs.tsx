@@ -7,7 +7,7 @@ type Tab = 'wings' | 'history'
 interface ClientHomeTabsProps {
   wingsSection: ReactNode
   ticketsSection: ReactNode
-  /** When > 0, shows a small red pill next to "Historique" with the count. */
+  /** When > 0, shows a small red pill next to "Mes demandes SAV" with the count. */
   historyBadge?: number
 }
 
@@ -47,7 +47,7 @@ export function ClientHomeTabs({ wingsSection, ticketsSection, historyBadge = 0 
           onClick={() => setTab('history')}
           className={`${baseBtn} relative inline-flex items-center justify-center gap-2 ${tab === 'history' ? activeBtn : idleBtn}`}
         >
-          <span>Historique</span>
+          <span>Mes demandes SAV</span>
           {historyBadge > 0 && (
             <span
               aria-label={`${historyBadge} message${historyBadge > 1 ? 's' : ''} non lu${historyBadge > 1 ? 's' : ''}`}

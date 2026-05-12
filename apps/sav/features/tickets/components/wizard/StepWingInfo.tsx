@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useWizardStore } from '../../store'
 import type { ClientWing } from '../../queries'
 import { StepLayout, StepNav } from './StepLayout'
@@ -26,8 +26,23 @@ export function StepWingInfo({ wings, onNext }: StepWingInfoProps) {
   const initialId = wings.find((w) => w.serial_number === wingInfo.wingSerial)?.id ?? null
   const [selectedId, setSelectedId] = useState<string | null>(initialId)
 
+  // Vrai quand la WingScanCard est en état d'erreur de vérification (sérial
+  // scanné ≠ aile sélectionnée). Tant que c'est vrai, le bouton « Continuer »
+  // reste bloqué — on ne laisse pas le client avancer avec une incohérence.
+  const [hasSerialMismatch, setHasSerialMismatch] = useState(false)
+
+  // useCallback pour stabiliser la référence — WingScanCard a un useEffect
+  // dont la dépendance inclut ce callback ; sans stabilisation, la boucle
+  // de notification se redéclencherait à chaque render.
+  const handleVerificationErrorChange = useCallback((hasError: boolean) => {
+    setHasSerialMismatch(hasError)
+  }, [])
+
   function selectWing(wing: ClientWing) {
     setSelectedId(wing.id)
+    // Sélectionner une aile dans la liste lève toute erreur de vérification
+    // antérieure : la sélection vient (potentiellement) d'être corrigée.
+    setHasSerialMismatch(false)
     const modelName    = formatModelName(wing.product_model || '')
     const purchaseDate = wing.registered_at
       ? new Date(wing.registered_at).toISOString().split('T')[0]!
@@ -76,6 +91,7 @@ export function StepWingInfo({ wings, onNext }: StepWingInfoProps) {
           wings={wings}
           selectedSerial={null}
           onScanResolved={handleScanResolved}
+          onVerificationErrorChange={handleVerificationErrorChange}
         />
         <p className="mt-4 rounded-2xl bg-brand-cream p-3 text-xs text-slate-500">
           Le SAV Plume couvre uniquement les ailes achetées chez nous, donc
@@ -94,7 +110,7 @@ export function StepWingInfo({ wings, onNext }: StepWingInfoProps) {
       footer={
         <StepNav
           onNext={handleNext}
-          nextDisabled={!selectedId}
+          nextDisabled={!selectedId || hasSerialMismatch}
           nextLabel="Continuer"
           hideBack
         />
@@ -104,6 +120,7 @@ export function StepWingInfo({ wings, onNext }: StepWingInfoProps) {
         wings={wings}
         selectedSerial={wingInfo.wingSerial || null}
         onScanResolved={handleScanResolved}
+        onVerificationErrorChange={handleVerificationErrorChange}
       />
 
       <div className="my-4 flex items-center gap-3 text-xs uppercase tracking-wide text-slate-400">

@@ -4,8 +4,9 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { formatDate } from '@/features/tickets/utils'
-import type { TicketWithPhotos, RequestStatus } from '@/features/tickets/types'
+import type { RequestStatus } from '@/features/tickets/types'
 import type { PartnerSchool } from '@/features/tickets/queries'
+import type { TicketWithContacts } from '@/features/tickets/contacts'
 import { AdminTicketActions } from './AdminTicketActions'
 
 type StatusFilter = 'all' | 'pending' | 'processing' | 'approved' | 'completed' | 'rejected'
@@ -22,7 +23,7 @@ const FILTER_LABELS: Record<StatusFilter, string> = {
 const PAGE_SIZE = 20
 
 interface AdminTicketTableProps {
-  tickets: TicketWithPhotos[]
+  tickets: TicketWithContacts[]
   /** Liste des écoles partenaires — utilisée par le filtre + l'action de réassignation. */
   schools: PartnerSchool[]
 }
@@ -178,24 +179,35 @@ export function AdminTicketTable({ tickets, schools }: AdminTicketTableProps) {
                   const href = ticket.status === 'pending' || ticket.status === 'processing'
                     ? `/school/ticket/${ticket.id}`
                     : `/workshop/ticket/${ticket.id}`
-                  const schoolName = ticket.school_id
+                  const fallbackSchoolName = ticket.school_id
                     ? schoolLabelById.get(ticket.school_id) ?? ticket.school_id
                     : '—'
+                  const client   = ticket.contacts?.client
+                  const school   = ticket.contacts?.school
+                  const workshop = ticket.contacts?.workshop
                   return (
-                    <tr key={ticket.id} className="transition-colors hover:bg-brand-cream/40">
+                    <tr key={ticket.id} className="transition-colors hover:bg-brand-cream/40 align-top">
                       <td className="px-4 py-3">
                         <Link href={href} className="font-mono text-xs font-medium text-brand-ink hover:underline">
                           {ref}
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-slate-700">
-                        {ticket.product_brand} {ticket.product_model}
+                        <p className="text-sm">{ticket.product_brand} {ticket.product_model}</p>
+                        {client && (client.name || client.email || client.phone) && (
+                          <div className="mt-1 text-xs text-slate-500">
+                            {client.name && <p className="font-medium text-slate-700">{client.name}</p>}
+                            <ContactLines email={client.email} phone={client.phone} />
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-600">
-                        {schoolName}
+                        <p className="font-medium text-slate-700">{school?.name ?? fallbackSchoolName}</p>
+                        {school && <ContactLines email={school.email} phone={school.phone} />}
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-600">
-                        {ticket.assigned_workshop_label ?? '—'}
+                        <p className="font-medium text-slate-700">{workshop?.label ?? ticket.assigned_workshop_label ?? '—'}</p>
+                        {workshop && <ContactLines email={workshop.email} phone={workshop.phone} />}
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge status={ticket.status} size="sm" />
@@ -272,6 +284,26 @@ export function AdminTicketTable({ tickets, schools }: AdminTicketTableProps) {
           />
         )
       })()}
+    </div>
+  )
+}
+
+function ContactLines({ email, phone }: { email: string | null; phone: string | null }) {
+  if (!email && !phone) return null
+  return (
+    <div className="mt-0.5 space-y-0.5 text-[11px] text-slate-500">
+      {phone && (
+        <p className="truncate">
+          <span aria-hidden className="mr-1">📞</span>
+          {phone}
+        </p>
+      )}
+      {email && (
+        <p className="truncate">
+          <span aria-hidden className="mr-1">✉️</span>
+          {email}
+        </p>
+      )}
     </div>
   )
 }

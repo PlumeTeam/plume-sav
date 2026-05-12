@@ -18,7 +18,9 @@ import type {
   WizardProblemCategory,
 } from '../types'
 import {
+  approveShippingSchema,
   diagnosisSchema,
+  refuseShippingSchema,
   schoolChecklistSchema,
   schoolResolutionSchema,
 } from '../schemas'
@@ -271,6 +273,96 @@ export async function startSchoolCheckAction(formData: FormData) {
     from:      ['wing_received_school'],
     to:        'school_checking',
     emailStep: 'school_checking',
+  })
+}
+
+// ============================================================
+// Validation école de l'envoi postal de l'aile par le client
+// ============================================================
+//
+// Le client choisit dans le wizard `delivery_method='postal'` ⇒ il doit
+// expédier son aile à l'école. Avant qu'il ne génère son bon de transport,
+// l'école doit donner son feu vert (sécurise les flux GLS et permet à
+// l'école de prévenir/refuser si un dépôt en main propre est préférable).
+//
+// Trois états possibles sur la colonne `shipping_approved` :
+//   NULL  → décision pas encore prise (état initial)
+//   TRUE  → l'école autorise — le client peut générer son étiquette
+//   FALSE → l'école refuse — `shipping_refusal_reason` explique pourquoi
+//
+// Garde-fou DB : si shipping_approved=FALSE, la raison doit être non vide
+// (cf. migration 20260512000000, contrainte CHECK).
+
+async function applyShippingDecision(params: {
+  ticketId:      string
+  approved:      boolean
+  refusalReason: string | null
+}) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: { _form: ['Non authentifié'] } }
+
+  // On ne valide / refuse que les tickets dont le client a choisi l'envoi
+  // postal. Une décision sur un dépôt en main propre n'a aucun sens.
+  const { data: ticket, error: fetchError } = await supabase
+    .from('service_requests')
+    .select('id, delivery_method, shipping_approved')
+    .eq('id', params.ticketId)
+    .maybeSingle()
+
+  if (fetchError || !ticket) {
+    return { error: { _form: ['Demande introuvable'] } }
+  }
+  if (ticket.delivery_method !== 'postal') {
+    return { error: { _form: ["Cette demande n'est pas un envoi postal — pas besoin de validation"] } }
+  }
+
+  const update: TicketUpdate = {
+    shipping_approved:       params.approved,
+    shipping_refusal_reason: params.approved ? null : params.refusalReason,
+    shipping_decided_at:     new Date().toISOString(),
+    shipping_decided_by:     user.id,
+  }
+
+  const { error: updateError } = await supabase
+    .from('service_requests')
+    .update(update)
+    .eq('id', params.ticketId)
+
+  if (updateError) {
+    return { error: { _form: [`Erreur lors de l'enregistrement (${updateError.message})`] } }
+  }
+
+  revalidatePath(`/school/ticket/${params.ticketId}`)
+  revalidatePath(`/client/ticket/${params.ticketId}`)
+  revalidatePath('/school')
+  revalidatePath('/client')
+  revalidatePath('/plume')
+  return { success: true as const }
+}
+
+export async function approveShippingAction(formData: FormData) {
+  const parsed = approveShippingSchema.safeParse({
+    ticketId: formData.get('ticketId'),
+  })
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors }
+  return applyShippingDecision({
+    ticketId:      parsed.data.ticketId,
+    approved:      true,
+    refusalReason: null,
+  })
+}
+
+export async function refuseShippingAction(formData: FormData) {
+  const parsed = refuseShippingSchema.safeParse({
+    ticketId: formData.get('ticketId'),
+    reason:   formData.get('reason'),
+  })
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors }
+  return applyShippingDecision({
+    ticketId:      parsed.data.ticketId,
+    approved:      false,
+    refusalReason: parsed.data.reason,
   })
 }
 

@@ -1,15 +1,17 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getWorkshopTicketDetail } from '@/features/tickets/queries'
+import { getPartnerSchoolById, getPlumeSettings, getWorkshopTicketDetail } from '@/features/tickets/queries'
 import { markTicketReadByWorkshopAction } from '@/features/tickets/messages-actions-workshop'
 import { markTicketReadByPlumeAction } from '@/features/tickets/messages-actions-plume'
 import { getCurrentUserRoles } from '@/features/auth/queries'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
-import { TicketTimeline } from '@/features/tickets/components/TicketTimeline'
+import { ClientJourneyTimeline } from '@/features/tickets/components/ClientJourneyTimeline'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { PlumeNoteComposer } from '@/features/tickets/components/PlumeNoteComposer'
 import { TicketChannelSwitch, type TicketChannel } from '@/features/tickets/components/TicketChannelSwitch'
-import { readSchoolCheckInspector } from '@/features/tickets/inspection/steps'
+import { readSchoolCheckInspector, readSchoolCheckPayload } from '@/features/tickets/inspection/steps'
+import { SchoolCheckSummary } from '@/features/tickets/inspection/SchoolCheckSummary'
+import { filterMessagesForRole } from '@/features/tickets/channels'
 import { DiagnosisChecklist } from '@/features/tickets/components/DiagnosisChecklist'
 import { WORKSHOP_TECHNICAL_CHECKLIST } from '@/features/tickets/constants'
 import { saveWorkshopChecklistAction } from '@/features/tickets/actions'
@@ -19,7 +21,32 @@ import { CloseTicketButton } from '@/features/tickets/components/CloseTicketButt
 import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
 import { WorkshopActionBar } from './WorkshopActionBar'
 import { WorkshopStepPanel } from './WorkshopStepPanel'
-import type { CloserRole, ClosureOutcome, WorkshopReturnDestination } from '@/features/tickets/types'
+import { WorkshopRepairDecisionPanel } from './WorkshopRepairDecisionPanel'
+import { statusGte } from '@/features/tickets/utils'
+import type { CloserRole, ClosureOutcome, WarrantyStatus, WorkshopDecision, WorkshopReturnDestination } from '@/features/tickets/types'
+
+// Garantie : 2 ans à compter de la date d'achat (politique Plume Paragliders).
+// Retourne null si on n'a pas la date — l'UI doit alors masquer le badge.
+const WARRANTY_YEARS = 2
+
+function computeWarranty(purchaseDate: string | null): {
+  status: 'active' | 'expired'
+  endDate: Date
+  daysRemaining: number
+} | null {
+  if (!purchaseDate) return null
+  const start = new Date(purchaseDate)
+  if (Number.isNaN(start.getTime())) return null
+  const end = new Date(start)
+  end.setFullYear(end.getFullYear() + WARRANTY_YEARS)
+  const now = new Date()
+  const daysRemaining = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+  return {
+    status:        daysRemaining > 0 ? 'active' : 'expired',
+    endDate:       end,
+    daysRemaining,
+  }
+}
 
 // Lien public de suivi GLS — accepte tout numéro de tracking en query param.
 function buildGlsTrackingUrl(tracking: string): string {
@@ -33,9 +60,10 @@ export const dynamic = 'force-dynamic'
 type ChecklistJson = { checkedIds?: string[]; notes?: string | null } | null
 
 export default async function WorkshopTicketDetailPage({ params }: PageProps) {
-  const [ticket, currentRoles] = await Promise.all([
+  const [ticket, currentRoles, plumeSettings] = await Promise.all([
     getWorkshopTicketDetail(params.id),
     getCurrentUserRoles(),
+    getPlumeSettings(),
   ])
   if (!ticket) notFound()
 
@@ -47,54 +75,93 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
     markTicketReadByPlumeAction(ticket.id),
   ])
 
+  // École qui traite le ticket = client direct de l'atelier. Best-effort —
+  // si l'id est absent ou la table partner_schools indisponible, on masque
+  // simplement la section dans la vue.
+  const school = ticket.school_id ? await getPartnerSchoolById(ticket.school_id) : null
+
   const isPlumeAdmin = currentRoles.includes('plume_admin')
 
-  // Workshop sees:
-  //  - public messages (visibility 'all')
-  //  - the school↔workshop↔plume channel (visibility 'workshop_plume')
-  //  - their own messages
-  // Hides 'school_plume' (private school↔plume) and 'plume_only' (admin notes).
-  // Plume admins (en vue support) voient les notes 'plume_only' en plus.
-  const visibleMessages = ticket.ticket_messages
-    .filter((m) =>
-      m.visibility_level === 'all' ||
-      m.visibility_level === 'workshop_plume' ||
-      (isPlumeAdmin && (m.visibility_level === 'plume_only' || m.visibility_level === 'school_plume')) ||
-      m.sender_role === 'workshop'
-    )
-    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  // 4 canaux côté atelier dans le système 5-canaux :
+  //  - client_workshop   : ouvert après mise en relation par l'école
+  //  - workshop_school   : coordination tech avec l'école
+  //  - group             : canal commun (école + client + atelier)
+  //  - workshop_plume    : privé atelier ↔ Plume HQ (client/école jamais)
+  // Le 5e canal (school_client) est école↔client privé — l'atelier ne le voit
+  // pas du tout, conformément à la spec. Plume admin voit en plus tout le
+  // legacy (plume_only / school_plume) via filterMessagesForRole.
+  const visibleMessages = filterMessagesForRole(
+    ticket.ticket_messages,
+    isPlumeAdmin ? 'plume' : 'workshop',
+  ).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
-  // 2 canaux côté atelier : Client (visibility 'all') / École (workshop_plume).
-  // Plume HQ peut intervenir dans le canal école — pas de canal direct
-  // atelier ↔ Plume séparé (RLS workshop ne lit que 'all' et 'workshop_plume').
+  const clientWorkshopActive = ticket.assigned_workshop_id != null
+
   const workshopChannels: TicketChannel[] = [
     {
-      id:         'client',
-      label:      'Avec le client',
-      emoji:      '👤',
-      visibility: 'all',
+      id:        'group',
+      label:     'Discussion de groupe',
+      emoji:     '👥',
+      channel:   'group',
       composer: {
         senderRole:      'workshop',
         visibilityLevel: 'all',
-        placeholder:     'Mise à jour, demande de précision au client…',
-        submitLabel:     'Envoyer au client',
+        channel:         'group',
+        placeholder:     'Message pour le groupe (école + client + atelier)…',
+        submitLabel:     'Envoyer au groupe',
         helperText:      "Visible par le client, l'école & Plume HQ",
       },
-      emptyText: 'Aucun message public sur ce ticket pour le moment.',
+      emptyText: 'Aucun message dans le canal de groupe.',
     },
     {
-      id:         'school',
-      label:      "Avec l'école",
-      emoji:      '🏫',
-      visibility: 'workshop_plume',
+      id:        'client',
+      label:     'Avec le client',
+      emoji:     '👤',
+      channel:   'client_workshop',
+      composer: {
+        senderRole:      'workshop',
+        visibilityLevel: 'all',
+        channel:         'client_workshop',
+        placeholder:     'Mise à jour, demande de précision au client…',
+        submitLabel:     'Envoyer au client',
+        helperText:      "Privé client ↔ atelier — l'école ne voit pas",
+        disabledReason: clientWorkshopActive
+          ? undefined
+          : "Canal verrouillé : l'école doit d'abord vous mettre en relation avec le client.",
+      },
+      emptyText: clientWorkshopActive
+        ? 'Aucun échange direct avec le client pour le moment.'
+        : "Canal verrouillé tant que l'école ne vous a pas mis en relation avec le client.",
+    },
+    {
+      id:        'school',
+      label:     "Avec l'école",
+      emoji:     '🏫',
+      channel:   'workshop_school',
       composer: {
         senderRole:      'workshop',
         visibilityLevel: 'workshop_plume',
+        channel:         'workshop_school',
         placeholder:     "Diagnostic, devis, demande d'info à l'école…",
         submitLabel:     "Envoyer à l'école",
-        helperText:      "Visible par l'école & Plume HQ — le client ne voit pas",
+        helperText:      "Privé atelier ↔ école — le client ne voit pas",
       },
       emptyText: "Aucun échange avec l'école pour le moment.",
+    },
+    {
+      id:        'plume',
+      label:     'Avec Plume',
+      emoji:     '🦅',
+      channel:   'workshop_plume',
+      composer: {
+        senderRole:      'workshop',
+        visibilityLevel: 'plume_only',
+        channel:         'workshop_plume',
+        placeholder:     "Question, escalade ou alerte à Plume HQ…",
+        submitLabel:     'Envoyer à Plume HQ',
+        helperText:      'Privé atelier ↔ Plume — client et école ne voient JAMAIS ce canal',
+      },
+      emptyText: 'Aucun échange avec Plume HQ pour le moment.',
     },
   ]
 
@@ -103,6 +170,16 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
   // Nom du moniteur qui a effectué le check côté école — exposé à l'atelier
   // pour la traçabilité de l'escalade.
   const schoolCheckInspector = readSchoolCheckInspector(ticket.school_checklist)
+  // Payload V2 du check école — on n'affiche le résumé color-codé que si on a
+  // un payload structuré. Les anciens checks (notes en clair) tombent en null.
+  const schoolCheckPayload = readSchoolCheckPayload(ticket.school_checklist)
+
+  // Garantie aile = 2 ans à compter de purchase_date. Null si la date n'a pas
+  // été remplie au moment de la demande.
+  const warranty = computeWarranty(ticket.purchase_date)
+
+  // Nom client formaté (prénom + nom) ou fallback.
+  const clientName = [ticket.first_name, ticket.last_name].filter(Boolean).join(' ') || '—'
 
   const stored: ChecklistJson = (ticket.workshop_checklist ?? null) as ChecklistJson
   const initialChecked = Array.isArray(stored?.checkedIds) ? stored!.checkedIds! : []
@@ -131,6 +208,21 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
       'wing_returned',
     ].includes(ticket.status)
   const closerRole: CloserRole = isPlumeAdmin ? 'plume_admin' : 'workshop'
+
+  // T6 — décision réparation/remplacement n'est proposée qu'après réception
+  // de l'aile à l'atelier (pré-check effectué). On reste tolérant : si la
+  // décision est déjà prise, on l'affiche même au-delà.
+  const showRepairDecision = statusGte(ticket.status, 'wing_received_workshop')
+  const repairDecisionInitial = {
+    estimatedCost:   ticket.workshop_estimated_repair_cost != null
+      ? Number(ticket.workshop_estimated_repair_cost)
+      : null,
+    decision:        (ticket.workshop_decision ?? null) as WorkshopDecision | null,
+    warrantyStatus:  (ticket.workshop_decision_warranty_status ?? null) as WarrantyStatus | null,
+    warrantyCovered: ticket.workshop_decision_warranty_covered ?? null,
+    decisionAt:      ticket.workshop_decision_at ?? null,
+    note:            ticket.workshop_decision_note ?? null,
+  }
 
   return (
     <div className="min-h-screen">
@@ -166,6 +258,7 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
           <WorkshopStepPanel
             ticketId={ticket.id}
             status={ticket.status}
+            wingSerial={ticket.serial_number ?? null}
             wingReceivedWorkshopAt={ticket.wing_received_workshop_at}
             workshopDiagnosisAt={ticket.workshop_diagnosis_at}
             workshopRepairDoneAt={ticket.workshop_repair_done_at}
@@ -175,23 +268,30 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
 
         <section className="card p-5">
           <h2 className="section-title mb-4">Suivi global</h2>
-          <TicketTimeline status={ticket.status} />
+          <ClientJourneyTimeline ticket={ticket} />
         </section>
 
-        {/* Contexte de l'escalation école — nom du moniteur + note. La section
-            s'affiche dès qu'au moins l'un des deux est renseigné. */}
-        {(schoolCheckInspector || (ticket.school_resolution === 'escalated_to_workshop' && ticket.school_resolution_note)) && (
+        {/* Check école — synthèse color-codée du diagnostic terrain. Affichée
+            dès qu'un payload V2 structuré est disponible. */}
+        {schoolCheckPayload && (
+          <section className="card p-5">
+            <h2 className="section-title mb-3">Check de l&apos;école</h2>
+            <SchoolCheckSummary raw={ticket.school_checklist} />
+          </section>
+        )}
+
+        {/* Contexte de l'escalation école — note libre laissée par l'école
+            au moment d'escalader. Complémentaire du check structuré. */}
+        {ticket.school_resolution === 'escalated_to_workshop' && ticket.school_resolution_note && (
           <section className="card p-5 bg-brand-gold/5 border-brand-gold/30">
-            <h2 className="section-title mb-3">Briefing de l&apos;école</h2>
-            {schoolCheckInspector && (
+            <h2 className="section-title mb-3">Note d&apos;escalade de l&apos;école</h2>
+            {schoolCheckInspector && !schoolCheckPayload && (
               <div className="mb-3 flex items-center gap-2 rounded-xl bg-white/60 px-3 py-2 text-sm text-brand-ink">
                 <span aria-hidden>👤</span>
                 <span>Check effectué par <strong>{schoolCheckInspector}</strong></span>
               </div>
             )}
-            {ticket.school_resolution === 'escalated_to_workshop' && ticket.school_resolution_note && (
-              <p className="whitespace-pre-line text-sm text-brand-ink">{ticket.school_resolution_note}</p>
-            )}
+            <p className="whitespace-pre-line text-sm text-brand-ink">{ticket.school_resolution_note}</p>
           </section>
         )}
 
@@ -246,6 +346,24 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
             hideNotes
           />
         </section>
+
+        {/* T6 — Décision réparation vs remplacement (post pré-check) */}
+        {showRepairDecision && (
+          <section className="card p-5">
+            <h2 className="section-title mb-3">Décision : réparation ou remplacement&nbsp;?</h2>
+            <p className="mb-4 text-sm text-slate-600">
+              Coût estimé saisi → on compare au seuil Plume pour décider entre réparation et aile neuve. La garantie 2 ans
+              est lue automatiquement depuis la date d&apos;achat de l&apos;aile.
+            </p>
+            <WorkshopRepairDecisionPanel
+              ticketId={ticket.id}
+              purchaseDate={ticket.purchase_date}
+              thresholdEur={plumeSettings.repairReplacementThresholdEur}
+              warrantyDurationMonths={plumeSettings.warrantyDurationMonths}
+              initial={repairDecisionInitial}
+            />
+          </section>
+        )}
 
         {/* Bon de transport retour atelier → école/client */}
         {shouldOfferReturnShipping && (
@@ -316,21 +434,67 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
           </section>
         )}
 
+        {/* École partenaire — client direct de l'atelier. Affichée d'abord car
+            c'est l'interlocuteur quotidien du technicien. */}
         <section className="card p-5">
-          <h2 className="section-title mb-3">Client</h2>
+          <h2 className="section-title mb-3">École partenaire</h2>
+          {school ? (
+            <div className="space-y-2">
+              <InfoRow label="Nom" value={school.name || '—'} />
+              {(school.city || school.region) && (
+                <InfoRow
+                  label="Localisation"
+                  value={[school.city, school.region].filter(Boolean).join(' · ') || '—'}
+                />
+              )}
+              {school.email && (
+                <InfoRowLink label="Email" value={school.email} href={`mailto:${school.email}`} />
+              )}
+              {school.phone && (
+                <InfoRowLink label="Téléphone" value={school.phone} href={`tel:${school.phone.replace(/\s+/g, '')}`} />
+              )}
+              {school.address && (
+                <div className="pt-1">
+                  <p className="mb-1 text-xs text-slate-500">Adresse</p>
+                  <p className="whitespace-pre-line text-right text-sm text-brand-ink">{school.address}</p>
+                </div>
+              )}
+            </div>
+          ) : ticket.assigned_workshop_label ? (
+            <p className="text-sm text-slate-500">
+              École rattachée non disponible — atelier assigné&nbsp;: {ticket.assigned_workshop_label}
+            </p>
+          ) : (
+            <p className="text-sm text-slate-500">École non renseignée sur ce ticket.</p>
+          )}
+        </section>
+
+        <section className="card p-5">
+          <h2 className="section-title mb-3">Client final (pilote)</h2>
           <div className="space-y-2">
-            <InfoRow label="Nom" value={[ticket.first_name, ticket.last_name].filter(Boolean).join(' ') || '—'} />
-            <InfoRow label="Email" value={ticket.email ?? '—'} />
-            {ticket.phone && <InfoRow label="Téléphone" value={ticket.phone} />}
+            <InfoRow label="Nom" value={clientName} />
+            {ticket.email && (
+              <InfoRowLink label="Email" value={ticket.email} href={`mailto:${ticket.email}`} />
+            )}
+            {ticket.phone && (
+              <InfoRowLink label="Téléphone" value={ticket.phone} href={`tel:${ticket.phone.replace(/\s+/g, '')}`} />
+            )}
           </div>
         </section>
 
         <section className="card p-5">
-          <h2 className="section-title mb-3">Produit</h2>
+          <h2 className="section-title mb-3">Aile</h2>
           <div className="space-y-2">
             <InfoRow label="Marque / Modèle" value={`${ticket.product_brand ?? '—'} ${ticket.product_model ?? '—'}`} />
+            {ticket.wing_size && <InfoRow label="Taille" value={ticket.wing_size} />}
             <InfoRow label="N° de série" value={ticket.serial_number ?? '—'} mono />
             {ticket.purchase_date && <InfoRow label="Date d'achat" value={formatDate(ticket.purchase_date)} />}
+            {warranty && (
+              <div className="flex items-start justify-between gap-4 pt-1">
+                <p className="flex-shrink-0 text-xs text-slate-500">Garantie</p>
+                <WarrantyBadge warranty={warranty} />
+              </div>
+            )}
           </div>
         </section>
 
@@ -380,5 +544,46 @@ function InfoRow({ label, value, mono }: { label: string; value: string; mono?: 
       <p className="flex-shrink-0 text-xs text-slate-500">{label}</p>
       <p className={`text-right text-sm text-brand-ink ${mono ? 'font-mono' : ''}`}>{value.trim() || '—'}</p>
     </div>
+  )
+}
+
+function InfoRowLink({ label, value, href }: { label: string; value: string; href: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <p className="flex-shrink-0 text-xs text-slate-500">{label}</p>
+      <a
+        href={href}
+        className="break-all text-right text-sm font-medium text-brand-gold hover:underline"
+      >
+        {value}
+      </a>
+    </div>
+  )
+}
+
+function WarrantyBadge({ warranty }: { warranty: { status: 'active' | 'expired'; endDate: Date; daysRemaining: number } }) {
+  const isActive = warranty.status === 'active'
+  const isExpiringSoon = isActive && warranty.daysRemaining <= 60
+
+  const classes = isExpiringSoon
+    ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200'
+    : isActive
+      ? 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200'
+      : 'bg-red-50 text-red-700 ring-1 ring-red-200'
+
+  const dotClass = isExpiringSoon ? 'bg-amber-500' : isActive ? 'bg-emerald-500' : 'bg-red-500'
+  const endDateLabel = warranty.endDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+
+  const label = isActive
+    ? isExpiringSoon
+      ? `Sous garantie — expire dans ${warranty.daysRemaining} j`
+      : `Sous garantie — jusqu'au ${endDateLabel}`
+    : `Hors garantie — expirée le ${endDateLabel}`
+
+  return (
+    <span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-medium ${classes}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} aria-hidden />
+      {label}
+    </span>
   )
 }

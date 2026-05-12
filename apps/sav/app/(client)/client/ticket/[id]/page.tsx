@@ -12,6 +12,7 @@ import { ClientDeclarationView } from '@/features/tickets/components/ClientDecla
 import { WingLocationCard } from '@/features/tickets/components/WingLocationCard'
 import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
 import { formatDate } from '@/features/tickets/utils'
+import { filterMessagesForRole } from '@/features/tickets/channels'
 import type { ClientShippingAddress, CloserRole, ClosureOutcome } from '@/features/tickets/types'
 import { MessageForm } from './MessageForm'
 import { ClientTicketTabs } from './ClientTicketTabs'
@@ -43,8 +44,10 @@ export default async function TicketDetailPage({ params }: PageProps) {
     : null
 
   const sortedPhotos   = [...ticket.ticket_photos].sort((a, b) => a.sort_order - b.sort_order)
-  const publicMessages = ticket.ticket_messages
-    .filter((m) => m.visibility_level === 'all')
+  // Le client voit ses 3 canaux (school_client, client_workshop, group) + les
+  // messages legacy avec visibility_level='all'. filterMessagesForRole couvre
+  // les deux régimes.
+  const publicMessages = filterMessagesForRole(ticket.ticket_messages, 'client')
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
   const ticketRef  = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
   const isRejected = ticket.status === 'rejected' || ticket.status === 'cancelled'
@@ -62,18 +65,59 @@ export default async function TicketDetailPage({ params }: PageProps) {
 
   // Inline shipping label generator, attached to the "Envoi de l'aile" step
   // when it's the current one. Only built if the ticket actually needs it.
-  const shippingAction = shouldOfferClientShipping ? (
-    <ShippingLabelButton
-      ticketId={ticket.id}
-      leg="client_to_school"
-      initialTracking={ticket.client_school_tracking}
-      initialLabelUrl={ticket.client_school_label_url}
-      initialAddress={initialClientAddress}
-      autoApproved={ticket.auto_approved_shipping !== false}
-      requireScan
-      wingSerial={ticket.serial_number ?? null}
-    />
-  ) : null
+  //
+  // Gating "validation école" (migration 20260512000000) :
+  //  - shipping_approved=NULL  → message "en attente de validation"
+  //  - shipping_approved=FALSE → message "envoi refusé" + raison
+  //  - shipping_approved=TRUE  → bouton actif
+  //  Si un label a déjà été généré, on le ré-expose quel que soit l'état
+  //  (idempotence : on ne révoque pas un bon de transport déjà émis).
+  const hasExistingShippingLabel = !!ticket.client_school_label_url
+  const shippingApproval         = ticket.shipping_approved ?? null
+
+  const shippingAction = !shouldOfferClientShipping
+    ? null
+    : !hasExistingShippingLabel && shippingApproval === null
+    ? (
+        <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 px-4 py-3 text-sm">
+          <p className="font-semibold text-amber-900">
+            ⏳ En attente de validation par l&apos;école
+          </p>
+          <p className="mt-0.5 text-xs text-amber-900/80">
+            {school?.name ?? 'Votre école'} doit confirmer la réception de votre demande
+            avant que vous puissiez générer le bon de transport. Vous serez notifié dès qu&apos;une décision est prise.
+          </p>
+        </div>
+      )
+    : !hasExistingShippingLabel && shippingApproval === false
+    ? (
+        <div className="rounded-2xl border-2 border-red-200 bg-red-50 px-4 py-3 text-sm">
+          <p className="font-semibold text-red-900">
+            ✕ Envoi refusé par {school?.name ?? 'votre école'}
+          </p>
+          {ticket.shipping_refusal_reason ? (
+            <p className="mt-1 whitespace-pre-line text-xs text-red-900/90">
+              {ticket.shipping_refusal_reason}
+            </p>
+          ) : (
+            <p className="mt-1 text-xs text-red-900/90">
+              Contactez votre école via l&apos;onglet « Messages » pour en savoir plus.
+            </p>
+          )}
+        </div>
+      )
+    : (
+        <ShippingLabelButton
+          ticketId={ticket.id}
+          leg="client_to_school"
+          initialTracking={ticket.client_school_tracking}
+          initialLabelUrl={ticket.client_school_label_url}
+          initialAddress={initialClientAddress}
+          autoApproved={ticket.auto_approved_shipping !== false}
+          requireScan
+          wingSerial={ticket.serial_number ?? null}
+        />
+      )
 
   const stateNode = (
     <>

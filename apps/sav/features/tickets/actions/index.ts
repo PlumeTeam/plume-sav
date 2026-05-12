@@ -6,7 +6,9 @@ export {
 } from './messaging'
 export {
   applySchoolResolutionAction,
+  approveShippingAction,
   markWingReceivedSchoolAction,
+  refuseShippingAction,
   saveDiagnosisAction,
   saveSchoolChecklistAction,
   startSchoolCheckAction,
@@ -17,6 +19,7 @@ export {
   saveWorkshopChecklistAction,
   startWorkshopDiagnosisAction,
   startWorkshopRepairAction,
+  submitRepairDecisionAction,
 } from './workshop'
 export {
   acknowledgeTicketAction,
