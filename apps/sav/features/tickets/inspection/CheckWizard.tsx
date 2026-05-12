@@ -717,7 +717,7 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
         <ScreenLayout
           phase="Phase 2 — Check gonflage (optionnel)"
           title="Avez-vous pu gonfler l'aile ?"
-          subtitle="Test au sol (gonflage/marche) — optionnel. Permet de vérifier l'état de surface et le comportement général de la voile."
+          subtitle="Test au sol (gonflage/marche) — optionnel. On cherche des déformations suspicieuses, un gonflage paresseux (la voile monte difficilement) ou au contraire une voile trop sensible qui veut fermer sans raison."
           footer={
             <NavButtons
               onBack={() => go('back')}
@@ -770,6 +770,11 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
                   value={phase2.inflationNormalBehavior}
                   onChange={(v) => setPhase2({ ...phase2, inflationNormalBehavior: v })}
                 />
+                <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                  Signes à surveiller : <strong>déformations</strong> sur la voile,
+                  gonflage <strong>paresseux</strong> (monte difficilement) ou
+                  voile <strong>trop sensible</strong> qui veut fermer sans raison.
+                </p>
               </Field>
 
               <Field label="Photos du gonflage (optionnel)">
@@ -786,7 +791,7 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
                   onChange={(e) => setPhase2({ ...phase2, inflationNotes: e.target.value })}
                   rows={3}
                   maxLength={2000}
-                  placeholder="Comportement noté, état de surface, ressenti…"
+                  placeholder="Déformations observées, gonflage paresseux ou voile trop sensible, état de surface, ressenti…"
                   className="field-input resize-y"
                 />
               </Field>
