@@ -17,6 +17,7 @@ import {
   type YesNo,
   type YesNoIdk,
   type InflationSurfaceConsistency,
+  type InflationTendency,
   type TearSize,
   type SeamDistance,
   FABRIC_CONDITION_LABELS,
@@ -28,6 +29,7 @@ import {
   YESNOIDK_LABELS,
   INFLATION_SYMMETRY_LABELS,
   INFLATION_SURFACE_LABELS,
+  INFLATION_TENDENCY_LABELS,
   showRipstopHint,
 } from './steps'
 
@@ -190,7 +192,7 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
 
   const inflationValid = useMemo(() => {
     if (phase2.skipped) return true
-    return !!phase2.inflationSurfaceConsistency && !!phase2.inflationNormalBehavior
+    return !!phase2.inflationSurfaceConsistency && !!phase2.inflationTendency
   }, [phase2])
 
   const flightValid = useMemo(() => {
@@ -322,7 +324,9 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
       if (phase1.linesCondition === 'broken')       checkedIds.push('lines_broken')
       if (phase1.maillonsInverted === 'yes')        checkedIds.push('maillons_inverted')
       if (phase1.risersCondition === 'damaged')     checkedIds.push('risers_damaged')
-      if (!phase2.skipped && phase2.inflationNormalBehavior === 'no') checkedIds.push('inflation_abnormal')
+      if (!phase2.skipped && (phase2.inflationTendency === 'closes_easily' || phase2.inflationTendency === 'lazy')) {
+        checkedIds.push('inflation_abnormal')
+      }
       if (!phase3.skipped && phase3.flightStraight === 'no')          checkedIds.push('flight_not_straight')
       // Always include a sentinel so isCheckValidated stays truthy even if
       // every answer happens to be "all good".
@@ -736,7 +740,7 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
               ]}
               value={phase2.skipped ? 'no' : (
                 phase2.inflationSurfaceConsistency ||
-                phase2.inflationNormalBehavior ||
+                phase2.inflationTendency ||
                 photos.inflation.length > 0
                   ? 'yes' : undefined
               )}
@@ -761,20 +765,17 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
                 />
               </Field>
 
-              <Field label="Comportement normal au gonflage ?">
-                <SegmentedChoice<YesNo>
+              <Field label="Comportement observé au gonflage ?">
+                <SegmentedChoice<InflationTendency>
                   options={[
-                    { value: 'yes', label: 'Oui',             tone: 'emerald' },
-                    { value: 'no',  label: 'Non (suspicieux)', tone: 'red'    },
+                    { value: 'closes_easily', label: INFLATION_TENDENCY_LABELS.closes_easily, tone: 'red'     },
+                    { value: 'lazy',          label: INFLATION_TENDENCY_LABELS.lazy,          tone: 'red'     },
+                    { value: 'none',          label: INFLATION_TENDENCY_LABELS.none,          tone: 'emerald' },
+                    { value: 'unsure',        label: INFLATION_TENDENCY_LABELS.unsure,        tone: 'slate'   },
                   ]}
-                  value={phase2.inflationNormalBehavior}
-                  onChange={(v) => setPhase2({ ...phase2, inflationNormalBehavior: v })}
+                  value={phase2.inflationTendency}
+                  onChange={(v) => setPhase2({ ...phase2, inflationTendency: v })}
                 />
-                <p className="mt-2 text-xs leading-relaxed text-slate-500">
-                  Signes à surveiller : <strong>déformations</strong> sur la voile,
-                  gonflage <strong>paresseux</strong> (monte difficilement) ou
-                  voile <strong>trop sensible</strong> qui veut fermer sans raison.
-                </p>
               </Field>
 
               <Field label="Photos du gonflage (optionnel)">
@@ -1142,11 +1143,14 @@ function ReviewScreen({
             )}
             <ReviewRow
               label="Comportement au gonflage"
-              value={phase2.inflationNormalBehavior === 'no'
-                ? 'Non (suspicieux)'
-                : phase2.inflationNormalBehavior
-                  ? YESNO_LABELS[phase2.inflationNormalBehavior]
-                  : '—'}
+              value={phase2.inflationTendency
+                ? INFLATION_TENDENCY_LABELS[phase2.inflationTendency]
+                : phase2.inflationNormalBehavior === 'no'
+                  // Legacy V2 — l'ancien yes/no n'avait pas de nuance.
+                  ? 'Non (suspicieux) (ancien)'
+                  : phase2.inflationNormalBehavior
+                    ? `${YESNO_LABELS[phase2.inflationNormalBehavior]} (ancien)`
+                    : '—'}
             />
             {phase2.inflationPhotoPaths && phase2.inflationPhotoPaths.length > 0 && (
               <ReviewRow label="Photos jointes" value={`${phase2.inflationPhotoPaths.length} photo${phase2.inflationPhotoPaths.length > 1 ? 's' : ''}`} />

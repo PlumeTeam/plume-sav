@@ -12,6 +12,9 @@ export type YesNoIdk         = 'yes' | 'no' | 'idk'
 /** Legacy V2 — remplacé en pratique par InflationSurfaceConsistency à partir de mai 2026. */
 export type InflationSymmetry = 'yes' | 'no' | 'unsure'
 export type InflationSurfaceConsistency = 'yes' | 'no' | 'unsure'
+/** Tendance observée au gonflage — remplace le simple oui/non binaire
+ *  d'inflationNormalBehavior (qui restait flou sur la nature du défaut). */
+export type InflationTendency = 'closes_easily' | 'lazy' | 'none' | 'unsure'
 export type TearSize         = 'lt5' | '5to10' | '10to15' | 'gt15'
 export type SeamDistance     = 'close' | 'far'
 
@@ -56,6 +59,10 @@ export type Phase2 =
        *  collecté depuis mai 2026. Lu par le review screen pour ne pas casser
        *  l'affichage des anciens checks. */
       inflationSymmetry?:           InflationSymmetry
+      /** Tendance observée — remplace inflationNormalBehavior (yes/no binaire). */
+      inflationTendency?:           InflationTendency
+      /** @deprecated Remplacé par inflationTendency en mai 2026. Conservé pour
+       *  rendre les anciens payloads V2 dans le review screen. */
       inflationNormalBehavior?:     YesNo
       inflationNotes?:              string
       /** Photos optionnelles jointes au check de gonflage (chemins dans le
@@ -134,6 +141,12 @@ export const INFLATION_SYMMETRY_LABELS: Record<InflationSymmetry, string> = {
 }
 export const INFLATION_SURFACE_LABELS: Record<InflationSurfaceConsistency, string> = {
   yes: 'Oui', no: 'Non', unsure: 'Difficile à dire',
+}
+export const INFLATION_TENDENCY_LABELS: Record<InflationTendency, string> = {
+  closes_easily: 'Tendance à fermer facilement',
+  lazy:          'Tendance à être paresseuse',
+  none:          'Aucune tendance particulière',
+  unsure:        'Difficile à dire',
 }
 
 /**
