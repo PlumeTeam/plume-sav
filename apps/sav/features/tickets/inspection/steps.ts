@@ -17,17 +17,24 @@ export type Phase1 = {
   // Écran 1 — Inspection visuelle générale
   visibleDamage?:      YesNo
   damageDescription?:  string
+  damagePhotoPaths?:   string[]
 
   // Écran 2 — Tissu
   fabricCondition?:    FabricCondition
   visibleTears?:       YesNo
   tearSize?:           TearSize
   seamDistance?:       SeamDistance
+  tearsNote?:          string
+  tearsPhotoPaths?:    string[]
 
   // Écran 3 — Coutures et structure
   openSeams?:          YesNo
+  openSeamsNote?:      string
+  openSeamsPhotoPaths?:string[]
   linesCondition?:     LinesCondition
   maillonsInverted?:   YesNoIdk
+  maillonsNote?:       string
+  maillonsPhotoPaths?: string[]
   risersCondition?:    RisersCondition
 }
 

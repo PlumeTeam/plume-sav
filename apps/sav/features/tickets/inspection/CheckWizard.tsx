@@ -3,6 +3,9 @@
 import { useMemo, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { saveSchoolChecklistAction } from '@/features/tickets/actions'
+import { createClient } from '@/lib/supabase/client'
+import { getSupabasePublicUrl } from '../utils'
+import { InspectionPhotoField, type LocalInspectionPhoto } from './InspectionPhotoField'
 import {
   type SchoolCheckPayload,
   type Phase1,
@@ -26,6 +29,18 @@ import {
   INFLATION_SYMMETRY_LABELS,
   showRipstopHint,
 } from './steps'
+
+// Keys identifying the four "Oui" questions in phase 1 that accept photos.
+type PhotoSlot = 'damage' | 'tears' | 'openSeams' | 'maillons'
+
+function rehydratePhotos(paths: string[] | undefined): LocalInspectionPhoto[] {
+  if (!paths || paths.length === 0) return []
+  return paths.map((p, i) => ({
+    id:           `existing-${i}-${p}`,
+    existingPath: p,
+    dataUrl:      getSupabasePublicUrl(p),
+  }))
+}
 
 interface CheckWizardProps {
   ticketId:          string
@@ -68,6 +83,25 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
   const [phase3, setPhase3] = useState<Phase3>(initial?.phase3 ?? { skipped: false })
   const [globalNote, setGlobalNote] = useState<string>(initial?.globalNote ?? '')
 
+  // Photos joined to each "Oui" question in phase 1. Pre-uploaded paths from
+  // a previous save are rehydrated as read-only thumbnails the school can
+  // still remove (the removal is materialised at submit time by simply not
+  // including the path in the new payload — the orphan stays in the bucket).
+  const [photos, setPhotos] = useState<Record<PhotoSlot, LocalInspectionPhoto[]>>({
+    damage:    rehydratePhotos(initial?.phase1?.damagePhotoPaths),
+    tears:     rehydratePhotos(initial?.phase1?.tearsPhotoPaths),
+    openSeams: rehydratePhotos(initial?.phase1?.openSeamsPhotoPaths),
+    maillons:  rehydratePhotos(initial?.phase1?.maillonsPhotoPaths),
+  })
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null)
+
+  function addPhoto(slot: PhotoSlot, photo: LocalInspectionPhoto) {
+    setPhotos((s) => ({ ...s, [slot]: [...s[slot], photo] }))
+  }
+  function removePhoto(slot: PhotoSlot, id: string) {
+    setPhotos((s) => ({ ...s, [slot]: s[slot].filter((p) => p.id !== id) }))
+  }
+
   // Skip the inspector screen if the school already filled it on a previous visit.
   const [screen, setScreen] = useState<Screen>(() =>
     initial?.inspectorName?.trim() ? 'visual_general' : 'inspector'
@@ -97,23 +131,44 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
   }
 
   // Validation per screen (used to gate the "Continuer" button).
+  // Rule for every "Oui" answer: the school must provide at least a photo or
+  // a free-text description — never nothing.
   const visualGeneralValid = useMemo(() => {
     if (phase1.visibleDamage === 'no') return true
     if (phase1.visibleDamage === 'yes') {
-      return !!phase1.damageDescription?.trim()
+      const hasText  = !!phase1.damageDescription?.trim()
+      const hasPhoto = photos.damage.length > 0
+      return hasText || hasPhoto
     }
     return false
-  }, [phase1.visibleDamage, phase1.damageDescription])
+  }, [phase1.visibleDamage, phase1.damageDescription, photos.damage])
 
   const fabricValid = useMemo(() => {
     if (!phase1.fabricCondition || !phase1.visibleTears) return false
     if (phase1.visibleTears === 'no') return true
-    return !!phase1.tearSize && !!phase1.seamDistance
-  }, [phase1.fabricCondition, phase1.visibleTears, phase1.tearSize, phase1.seamDistance])
+    if (!phase1.tearSize || !phase1.seamDistance) return false
+    const hasText  = !!phase1.tearsNote?.trim()
+    const hasPhoto = photos.tears.length > 0
+    return hasText || hasPhoto
+  }, [phase1.fabricCondition, phase1.visibleTears, phase1.tearSize, phase1.seamDistance, phase1.tearsNote, photos.tears])
 
-  const seamsValid = useMemo(() => (
-    !!phase1.openSeams && !!phase1.linesCondition && !!phase1.maillonsInverted && !!phase1.risersCondition
-  ), [phase1.openSeams, phase1.linesCondition, phase1.maillonsInverted, phase1.risersCondition])
+  const seamsValid = useMemo(() => {
+    if (!phase1.openSeams || !phase1.linesCondition || !phase1.maillonsInverted || !phase1.risersCondition) {
+      return false
+    }
+    if (phase1.openSeams === 'yes') {
+      const hasText  = !!phase1.openSeamsNote?.trim()
+      const hasPhoto = photos.openSeams.length > 0
+      if (!hasText && !hasPhoto) return false
+    }
+    if (phase1.maillonsInverted === 'yes') {
+      const hasText  = !!phase1.maillonsNote?.trim()
+      const hasPhoto = photos.maillons.length > 0
+      if (!hasText && !hasPhoto) return false
+    }
+    return true
+  }, [phase1.openSeams, phase1.linesCondition, phase1.maillonsInverted, phase1.risersCondition,
+      phase1.openSeamsNote, phase1.maillonsNote, photos.openSeams, photos.maillons])
 
   const inflationValid = useMemo(() => {
     if (phase2.skipped) return true
@@ -127,8 +182,106 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
 
   const inspectorValid = inspectorName.trim().length >= 2
 
+  // Uploads new photos (those with a File) to the 'tickets' bucket and merges
+  // the resulting paths with the already-existing ones the school kept. Returns
+  // a record of storage paths per slot, ready to be persisted in Phase1.
+  async function uploadPendingPhotos(userId: string): Promise<{
+    paths: Record<PhotoSlot, string[]>
+    error: string | null
+  }> {
+    const supabase = createClient()
+    const slots: PhotoSlot[] = ['damage', 'tears', 'openSeams', 'maillons']
+
+    const totalToUpload = slots.reduce(
+      (acc, s) => acc + photos[s].filter((p) => p.file).length, 0
+    )
+    if (totalToUpload === 0) {
+      return {
+        paths: {
+          damage:    photos.damage.map((p) => p.existingPath!).filter(Boolean),
+          tears:     photos.tears.map((p) => p.existingPath!).filter(Boolean),
+          openSeams: photos.openSeams.map((p) => p.existingPath!).filter(Boolean),
+          maillons:  photos.maillons.map((p) => p.existingPath!).filter(Boolean),
+        },
+        error: null,
+      }
+    }
+
+    setUploadProgress({ done: 0, total: totalToUpload })
+    let done = 0
+    let lastError: string | null = null
+    const result: Record<PhotoSlot, string[]> = { damage: [], tears: [], openSeams: [], maillons: [] }
+
+    for (const slot of slots) {
+      let i = 0
+      for (const photo of photos[slot]) {
+        if (photo.existingPath) {
+          result[slot].push(photo.existingPath)
+          continue
+        }
+        if (!photo.file) continue
+
+        const rawExt = photo.file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+        const ext = /^[a-z0-9]+$/.test(rawExt) ? rawExt : 'jpg'
+        const storagePath = `${userId}/inspection/${ticketId}/${slot}-${Date.now()}-${i}.${ext}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('tickets')
+          .upload(storagePath, photo.file, {
+            upsert:       false,
+            contentType:  photo.file.type || `image/${ext}`,
+            cacheControl: '3600',
+          })
+
+        if (uploadError) {
+          console.error('[CheckWizard upload] error:', uploadError.message)
+          lastError = uploadError.message
+        } else {
+          result[slot].push(storagePath)
+        }
+        i++
+        done++
+        setUploadProgress({ done, total: totalToUpload })
+      }
+    }
+
+    return { paths: result, error: lastError }
+  }
+
   function handleSubmit() {
     startTransition(async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setFeedback({ type: 'error', msg: 'Session expirée. Reconnectez-vous.' })
+        return
+      }
+
+      const { paths, error: uploadErr } = await uploadPendingPhotos(user.id)
+
+      // If the school added photos and *all* of them failed, surface the error
+      // instead of silently saving an incomplete payload. If only some failed,
+      // we keep going (the successfully uploaded ones are saved).
+      const newPhotosCount = (['damage','tears','openSeams','maillons'] as PhotoSlot[])
+        .reduce((acc, s) => acc + photos[s].filter((p) => p.file).length, 0)
+      const uploadedCount = paths.damage.length + paths.tears.length
+                          + paths.openSeams.length + paths.maillons.length
+                          - (['damage','tears','openSeams','maillons'] as PhotoSlot[])
+                              .reduce((acc, s) => acc + photos[s].filter((p) => p.existingPath).length, 0)
+      if (newPhotosCount > 0 && uploadedCount === 0 && uploadErr) {
+        setFeedback({ type: 'error', msg: `Échec de l'upload des photos (${uploadErr}).` })
+        setUploadProgress(null)
+        return
+      }
+
+      const phase1WithPaths: Phase1 = {
+        ...phase1,
+        ...(paths.damage.length    ? { damagePhotoPaths:    paths.damage    } : { damagePhotoPaths:    undefined }),
+        ...(paths.tears.length     ? { tearsPhotoPaths:     paths.tears     } : { tearsPhotoPaths:     undefined }),
+        ...(paths.openSeams.length ? { openSeamsPhotoPaths: paths.openSeams } : { openSeamsPhotoPaths: undefined }),
+        ...(paths.maillons.length  ? { maillonsPhotoPaths:  paths.maillons  } : { maillonsPhotoPaths:  undefined }),
+      }
+
       const checkedIds: string[] = []
       if (phase1.visibleDamage === 'yes')           checkedIds.push('visible_damage')
       if (phase1.fabricCondition === 'damaged')     checkedIds.push('fabric_damaged')
@@ -149,7 +302,7 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
         inspectorName: inspectorName.trim(),
         completedAt:   new Date().toISOString(),
         ...(reportedCategory ? { reportedCategory } : {}),
-        phase1,
+        phase1:        phase1WithPaths,
         phase2,
         phase3,
         ...(globalNote.trim() ? { globalNote: globalNote.trim() } : {}),
@@ -162,6 +315,7 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
       fd.set('notes', JSON.stringify(payload))
 
       const r = await saveSchoolChecklistAction(fd)
+      setUploadProgress(null)
       if (r?.error) {
         const err = r.error as Record<string, string[] | undefined>
         const msg = err._form?.[0] ?? 'Erreur lors de la sauvegarde.'
@@ -251,17 +405,28 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
           </Field>
 
           {phase1.visibleDamage === 'yes' && (
-            <Field label="Décrivez ce que vous voyez">
-              <textarea
-                value={phase1.damageDescription ?? ''}
-                onChange={(e) => setPhase1({ ...phase1, damageDescription: e.target.value })}
-                rows={4}
-                maxLength={2000}
-                autoFocus
-                placeholder="Localisation, taille approximative, type de dommage…"
-                className="field-input resize-y"
-              />
-            </Field>
+            <>
+              <Field label="Photos du dommage">
+                <InspectionPhotoField
+                  photos={photos.damage}
+                  onAdd={(p)   => addPhoto('damage', p)}
+                  onRemove={(id) => removePhoto('damage', id)}
+                />
+              </Field>
+
+              <Field label="Décrivez ce que vous voyez (optionnel si photos)">
+                <textarea
+                  value={phase1.damageDescription ?? ''}
+                  onChange={(e) => setPhase1({ ...phase1, damageDescription: e.target.value })}
+                  rows={4}
+                  maxLength={2000}
+                  placeholder="Localisation, taille approximative, type de dommage…"
+                  className="field-input resize-y"
+                />
+              </Field>
+
+              <PhotoOrTextHint />
+            </>
           )}
         </ScreenLayout>
       )}
@@ -340,6 +505,27 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
                   ⚠️ Déchirure proche d&apos;une couture — l&apos;atelier doit valider la réparabilité.
                 </div>
               )}
+
+              <Field label="Photos de la déchirure">
+                <InspectionPhotoField
+                  photos={photos.tears}
+                  onAdd={(p)   => addPhoto('tears', p)}
+                  onRemove={(id) => removePhoto('tears', id)}
+                />
+              </Field>
+
+              <Field label="Description (optionnel si photos)">
+                <textarea
+                  value={phase1.tearsNote ?? ''}
+                  onChange={(e) => setPhase1({ ...phase1, tearsNote: e.target.value })}
+                  rows={3}
+                  maxLength={2000}
+                  placeholder="Localisation précise, contexte, observations complémentaires…"
+                  className="field-input resize-y"
+                />
+              </Field>
+
+              <PhotoOrTextHint />
             </>
           )}
         </ScreenLayout>
@@ -365,6 +551,29 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
             />
           </Field>
 
+          {phase1.openSeams === 'yes' && (
+            <div className="-mt-2 space-y-4 rounded-2xl border border-brand-stone bg-brand-cream/40 p-4">
+              <Field label="Photos des coutures concernées">
+                <InspectionPhotoField
+                  photos={photos.openSeams}
+                  onAdd={(p)   => addPhoto('openSeams', p)}
+                  onRemove={(id) => removePhoto('openSeams', id)}
+                />
+              </Field>
+              <Field label="Description (optionnel si photos)">
+                <textarea
+                  value={phase1.openSeamsNote ?? ''}
+                  onChange={(e) => setPhase1({ ...phase1, openSeamsNote: e.target.value })}
+                  rows={3}
+                  maxLength={2000}
+                  placeholder="Quelle couture, sur quelle longueur…"
+                  className="field-input resize-y"
+                />
+              </Field>
+              <PhotoOrTextHint />
+            </div>
+          )}
+
           <Field label="Suspentes — état visible">
             <SegmentedChoice<LinesCondition>
               options={[
@@ -388,6 +597,29 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
               onChange={(v) => setPhase1({ ...phase1, maillonsInverted: v })}
             />
           </Field>
+
+          {phase1.maillonsInverted === 'yes' && (
+            <div className="-mt-2 space-y-4 rounded-2xl border border-brand-stone bg-brand-cream/40 p-4">
+              <Field label="Photos des maillons">
+                <InspectionPhotoField
+                  photos={photos.maillons}
+                  onAdd={(p)   => addPhoto('maillons', p)}
+                  onRemove={(id) => removePhoto('maillons', id)}
+                />
+              </Field>
+              <Field label="Description (optionnel si photos)">
+                <textarea
+                  value={phase1.maillonsNote ?? ''}
+                  onChange={(e) => setPhase1({ ...phase1, maillonsNote: e.target.value })}
+                  rows={3}
+                  maxLength={2000}
+                  placeholder="Quels maillons, comment ils sont positionnés…"
+                  className="field-input resize-y"
+                />
+              </Field>
+              <PhotoOrTextHint />
+            </div>
+          )}
 
           <Field label="Élévateurs — état visible">
             <SegmentedChoice<RisersCondition>
@@ -547,6 +779,7 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
           onSubmit={handleSubmit}
           isPending={isPending}
           feedback={feedback}
+          uploadProgress={uploadProgress}
         />
       )}
     </div>
@@ -591,6 +824,17 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       <p className="mb-2 text-sm font-medium text-brand-ink">{label}</p>
       {children}
     </div>
+  )
+}
+
+// Surfaced under every "Oui" branch in phase 1 — reminds the school that the
+// "Continuer" button stays disabled until they provide at least one of the
+// two pieces of evidence.
+function PhotoOrTextHint() {
+  return (
+    <p className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+      ⚠️ Ajoutez au moins <strong>une photo</strong> ou <strong>une description</strong> pour continuer.
+    </p>
   )
 }
 
@@ -728,11 +972,12 @@ interface ReviewScreenProps {
   onSubmit:           () => void
   isPending:          boolean
   feedback:           { type: 'ok' | 'error'; msg: string } | null
+  uploadProgress:     { done: number; total: number } | null
 }
 
 function ReviewScreen({
   inspectorName, phase1, phase2, phase3, globalNote, onGlobalNoteChange,
-  onBack, onSubmit, isPending, feedback,
+  onBack, onSubmit, isPending, feedback, uploadProgress,
 }: ReviewScreenProps) {
   return (
     <div className="card animate-slide-up p-5">
@@ -813,6 +1058,19 @@ function ReviewScreen({
         💡 Vous constatez ce que vous voyez — vous ne certifiez rien. La décision finale
         (réparation école, escalade atelier…) se fait dans le panneau Décision.
       </p>
+
+      {uploadProgress && uploadProgress.total > 0 && (
+        <div className="mt-4 rounded-xl bg-brand-cream p-3">
+          <p className="text-xs text-slate-500">Upload des photos…</p>
+          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white">
+            <div
+              className="h-full rounded-full bg-brand-gold transition-all duration-300"
+              style={{ width: `${(uploadProgress.done / uploadProgress.total) * 100}%` }}
+            />
+          </div>
+          <p className="mt-1 text-xs text-slate-400">{uploadProgress.done}/{uploadProgress.total}</p>
+        </div>
+      )}
 
       {feedback && (
         <p className={`mt-4 rounded-xl px-3 py-2 text-sm ${
