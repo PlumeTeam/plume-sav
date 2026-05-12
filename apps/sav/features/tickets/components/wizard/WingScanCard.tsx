@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { CameraErrorBoundary } from '../CameraErrorBoundary'
 import type { ClientWing } from '../../queries'
@@ -32,8 +32,21 @@ type ScanState =
 
 interface WingScanCardProps {
   wings: ClientWing[]
+  /**
+   * Sérial de l'aile actuellement sélectionnée dans la liste (ou null si
+   * aucune sélection préalable). Quand non-null, le scan/saisie manuelle DOIT
+   * correspondre à ce sérial — sinon la carte affiche une erreur de
+   * vérification et bloque la progression. C'est le garde-fou « tu envoies
+   * bien la bonne aile au SAV ».
+   */
   selectedSerial: string | null
   onScanResolved: (wing: ClientWing, method: 'camera' | 'demo' | 'manual') => void
+  /**
+   * Signalé au parent quand la carte est en état d'erreur de vérification
+   * (mismatch entre sérial scanné et aile sélectionnée). Le parent s'en sert
+   * pour désactiver « Continuer » tant que la correspondance n'est pas établie.
+   */
+  onVerificationErrorChange?: (hasError: boolean) => void
 }
 
 const MANUAL_REASONS = [
@@ -42,6 +55,12 @@ const MANUAL_REASONS = [
   { value: 'pre_flashcode', label: 'Aile achetée avant le QR cousu' },
   { value: 'no_camera', label: 'Pas de caméra disponible' },
 ] as const
+
+// Préfixe utilisé pour distinguer une erreur de « mismatch sérial / aile
+// sélectionnée » (qui doit bloquer Continuer) des autres erreurs (qui
+// affichent juste un message mais n'ont pas à bloquer).
+const MISMATCH_ERROR_PREFIX =
+  "Le numéro de série ne correspond pas à l'aile sélectionnée."
 
 /**
  * Bloc de scan flashcode (QR code cousu sur l'aile / le sac).
@@ -60,8 +79,30 @@ const MANUAL_REASONS = [
  *  - Logger la raison du fallback manuel pour suivi qualité
  *  - Gating prod du bouton démo via NEXT_PUBLIC_VERCEL_ENV !== 'production'
  */
-export function WingScanCard({ wings, selectedSerial: _selectedSerial, onScanResolved }: WingScanCardProps) {
+export function WingScanCard({
+  wings,
+  selectedSerial,
+  onScanResolved,
+  onVerificationErrorChange,
+}: WingScanCardProps) {
   const [state, setState] = useState<ScanState>({ status: 'idle' })
+
+  // Quand l'aile sélectionnée change (le client clique sur une autre carte
+  // dans la liste), on réinitialise la carte de scan : la confirmation
+  // précédente devient caduque (« vert OK pour aile A » ne doit pas rester
+  // affiché alors que la sélection actuelle est aile B).
+  useEffect(() => {
+    setState({ status: 'idle' })
+  }, [selectedSerial])
+
+  // Notifie le parent (StepWingInfo) chaque fois qu'on rentre/sort d'un état
+  // d'erreur de vérification (mismatch). Sert à bloquer le bouton
+  // « Continuer » tant que la correspondance n'est pas établie.
+  useEffect(() => {
+    const hasMismatchError =
+      state.status === 'error' && state.message.startsWith(MISMATCH_ERROR_PREFIX)
+    onVerificationErrorChange?.(hasMismatchError)
+  }, [state, onVerificationErrorChange])
 
   function findWingBySerial(serial: string): ClientWing | undefined {
     const normalized = serial.trim().toUpperCase()
@@ -69,6 +110,21 @@ export function WingScanCard({ wings, selectedSerial: _selectedSerial, onScanRes
   }
 
   function resolveSerial(serial: string, method: 'camera' | 'demo' | 'manual') {
+    const normalized = serial.trim().toUpperCase()
+
+    // Garde-fou principal : si une aile a déjà été sélectionnée dans la liste,
+    // le sérial scanné/saisi doit IMPÉRATIVEMENT correspondre à celle-ci. Ça
+    // évite que le client crée un ticket SAV pour la mauvaise aile (cas
+    // typique : il a plusieurs ailes, il a cliqué A par erreur mais c'est B
+    // qu'il a dans les mains).
+    if (selectedSerial && normalized !== selectedSerial.trim().toUpperCase()) {
+      setState({
+        status: 'error',
+        message: `${MISMATCH_ERROR_PREFIX} Vérifiez que vous avez la bonne aile en main, ou changez votre sélection dans la liste.`,
+      })
+      return
+    }
+
     const wing = findWingBySerial(serial)
     if (!wing) {
       setState({
@@ -89,9 +145,16 @@ export function WingScanCard({ wings, selectedSerial: _selectedSerial, onScanRes
   }
 
   function runDemoScan() {
-    const first = wings[0]
-    if (first) resolveSerial(first.serial_number, 'demo')
-    else setState({ status: 'success', serial: 'PLM-DEMO-2026-00001', method: 'demo' })
+    // En mode démo, on simule un scan « parfait » :
+    //  - si une aile est sélectionnée → on scanne SON sérial (validation OK)
+    //  - sinon → on prend la 1re aile de la liste (sélection auto)
+    //  - sinon (compte vide) → succès factice sans aile
+    const targetSerial = selectedSerial ?? wings[0]?.serial_number ?? null
+    if (targetSerial) {
+      resolveSerial(targetSerial, 'demo')
+      return
+    }
+    setState({ status: 'success', serial: 'PLM-DEMO-2026-00001', method: 'demo' })
   }
 
   function reset() {
