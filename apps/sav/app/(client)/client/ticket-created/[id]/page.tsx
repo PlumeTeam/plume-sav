@@ -59,21 +59,22 @@ export default async function TicketCreatedPage({ params }: PageProps) {
         </p>
       </section>
 
-      {/* ── Prochaine étape (bloc bien visible) ─────────────────── */}
+      {/* ── Prochaine étape — bloc d'action proéminent ───────────── */}
       <section className="rounded-card border-2 border-brand-gold bg-brand-gold/10 p-5 shadow-plume">
         <p className="mb-2 text-xs font-bold uppercase tracking-wider text-brand-ink">
           👉 Prochaine étape
         </p>
         {isPostal ? (
-          <p className="text-sm leading-relaxed text-brand-ink">
-            <strong>{schoolName}</strong> va effectuer un pré-check de votre
-            demande à partir des informations renseignées en ligne. Une fois
-            ce pré-check validé, l&apos;école débloquera la possibilité pour
-            vous de générer un bon de transport.{' '}
+          <p className="text-base leading-relaxed text-brand-ink">
+            L&apos;école va effectuer un pré-check de votre demande à partir
+            des informations renseignées en ligne. Une fois ce pré-check
+            validé, l&apos;école débloquera la possibilité pour vous de générer
+            un bon de transport, qui vous permettra d&apos;envoyer l&apos;aile
+            à l&apos;école pour vérification.{' '}
             <strong>Vous serez notifié dès que l&apos;école aura validé.</strong>
           </p>
         ) : (
-          <p className="text-sm leading-relaxed text-brand-ink">
+          <p className="text-base leading-relaxed text-brand-ink">
             <strong>Contactez votre école</strong> pour fixer un rendez-vous
             afin de déposer votre aile. Cela permet de s&apos;assurer que
             l&apos;école sera ouverte au moment de votre venue.
