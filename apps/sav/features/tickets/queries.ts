@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import type { TicketWithPhotos, TicketDetail, TicketStatus, RequestStatus } from './types'
 import { attachUnreadCounts, type TicketWithUnread } from './messages-unread'
+import { attachContactsToList, type TicketWithContacts } from './contacts'
 
 export type ClientWing = {
   id: string
@@ -412,7 +413,7 @@ export async function getTicketDetail(ticketId: string): Promise<TicketDetail | 
 
 // ── School ───────────────────────────────────────────────────────────────────
 
-export async function getSchoolTickets(): Promise<TicketWithPhotos[]> {
+export async function getSchoolTickets(): Promise<TicketWithContacts[]> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
@@ -427,7 +428,8 @@ export async function getSchoolTickets(): Promise<TicketWithPhotos[]> {
     console.error('getSchoolTickets error:', error.message)
     return []
   }
-  return attachPhotosToList(supabase, (data ?? []) as Array<Record<string, unknown>>)
+  const withPhotos = await attachPhotosToList(supabase, (data ?? []) as Array<Record<string, unknown>>)
+  return attachContactsToList(supabase, withPhotos)
 }
 
 export async function getSchoolTicketDetail(ticketId: string): Promise<TicketDetail | null> {
@@ -497,7 +499,7 @@ export async function getWorkshopTicketDetail(ticketId: string): Promise<TicketD
 
 // ── Plume Admin ───────────────────────────────────────────────────────────────
 
-export async function getAllTickets(): Promise<TicketWithPhotos[]> {
+export async function getAllTickets(): Promise<TicketWithContacts[]> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
@@ -512,7 +514,8 @@ export async function getAllTickets(): Promise<TicketWithPhotos[]> {
     console.error('getAllTickets error:', error.message)
     return []
   }
-  return attachPhotosToList(supabase, (data ?? []) as Array<Record<string, unknown>>)
+  const withPhotos = await attachPhotosToList(supabase, (data ?? []) as Array<Record<string, unknown>>)
+  return attachContactsToList(supabase, withPhotos)
 }
 
 export async function getTicketStats(): Promise<TicketStats> {

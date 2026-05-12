@@ -97,6 +97,10 @@ export type PartnerWorkshop = {
   /** True for ateliers in the Plume network. Renders coral on the map; non-
    *  affiliated workshops render gray and carry no Plume guarantee. */
   affiliated: boolean
+  /** Contact public — affiché sur les cartes ticket école/admin. Optionnel. */
+  email?:     string
+  /** Contact public — affiché sur les cartes ticket école/admin. Optionnel. */
+  phone?:     string
 }
 
 // Real French paragliding repair shops + the Plume test atelier. Affiliated
@@ -112,6 +116,8 @@ export const PARTNER_WORKSHOPS: PartnerWorkshop[] = [
     lat:        44.5633,
     lng:        6.4957,
     affiliated: true,
+    email:      'sav@plumeparagliders.com',
+    phone:      '+33 4 92 00 00 00',
   },
   {
     id:         'ripair-talloires',
