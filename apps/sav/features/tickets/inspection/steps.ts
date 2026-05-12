@@ -32,10 +32,14 @@ export type Phase1 = {
   openSeamsNote?:      string
   openSeamsPhotoPaths?:string[]
   linesCondition?:     LinesCondition
+  linesNote?:          string
+  linesPhotoPaths?:    string[]
   maillonsInverted?:   YesNoIdk
   maillonsNote?:       string
   maillonsPhotoPaths?: string[]
   risersCondition?:    RisersCondition
+  risersNote?:         string
+  risersPhotoPaths?:   string[]
 }
 
 export type Phase2 =

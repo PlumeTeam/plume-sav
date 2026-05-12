@@ -30,8 +30,10 @@ import {
   showRipstopHint,
 } from './steps'
 
-// Keys identifying the four "Oui" questions in phase 1 that accept photos.
-type PhotoSlot = 'damage' | 'tears' | 'openSeams' | 'maillons'
+// Keys identifying every phase 1 question that accepts photos. The four "Oui"
+// branches require evidence; the tri-state ones (lines, risers) require it
+// only when the worst value is selected and offer it as optional on "worn".
+type PhotoSlot = 'damage' | 'tears' | 'openSeams' | 'maillons' | 'lines' | 'risers'
 
 function rehydratePhotos(paths: string[] | undefined): LocalInspectionPhoto[] {
   if (!paths || paths.length === 0) return []
@@ -92,6 +94,8 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
     tears:     rehydratePhotos(initial?.phase1?.tearsPhotoPaths),
     openSeams: rehydratePhotos(initial?.phase1?.openSeamsPhotoPaths),
     maillons:  rehydratePhotos(initial?.phase1?.maillonsPhotoPaths),
+    lines:     rehydratePhotos(initial?.phase1?.linesPhotoPaths),
+    risers:    rehydratePhotos(initial?.phase1?.risersPhotoPaths),
   })
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null)
 
@@ -166,9 +170,20 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
       const hasPhoto = photos.maillons.length > 0
       if (!hasText && !hasPhoto) return false
     }
+    if (phase1.linesCondition === 'broken') {
+      const hasText  = !!phase1.linesNote?.trim()
+      const hasPhoto = photos.lines.length > 0
+      if (!hasText && !hasPhoto) return false
+    }
+    if (phase1.risersCondition === 'damaged') {
+      const hasText  = !!phase1.risersNote?.trim()
+      const hasPhoto = photos.risers.length > 0
+      if (!hasText && !hasPhoto) return false
+    }
     return true
   }, [phase1.openSeams, phase1.linesCondition, phase1.maillonsInverted, phase1.risersCondition,
-      phase1.openSeamsNote, phase1.maillonsNote, photos.openSeams, photos.maillons])
+      phase1.openSeamsNote, phase1.maillonsNote, phase1.linesNote, phase1.risersNote,
+      photos.openSeams, photos.maillons, photos.lines, photos.risers])
 
   const inflationValid = useMemo(() => {
     if (phase2.skipped) return true
@@ -190,7 +205,7 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
     error: string | null
   }> {
     const supabase = createClient()
-    const slots: PhotoSlot[] = ['damage', 'tears', 'openSeams', 'maillons']
+    const slots: PhotoSlot[] = ['damage', 'tears', 'openSeams', 'maillons', 'lines', 'risers']
 
     const totalToUpload = slots.reduce(
       (acc, s) => acc + photos[s].filter((p) => p.file).length, 0
@@ -202,6 +217,8 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
           tears:     photos.tears.map((p) => p.existingPath!).filter(Boolean),
           openSeams: photos.openSeams.map((p) => p.existingPath!).filter(Boolean),
           maillons:  photos.maillons.map((p) => p.existingPath!).filter(Boolean),
+          lines:     photos.lines.map((p) => p.existingPath!).filter(Boolean),
+          risers:    photos.risers.map((p) => p.existingPath!).filter(Boolean),
         },
         error: null,
       }
@@ -210,7 +227,9 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
     setUploadProgress({ done: 0, total: totalToUpload })
     let done = 0
     let lastError: string | null = null
-    const result: Record<PhotoSlot, string[]> = { damage: [], tears: [], openSeams: [], maillons: [] }
+    const result: Record<PhotoSlot, string[]> = {
+      damage: [], tears: [], openSeams: [], maillons: [], lines: [], risers: [],
+    }
 
     for (const slot of slots) {
       let i = 0
@@ -262,12 +281,13 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
       // If the school added photos and *all* of them failed, surface the error
       // instead of silently saving an incomplete payload. If only some failed,
       // we keep going (the successfully uploaded ones are saved).
-      const newPhotosCount = (['damage','tears','openSeams','maillons'] as PhotoSlot[])
+      const ALL_SLOTS: PhotoSlot[] = ['damage','tears','openSeams','maillons','lines','risers']
+      const newPhotosCount = ALL_SLOTS
         .reduce((acc, s) => acc + photos[s].filter((p) => p.file).length, 0)
-      const uploadedCount = paths.damage.length + paths.tears.length
-                          + paths.openSeams.length + paths.maillons.length
-                          - (['damage','tears','openSeams','maillons'] as PhotoSlot[])
-                              .reduce((acc, s) => acc + photos[s].filter((p) => p.existingPath).length, 0)
+      const totalPathsKept = ALL_SLOTS.reduce((acc, s) => acc + paths[s].length, 0)
+      const existingKept = ALL_SLOTS
+        .reduce((acc, s) => acc + photos[s].filter((p) => p.existingPath).length, 0)
+      const uploadedCount = totalPathsKept - existingKept
       if (newPhotosCount > 0 && uploadedCount === 0 && uploadErr) {
         setFeedback({ type: 'error', msg: `Échec de l'upload des photos (${uploadErr}).` })
         setUploadProgress(null)
@@ -280,6 +300,8 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
         ...(paths.tears.length     ? { tearsPhotoPaths:     paths.tears     } : { tearsPhotoPaths:     undefined }),
         ...(paths.openSeams.length ? { openSeamsPhotoPaths: paths.openSeams } : { openSeamsPhotoPaths: undefined }),
         ...(paths.maillons.length  ? { maillonsPhotoPaths:  paths.maillons  } : { maillonsPhotoPaths:  undefined }),
+        ...(paths.lines.length     ? { linesPhotoPaths:     paths.lines     } : { linesPhotoPaths:     undefined }),
+        ...(paths.risers.length    ? { risersPhotoPaths:    paths.risers    } : { risersPhotoPaths:    undefined }),
       }
 
       const checkedIds: string[] = []
@@ -586,6 +608,29 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
             />
           </Field>
 
+          {(phase1.linesCondition === 'worn' || phase1.linesCondition === 'broken') && (
+            <div className="-mt-2 space-y-4 rounded-2xl border border-brand-stone bg-brand-cream/40 p-4">
+              <Field label="Photos des suspentes">
+                <InspectionPhotoField
+                  photos={photos.lines}
+                  onAdd={(p)   => addPhoto('lines', p)}
+                  onRemove={(id) => removePhoto('lines', id)}
+                />
+              </Field>
+              <Field label="Description (optionnel si photos)">
+                <textarea
+                  value={phase1.linesNote ?? ''}
+                  onChange={(e) => setPhase1({ ...phase1, linesNote: e.target.value })}
+                  rows={3}
+                  maxLength={2000}
+                  placeholder="Quelles suspentes, où, niveau d&apos;usure observé…"
+                  className="field-input resize-y"
+                />
+              </Field>
+              {phase1.linesCondition === 'broken' ? <PhotoOrTextHint /> : <OptionalEvidenceHint />}
+            </div>
+          )}
+
           <Field label="Maillons — inversés ou mal positionnés ?">
             <SegmentedChoice<YesNoIdk>
               options={[
@@ -632,6 +677,29 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
               onChange={(v) => setPhase1({ ...phase1, risersCondition: v })}
             />
           </Field>
+
+          {(phase1.risersCondition === 'worn' || phase1.risersCondition === 'damaged') && (
+            <div className="-mt-2 space-y-4 rounded-2xl border border-brand-stone bg-brand-cream/40 p-4">
+              <Field label="Photos des élévateurs">
+                <InspectionPhotoField
+                  photos={photos.risers}
+                  onAdd={(p)   => addPhoto('risers', p)}
+                  onRemove={(id) => removePhoto('risers', id)}
+                />
+              </Field>
+              <Field label="Description (optionnel si photos)">
+                <textarea
+                  value={phase1.risersNote ?? ''}
+                  onChange={(e) => setPhase1({ ...phase1, risersNote: e.target.value })}
+                  rows={3}
+                  maxLength={2000}
+                  placeholder="Quel élévateur, zone abîmée, niveau d&apos;usure…"
+                  className="field-input resize-y"
+                />
+              </Field>
+              {phase1.risersCondition === 'damaged' ? <PhotoOrTextHint /> : <OptionalEvidenceHint />}
+            </div>
+          )}
         </ScreenLayout>
       )}
 
@@ -827,13 +895,23 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-// Surfaced under every "Oui" branch in phase 1 — reminds the school that the
-// "Continuer" button stays disabled until they provide at least one of the
-// two pieces of evidence.
+// Surfaced under every problem branch in phase 1 (visible damage, tears, open
+// seams, inverted maillons, broken lines, damaged risers) — reminds the school
+// that the "Continuer" button stays disabled until they provide a photo or text.
 function PhotoOrTextHint() {
   return (
     <p className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
       ⚠️ Ajoutez au moins <strong>une photo</strong> ou <strong>une description</strong> pour continuer.
+    </p>
+  )
+}
+
+// Softer variant for intermediate states (e.g. "Usé") where evidence is helpful
+// but not gated — the wizard still lets the school continue without it.
+function OptionalEvidenceHint() {
+  return (
+    <p className="rounded-2xl border border-brand-stone bg-brand-cream/70 px-3 py-2 text-xs leading-relaxed text-slate-600">
+      💡 Optionnel — photo ou description bienvenues pour aider l&apos;atelier.
     </p>
   )
 }
