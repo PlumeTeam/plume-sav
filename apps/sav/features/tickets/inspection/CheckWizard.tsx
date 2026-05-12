@@ -3,6 +3,8 @@
 import { useMemo, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { saveSchoolChecklistAction } from '@/features/tickets/actions'
+import { createClient } from '@/lib/supabase/client'
+import { PhotoCapture } from '@/features/tickets/components/PhotoCapture'
 import {
   type SchoolCheckPayload,
   type Phase1,
@@ -13,7 +15,8 @@ import {
   type RisersCondition,
   type YesNo,
   type YesNoIdk,
-  type InflationSymmetry,
+  type InflationSurfaceConsistency,
+  type InflationPhoto,
   type TearSize,
   type SeamDistance,
   FABRIC_CONDITION_LABELS,
@@ -24,6 +27,7 @@ import {
   YESNO_LABELS,
   YESNOIDK_LABELS,
   INFLATION_SYMMETRY_LABELS,
+  INFLATION_SURFACE_LABELS,
   showRipstopHint,
 } from './steps'
 
@@ -117,7 +121,7 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
 
   const inflationValid = useMemo(() => {
     if (phase2.skipped) return true
-    return !!phase2.inflationSymmetry && !!phase2.inflationNormalBehavior
+    return !!phase2.inflationSurfaceConsistency && !!phase2.inflationNormalBehavior
   }, [phase2])
 
   const flightValid = useMemo(() => {
@@ -407,7 +411,7 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
         <ScreenLayout
           phase="Phase 2 — Check gonflage (optionnel)"
           title="Avez-vous pu gonfler l'aile ?"
-          subtitle="Test au sol (gonflage/marche) — optionnel mais utile pour repérer une asymétrie."
+          subtitle="Test au sol (gonflage/marche) — optionnel. Permet de vérifier l'état de surface et le comportement général de la voile."
           footer={
             <NavButtons
               onBack={() => go('back')}
@@ -424,7 +428,12 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
                 { value: 'yes', label: "Oui, j'ai fait un check au sol" },
                 { value: 'no',  label: 'Non, pas possible'              },
               ]}
-              value={phase2.skipped ? 'no' : (phase2.inflationSymmetry || phase2.inflationNormalBehavior ? 'yes' : undefined)}
+              value={phase2.skipped ? 'no' : (
+                phase2.inflationSurfaceConsistency ||
+                phase2.inflationNormalBehavior ||
+                (phase2.inflationPhotos?.length ?? 0) > 0
+                  ? 'yes' : undefined
+              )}
               onChange={(v) => {
                 if (v === 'no') setPhase2({ skipped: true })
                 else            setPhase2({ skipped: false })
@@ -434,22 +443,34 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
 
           {!phase2.skipped && (
             <>
-              <Field label="Gonflage symétrique ?">
-                <SegmentedChoice<InflationSymmetry>
+              <Field label="État de surface cohérent et propre ?">
+                <SegmentedChoice<InflationSurfaceConsistency>
                   options={[
-                    { value: 'yes',    label: INFLATION_SYMMETRY_LABELS.yes,    tone: 'emerald' },
-                    { value: 'no',     label: INFLATION_SYMMETRY_LABELS.no,     tone: 'red'     },
-                    { value: 'unsure', label: INFLATION_SYMMETRY_LABELS.unsure, tone: 'slate'   },
+                    { value: 'yes',    label: INFLATION_SURFACE_LABELS.yes,    tone: 'emerald' },
+                    { value: 'no',     label: INFLATION_SURFACE_LABELS.no,     tone: 'red'     },
+                    { value: 'unsure', label: INFLATION_SURFACE_LABELS.unsure, tone: 'slate'   },
                   ]}
-                  value={phase2.inflationSymmetry}
-                  onChange={(v) => setPhase2({ ...phase2, inflationSymmetry: v })}
+                  value={phase2.inflationSurfaceConsistency}
+                  onChange={(v) => setPhase2({ ...phase2, inflationSurfaceConsistency: v })}
                 />
               </Field>
 
-              <Field label="L'aile se comporte normalement au gonflage ?">
-                <YesNoSelector
+              <Field label="Comportement normal au gonflage ?">
+                <SegmentedChoice<YesNo>
+                  options={[
+                    { value: 'yes', label: 'Oui',             tone: 'emerald' },
+                    { value: 'no',  label: 'Non (suspicieux)', tone: 'red'    },
+                  ]}
                   value={phase2.inflationNormalBehavior}
                   onChange={(v) => setPhase2({ ...phase2, inflationNormalBehavior: v })}
+                />
+              </Field>
+
+              <Field label="Photos du gonflage (optionnel)">
+                <InflationPhotos
+                  ticketId={ticketId}
+                  photos={phase2.inflationPhotos ?? []}
+                  onChange={(next) => setPhase2({ ...phase2, inflationPhotos: next })}
                 />
               </Field>
 
@@ -459,7 +480,7 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
                   onChange={(e) => setPhase2({ ...phase2, inflationNotes: e.target.value })}
                   rows={3}
                   maxLength={2000}
-                  placeholder="Comportement noté, ressenti…"
+                  placeholder="Comportement noté, état de surface, ressenti…"
                   className="field-input resize-y"
                 />
               </Field>
@@ -777,8 +798,25 @@ function ReviewScreen({
       <ReviewSection title="Check gonflage" skipped={phase2.skipped}>
         {!phase2.skipped && (
           <>
-            <ReviewRow label="Symétrie" value={phase2.inflationSymmetry ? INFLATION_SYMMETRY_LABELS[phase2.inflationSymmetry] : '—'} />
-            <ReviewRow label="Comportement normal" value={phase2.inflationNormalBehavior ? YESNO_LABELS[phase2.inflationNormalBehavior] : '—'} />
+            {phase2.inflationSurfaceConsistency ? (
+              <ReviewRow label="État de surface" value={INFLATION_SURFACE_LABELS[phase2.inflationSurfaceConsistency]} />
+            ) : phase2.inflationSymmetry ? (
+              // Legacy V2 payload : la question s'appelait "Gonflage symétrique ?"
+              <ReviewRow label="Symétrie (ancien)" value={INFLATION_SYMMETRY_LABELS[phase2.inflationSymmetry]} />
+            ) : (
+              <ReviewRow label="État de surface" value="—" />
+            )}
+            <ReviewRow
+              label="Comportement au gonflage"
+              value={phase2.inflationNormalBehavior === 'no'
+                ? 'Non (suspicieux)'
+                : phase2.inflationNormalBehavior
+                  ? YESNO_LABELS[phase2.inflationNormalBehavior]
+                  : '—'}
+            />
+            {phase2.inflationPhotos && phase2.inflationPhotos.length > 0 && (
+              <ReviewRow label="Photos jointes" value={`${phase2.inflationPhotos.length} photo${phase2.inflationPhotos.length > 1 ? 's' : ''}`} />
+            )}
             {phase2.inflationNotes && <ReviewRow label="Remarques" value={phase2.inflationNotes} multiline />}
           </>
         )}
@@ -862,6 +900,146 @@ function ReviewRow({ label, value, multiline }: { label: string; value: string; 
       <p className={`text-sm text-brand-ink ${multiline ? 'whitespace-pre-line' : 'text-right font-semibold'}`}>
         {value}
       </p>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// InflationPhotos — capture + upload immédiat dans le bucket `tickets`
+//
+// Pourquoi upload immédiat plutôt que différé jusqu'au submit du wizard :
+//  - L'utilisateur peut naviguer entre les écrans (back / next) ; remonter les
+//    dataUrls jusqu'à la racine pour les conserver puis les uploader au submit
+//    casserait le découpage actuel et alourdirait la review.
+//  - Le check se déroule souvent sur smartphone avec connexion instable ; l'upload
+//    bouchée par bouchée limite la perte de données si le navigateur est tué.
+// Seul le storagePath persiste dans le payload ; le dataUrl est en mémoire pour
+// l'affichage des thumbnails dans la session courante.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface InflationPhotoLocal extends InflationPhoto {
+  /** dataUrl transient — uniquement pour afficher la miniature après capture.
+   *  Absent si on revient sur le wizard après reload (le storagePath suffit
+   *  côté payload, mais on n'a pas rechargé les blobs depuis le storage). */
+  dataUrl?: string
+}
+
+function InflationPhotos({
+  ticketId,
+  photos,
+  onChange,
+}: {
+  ticketId: string
+  photos:   InflationPhoto[]
+  onChange: (next: InflationPhoto[]) => void
+}) {
+  const [busy, setBusy]     = useState(false)
+  const [error, setError]   = useState<string | null>(null)
+  // dataUrls par storagePath, pour les miniatures (perdues entre sessions).
+  const [thumbs, setThumbs] = useState<Record<string, string>>({})
+
+  async function handlePhoto(file: File, dataUrl: string) {
+    setError(null)
+    setBusy(true)
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setError('Session expirée — reconnectez-vous.'); return }
+
+      const rawExt = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+      const ext = /^[a-z0-9]+$/.test(rawExt) ? rawExt : 'jpg'
+      const storagePath = `${user.id}/check-inflation/${ticketId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('tickets')
+        .upload(storagePath, file, {
+          upsert:       false,
+          contentType:  file.type || `image/${ext}`,
+          cacheControl: '3600',
+        })
+
+      if (uploadError) {
+        console.error('[inflation photo upload]', uploadError)
+        setError(`Échec de l'upload (${uploadError.message}).`)
+        return
+      }
+
+      setThumbs((prev) => ({ ...prev, [storagePath]: dataUrl }))
+      onChange([...photos, { storagePath }])
+    } catch (err) {
+      console.error('[inflation photo upload] threw', err)
+      setError('Une erreur inattendue est survenue.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleRemove(idx: number) {
+    const target = photos[idx]
+    if (!target) return
+    const supabase = createClient()
+    // Best-effort suppression du blob — si le storage refuse (RLS, déjà absent),
+    // on retire quand même la référence de l'état pour ne pas bloquer l'école.
+    const { error: storageError } = await supabase.storage.from('tickets').remove([target.storagePath])
+    if (storageError) console.warn('[inflation photo remove]', storageError.message)
+    onChange(photos.filter((_, i) => i !== idx))
+    setThumbs((prev) => {
+      const next = { ...prev }
+      delete next[target.storagePath]
+      return next
+    })
+  }
+
+  return (
+    <div className="space-y-3">
+      <PhotoCapture
+        onPhoto={handlePhoto}
+        photoType="other"
+        onBusyChange={setBusy}
+        disabled={busy}
+      />
+      {busy && <p className="text-xs text-slate-500">Compression / upload…</p>}
+      {error && (
+        <p className="rounded-xl bg-red-50 px-3 py-2 text-xs text-red-700" role="alert">
+          {error}
+        </p>
+      )}
+      {photos.length > 0 && (
+        <div>
+          <p className="mb-2 text-xs font-medium text-brand-ink">
+            {photos.length} photo{photos.length > 1 ? 's' : ''} jointe{photos.length > 1 ? 's' : ''}
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {photos.map((photo, idx) => {
+              const thumb = thumbs[photo.storagePath]
+              return (
+                <div key={photo.storagePath} className="relative aspect-square animate-fade-in">
+                  {thumb ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={thumb}
+                      alt={`Gonflage ${idx + 1}`}
+                      className="h-full w-full rounded-2xl object-cover ring-1 ring-brand-stone"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center rounded-2xl bg-brand-cream ring-1 ring-brand-stone text-xs text-slate-500">
+                      📷 #{idx + 1}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(idx)}
+                    className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-brand-ink/70 text-white backdrop-blur-sm hover:bg-red-600 transition-colors"
+                    aria-label={`Supprimer la photo ${idx + 1}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

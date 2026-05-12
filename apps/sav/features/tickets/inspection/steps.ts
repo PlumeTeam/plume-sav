@@ -9,9 +9,16 @@ export type LinesCondition   = 'good' | 'worn' | 'broken'
 export type RisersCondition  = 'good' | 'worn' | 'damaged'
 export type YesNo            = 'yes' | 'no'
 export type YesNoIdk         = 'yes' | 'no' | 'idk'
+/** Legacy V2 — remplacé en pratique par InflationSurfaceConsistency à partir de mai 2026. */
 export type InflationSymmetry = 'yes' | 'no' | 'unsure'
+export type InflationSurfaceConsistency = 'yes' | 'no' | 'unsure'
 export type TearSize         = 'lt5' | '5to10' | '10to15' | 'gt15'
 export type SeamDistance     = 'close' | 'far'
+
+export interface InflationPhoto {
+  /** Chemin dans le bucket `tickets` (Supabase Storage). */
+  storagePath: string
+}
 
 export type Phase1 = {
   // Écran 1 — Inspection visuelle générale
@@ -34,10 +41,22 @@ export type Phase1 = {
 export type Phase2 =
   | { skipped: true }
   | {
-      skipped:                  false
-      inflationSymmetry?:       InflationSymmetry
-      inflationNormalBehavior?: YesNo
-      inflationNotes?:          string
+      skipped:                      false
+      /** Remplace inflationSymmetry — la symétrie au gonflage est quasi impossible
+       *  à constater à l'œil nu, on bascule sur un critère plus parlant pour les
+       *  écoles : l'état de surface (propreté, cohérence) observable au sol. */
+      inflationSurfaceConsistency?: InflationSurfaceConsistency
+      /** @deprecated Présent dans les payloads V2 historiques uniquement — plus
+       *  collecté depuis mai 2026. Lu par le review screen pour ne pas casser
+       *  l'affichage des anciens checks. */
+      inflationSymmetry?:           InflationSymmetry
+      inflationNormalBehavior?:     YesNo
+      inflationNotes?:              string
+      /** Photos optionnelles jointes au check de gonflage. Stockées dans le
+       *  bucket `tickets`, leurs chemins persistent dans le payload de la
+       *  checklist (pas de ligne `ticket_photos` côté SAV : ces clichés sont
+       *  attachés au check, pas au ticket global). */
+      inflationPhotos?:             InflationPhoto[]
     }
 
 export type Phase3 =
@@ -107,6 +126,9 @@ export const YESNOIDK_LABELS: Record<YesNoIdk, string> = {
   yes: 'Oui', no: 'Non', idk: 'Je ne sais pas',
 }
 export const INFLATION_SYMMETRY_LABELS: Record<InflationSymmetry, string> = {
+  yes: 'Oui', no: 'Non', unsure: 'Difficile à dire',
+}
+export const INFLATION_SURFACE_LABELS: Record<InflationSurfaceConsistency, string> = {
   yes: 'Oui', no: 'Non', unsure: 'Difficile à dire',
 }
 
