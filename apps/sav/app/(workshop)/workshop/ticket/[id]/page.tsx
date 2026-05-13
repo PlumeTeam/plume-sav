@@ -239,7 +239,10 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
               {schoolCheckPayload && (
                 <section className="card p-5">
                   <h2 className="section-title mb-3">Check de l&apos;école</h2>
-                  <SchoolCheckSummary raw={ticket.school_checklist} />
+                  <SchoolCheckSummary
+                    raw={ticket.school_checklist}
+                    schoolName={school?.name ?? null}
+                  />
                 </section>
               )}
 
@@ -249,7 +252,12 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                   {schoolCheckInspector && !schoolCheckPayload && (
                     <div className="mb-3 flex items-center gap-2 rounded-xl bg-white/60 px-3 py-2 text-sm text-brand-ink">
                       <span aria-hidden>👤</span>
-                      <span>Check effectué par <strong>{schoolCheckInspector}</strong></span>
+                      <span>
+                        Check effectué par <strong>{schoolCheckInspector}</strong>
+                        {school?.name && (
+                          <> de l&apos;école <strong>{school.name}</strong></>
+                        )}
+                      </span>
                     </div>
                   )}
                   <p className="whitespace-pre-line text-sm text-brand-ink">{ticket.school_resolution_note}</p>
@@ -503,10 +511,18 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                       {schoolCheckInspector && (
                         <div className="mb-3 flex items-center gap-2 rounded-xl bg-brand-cream/60 px-3 py-2 text-sm text-brand-ink">
                           <span aria-hidden>👤</span>
-                          <span>Check effectué par <strong>{schoolCheckInspector}</strong></span>
+                          <span>
+                            Check effectué par <strong>{schoolCheckInspector}</strong>
+                            {school?.name && (
+                              <> de l&apos;école <strong>{school.name}</strong></>
+                            )}
+                          </span>
                         </div>
                       )}
-                      <SchoolCheckSummary raw={ticket.school_checklist} />
+                      <SchoolCheckSummary
+                        raw={ticket.school_checklist}
+                        schoolName={school?.name ?? null}
+                      />
                     </section>
                   ) : (
                     <section className="card border-dashed p-4 text-center">

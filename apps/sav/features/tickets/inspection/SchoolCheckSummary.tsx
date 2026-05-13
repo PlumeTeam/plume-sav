@@ -55,9 +55,13 @@ function risersSeverity(v: RisersCondition | undefined): Severity {
 interface SchoolCheckSummaryProps {
   /** Raw value of service_requests.school_checklist (Json) */
   raw: unknown
+  /** Optionnel — nom de l'école qui a effectué le check, pour la traçabilité.
+   *  Quand renseigné, on l'ajoute à la ligne "Check effectué par …" pour
+   *  qu'on sache qui (moniteur) et où (école) l'inspection a eu lieu. */
+  schoolName?: string | null
 }
 
-export function SchoolCheckSummary({ raw }: SchoolCheckSummaryProps) {
+export function SchoolCheckSummary({ raw, schoolName }: SchoolCheckSummaryProps) {
   const payload = readSchoolCheckPayload(raw)
   if (!payload) return null
 
@@ -207,7 +211,12 @@ export function SchoolCheckSummary({ raw }: SchoolCheckSummaryProps) {
       {/* Méta — inspecteur + date */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
         {inspectorName?.trim() && (
-          <span>👤 Check effectué par <strong className="text-brand-ink">{inspectorName.trim()}</strong></span>
+          <span>
+            👤 Check effectué par <strong className="text-brand-ink">{inspectorName.trim()}</strong>
+            {schoolName?.trim() && (
+              <> de l&apos;école <strong className="text-brand-ink">{schoolName.trim()}</strong></>
+            )}
+          </span>
         )}
         {completedAt && (
           <span>🕓 {formatDateTime(completedAt)}</span>
