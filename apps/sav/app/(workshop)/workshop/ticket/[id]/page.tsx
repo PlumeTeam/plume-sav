@@ -21,6 +21,8 @@ import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCa
 import { WorkshopActionBar } from './WorkshopActionBar'
 import { WorkshopStepPanel } from './WorkshopStepPanel'
 import { WorkshopTicketTabs } from './WorkshopTicketTabs'
+import { DiagnosticViewSwitcher } from './DiagnosticViewSwitcher'
+import { PROBLEM_CATEGORIES } from '@/features/tickets/types'
 import type { CloserRole, ClosureOutcome, TicketMessage, WarrantyStatus, WorkshopDecision, WorkshopReturnDestination } from '@/features/tickets/types'
 
 // Garantie : 2 ans à compter de la date d'achat (politique Plume Paragliders).
@@ -411,72 +413,158 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
             </>
           }
           diagnostic={
-            <>
-              {/* Checklist technique atelier — les notes vivent dans WorkshopActionBar (P2) */}
-              <section className="card p-5">
-                <h2 className="section-title mb-3">Checklist diagnostic technique</h2>
-                <DiagnosisChecklist
-                  ticketId={ticket.id}
-                  items={WORKSHOP_TECHNICAL_CHECKLIST}
-                  initialChecked={initialChecked}
-                  initialNotes={initialNotes}
-                  saveAction={saveWorkshopChecklistAction}
-                  variant="navy"
-                  hideNotes
-                />
-              </section>
-
-              {/* Diagnostic technicien — saisie + récap fusionnés. Le composer
-                  messages a été retiré : la messagerie passe par l'onglet
-                  Messages uniquement. */}
-              <section className="card p-5">
-                <h2 className="section-title mb-4">Diagnostic technicien</h2>
-                <WorkshopActionBar
-                  ticketId={ticket.id}
-                  diagnosisNotes={ticket.diagnosis_notes}
-                  estimatedCost={ticket.estimated_cost}
-                  estimatedHours={ticket.estimated_hours}
-                  partsNeeded={ticket.parts_needed}
-                />
-                {(canCloseFromWorkshop || isPlumeAdmin) && (
-                  <div className="mt-4 border-t border-brand-stone/40 pt-4">
-                    <p className="mb-2 text-xs text-slate-500">
-                      Quand le SAV est terminé : déclarez le statut final pour clôturer le ticket.
-                    </p>
-                    <CloseTicketButton
+            <DiagnosticViewSwitcher
+              workshop={
+                <>
+                  {/* Checklist technique atelier — les notes vivent dans WorkshopActionBar (P2) */}
+                  <section className="card p-5">
+                    <h2 className="section-title mb-3">Checklist diagnostic technique</h2>
+                    <DiagnosisChecklist
                       ticketId={ticket.id}
-                      ticketRef={ticketRef}
-                      closerRole={closerRole}
-                      variant="ghost"
+                      items={WORKSHOP_TECHNICAL_CHECKLIST}
+                      initialChecked={initialChecked}
+                      initialNotes={initialNotes}
+                      saveAction={saveWorkshopChecklistAction}
+                      variant="navy"
+                      hideNotes
                     />
-                  </div>
-                )}
-              </section>
+                  </section>
 
-              {/* Pré-check : trace des observations + tarif figé (facturé à Plume) */}
-              {ticket.pre_check_observations && (
-                <section className="card p-5">
-                  <h2 className="section-title mb-3">Pré-check</h2>
-                  <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">
-                    {ticket.pre_check_observations}
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {ticket.pre_check_fee_eur != null && (
-                      <span className="rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
-                        💰 {ticket.pre_check_fee_eur} € facturés à Plume
-                      </span>
+                  {/* Diagnostic technicien — saisie + récap fusionnés. Le composer
+                      messages a été retiré : la messagerie passe par l'onglet
+                      Messages uniquement. */}
+                  <section className="card p-5">
+                    <h2 className="section-title mb-4">Diagnostic technicien</h2>
+                    <WorkshopActionBar
+                      ticketId={ticket.id}
+                      diagnosisNotes={ticket.diagnosis_notes}
+                      estimatedCost={ticket.estimated_cost}
+                      estimatedHours={ticket.estimated_hours}
+                      partsNeeded={ticket.parts_needed}
+                    />
+                    {(canCloseFromWorkshop || isPlumeAdmin) && (
+                      <div className="mt-4 border-t border-brand-stone/40 pt-4">
+                        <p className="mb-2 text-xs text-slate-500">
+                          Quand le SAV est terminé : déclarez le statut final pour clôturer le ticket.
+                        </p>
+                        <CloseTicketButton
+                          ticketId={ticket.id}
+                          ticketRef={ticketRef}
+                          closerRole={closerRole}
+                          variant="ghost"
+                        />
+                      </div>
                     )}
-                    {ticket.pre_check_started_at && ticket.pre_check_completed_at && (
-                      <span className="rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
-                        ⏱ {formatDate(ticket.pre_check_started_at)}
-                        {' → '}
-                        {formatDate(ticket.pre_check_completed_at)}
-                      </span>
+                  </section>
+
+                  {/* Pré-check : trace des observations + tarif figé (facturé à Plume) */}
+                  {ticket.pre_check_observations && (
+                    <section className="card p-5">
+                      <h2 className="section-title mb-3">Pré-check</h2>
+                      <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">
+                        {ticket.pre_check_observations}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {ticket.pre_check_fee_eur != null && (
+                          <span className="rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
+                            💰 {ticket.pre_check_fee_eur} € facturés à Plume
+                          </span>
+                        )}
+                        {ticket.pre_check_started_at && ticket.pre_check_completed_at && (
+                          <span className="rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
+                            ⏱ {formatDate(ticket.pre_check_started_at)}
+                            {' → '}
+                            {formatDate(ticket.pre_check_completed_at)}
+                          </span>
+                        )}
+                      </div>
+                    </section>
+                  )}
+                </>
+              }
+              school={
+                <>
+                  {/* Check structuré école (V2) — code couleur vert/jaune/rouge
+                      + photos par item embarquées dans SchoolCheckSummary. */}
+                  {schoolCheckPayload ? (
+                    <section className="card p-5">
+                      <h2 className="section-title mb-3">Check de l&apos;école</h2>
+                      {schoolCheckInspector && (
+                        <div className="mb-3 flex items-center gap-2 rounded-xl bg-brand-cream/60 px-3 py-2 text-sm text-brand-ink">
+                          <span aria-hidden>👤</span>
+                          <span>Check effectué par <strong>{schoolCheckInspector}</strong></span>
+                        </div>
+                      )}
+                      <SchoolCheckSummary raw={ticket.school_checklist} />
+                    </section>
+                  ) : (
+                    <section className="card border-dashed p-4 text-center">
+                      <p className="text-sm text-slate-500">
+                        L&apos;école n&apos;a pas encore renseigné de check structuré pour ce ticket.
+                      </p>
+                    </section>
+                  )}
+
+                  {/* Note libre d'escalade — complète le check, surtout utile
+                      sur les anciens tickets sans payload V2. */}
+                  {ticket.school_resolution === 'escalated_to_workshop' && ticket.school_resolution_note && (
+                    <section className="card p-5 bg-brand-gold/5 border-brand-gold/30">
+                      <h2 className="section-title mb-3">Note d&apos;escalade de l&apos;école</h2>
+                      <p className="whitespace-pre-line text-sm text-brand-ink">{ticket.school_resolution_note}</p>
+                    </section>
+                  )}
+                </>
+              }
+              client={
+                <>
+                  {/* Déclaration initiale — texte fourni par le pilote au wizard.
+                      Inclut souvent l'historique de l'aile (water, sand, hours…)
+                      replié dans la description par createTicketAction. */}
+                  <section className="card p-5">
+                    <h2 className="section-title mb-3">Déclaration du client</h2>
+                    <div className="mb-3 flex flex-wrap gap-2">
+                      {ticket.problem_category && (() => {
+                        const cat = PROBLEM_CATEGORIES.find((c) => c.value === ticket.problem_category)
+                        return (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
+                            <span aria-hidden>{cat?.emoji ?? '🛠️'}</span>
+                            {cat?.label ?? ticket.problem_category}
+                          </span>
+                        )
+                      })()}
+                      {ticket.urgency_level === 2 && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700 ring-1 ring-red-200">
+                          🚨 Urgent
+                        </span>
+                      )}
+                    </div>
+                    {ticket.description ? (
+                      <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">
+                        {ticket.description}
+                      </p>
+                    ) : (
+                      <p className="text-sm italic text-slate-500">Aucune description fournie.</p>
                     )}
-                  </div>
-                </section>
-              )}
-            </>
+                  </section>
+
+                  {/* Photos uploadées par le client à la création du ticket. */}
+                  {ticket.ticket_photos.length > 0 ? (
+                    <section className="card p-5">
+                      <h2 className="section-title mb-3">
+                        Photos du client ({ticket.ticket_photos.length})
+                      </h2>
+                      <PhotoLightbox photos={ticket.ticket_photos} />
+                    </section>
+                  ) : (
+                    <section className="card border-dashed p-4 text-center">
+                      <p className="text-sm text-slate-500">
+                        Le client n&apos;a pas joint de photo à sa demande.
+                      </p>
+                    </section>
+                  )}
+                </>
+              }
+            />
           }
           messages={
             <>
