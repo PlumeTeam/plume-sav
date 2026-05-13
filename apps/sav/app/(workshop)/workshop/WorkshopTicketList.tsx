@@ -3,15 +3,17 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
+import { TicketContactsBlock } from '@/features/tickets/components/TicketContactsBlock'
 import { formatDate } from '@/features/tickets/utils'
-import type { TicketWithPhotos, RequestStatus } from '@/features/tickets/types'
+import type { RequestStatus } from '@/features/tickets/types'
+import type { TicketWithContacts } from '@/features/tickets/contacts'
 
 // Deux types métier visibles côté atelier :
 //  - 'advice'   → l'école demande un avis distance, aucune aile envoyée
 //  - 'physical' → une aile arrive ou est arrivée physiquement à l'atelier
 type TicketKind = 'advice' | 'physical'
 
-function getTicketKind(t: TicketWithPhotos): TicketKind {
+function getTicketKind(t: TicketWithContacts): TicketKind {
   return t.school_resolution === 'workshop_advice_requested' ? 'advice' : 'physical'
 }
 
@@ -34,7 +36,7 @@ const IN_PROGRESS_STATUSES: RequestStatus[] = [
 
 const DONE_STATUSES: RequestStatus[] = ['wing_returned', 'completed']
 
-function matchesStatusBucket(t: TicketWithPhotos, bucket: StatusBucket): boolean {
+function matchesStatusBucket(t: TicketWithContacts, bucket: StatusBucket): boolean {
   if (bucket === 'all') return true
   // Les consultations en ligne ne suivent pas le pipeline classique : on les
   // rattache à "À traiter" tant qu'elles ne sont pas clôturées.
@@ -75,7 +77,7 @@ const URGENCY_FILTER_LABELS: Record<UrgencyFilter, string> = {
 }
 
 interface WorkshopTicketListProps {
-  tickets: TicketWithPhotos[]
+  tickets: TicketWithContacts[]
 }
 
 export function WorkshopTicketList({ tickets }: WorkshopTicketListProps) {
@@ -236,11 +238,16 @@ function EmptyState({ hasFilter }: { hasFilter: boolean }) {
   )
 }
 
-function WorkshopTicketRow({ ticket }: { ticket: TicketWithPhotos }) {
+function WorkshopTicketRow({ ticket }: { ticket: TicketWithContacts }) {
   const kind = getTicketKind(ticket)
   const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
-  const clientName = [ticket.first_name, ticket.last_name].filter(Boolean).join(' ')
   const productLine = [ticket.product_brand, ticket.product_model].filter(Boolean).join(' ') || 'Aile'
+  // Sous-ligne aile : taille + n° série. Cohérence avec le bandeau d'info de
+  // la page détail (taille à côté de la marque/modèle).
+  const wingMeta = [
+    ticket.wing_size && `Taille ${ticket.wing_size}`,
+    ticket.serial_number,
+  ].filter(Boolean) as string[]
 
   return (
     <Link
@@ -264,23 +271,30 @@ function WorkshopTicketRow({ ticket }: { ticket: TicketWithPhotos }) {
         <span className="ml-auto font-mono text-[11px] text-slate-400">{ticketRef}</span>
       </div>
 
-      {/* Ligne 2 — produit + client */}
+      {/* Ligne 2 — produit + aile */}
       <div className="mt-2 flex items-baseline justify-between gap-3">
         <p className="truncate text-sm font-semibold text-brand-ink">{productLine}</p>
         <span className="shrink-0 text-lg text-slate-300 transition-colors group-hover:text-brand-gold" aria-hidden>›</span>
       </div>
-      <p className="mt-0.5 truncate text-xs text-slate-500">
-        {clientName || '—'}
-        {ticket.serial_number && (
-          <>
-            <span className="mx-1.5 text-slate-300">•</span>
-            <span className="font-mono">{ticket.serial_number}</span>
-          </>
-        )}
-      </p>
+      {wingMeta.length > 0 && (
+        <p className="mt-0.5 truncate text-xs text-slate-500">
+          {wingMeta.map((part, i) => (
+            <span key={i}>
+              {i > 0 && <span className="mx-1.5 text-slate-300">•</span>}
+              <span className={i === wingMeta.length - 1 && ticket.serial_number ? 'font-mono' : ''}>
+                {part}
+              </span>
+            </span>
+          ))}
+        </p>
+      )}
 
       {/* Ligne 3 — date */}
       <p className="mt-2 text-xs text-slate-400">{formatDate(ticket.created_at)}</p>
+
+      {/* Ligne 4 — contacts (Client, École, Atelier) — partage le composant
+          déjà utilisé sur la file école pour cohérence visuelle. */}
+      <TicketContactsBlock contacts={ticket.contacts} />
     </Link>
   )
 }
