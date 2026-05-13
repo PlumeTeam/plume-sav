@@ -2,11 +2,105 @@ import Link from 'next/link'
 import { getAllTickets, getPartnerSchools, getTicketStats } from '@/features/tickets/queries'
 import { STATUS_CONFIG } from '@/features/tickets/types'
 import type { RequestStatus, TicketWithPhotos } from '@/features/tickets/types'
+import type { TicketWithContacts } from '@/features/tickets/contacts'
 import { AdminTicketTable } from './AdminTicketTable'
+import { AdminAlerts, type AdminAlertGroup } from './AdminAlerts'
 
 export const dynamic = 'force-dynamic'
 
-const DAY_MS = 86_400_000
+const HOUR_MS = 3_600_000
+const DAY_MS  = 86_400_000
+
+// Statuts considérés comme "terminés" — un ticket dans ces statuts ne déclenche
+// jamais d'alerte de SLA (peu importe son ancienneté).
+const CLOSED_STATUSES = new Set<RequestStatus>([
+  'completed',
+  'school_resolved',
+  'wing_returned',
+  'cancelled',
+  'rejected',
+])
+
+function isClosedTicket(t: TicketWithContacts): boolean {
+  // closed_at est posé par le flow de clôture explicite (T7) ; certains
+  // statuts héritages restent dans CLOSED_STATUSES sans avoir closed_at.
+  return t.closed_at !== null || CLOSED_STATUSES.has(t.status)
+}
+
+function ageMs(iso: string | null | undefined, now: number): number {
+  if (!iso) return 0
+  const t = new Date(iso).getTime()
+  if (!Number.isFinite(t)) return 0
+  return Math.max(0, now - t)
+}
+
+function buildAlertGroups(tickets: TicketWithContacts[]): AdminAlertGroup[] {
+  const now = Date.now()
+  const threeDays = 3 * DAY_MS
+
+  const noActivity = tickets
+    .filter((t) => !isClosedTicket(t) && ageMs(t.updated_at, now) > threeDays)
+    .sort((a, b) => ageMs(b.updated_at, now) - ageMs(a.updated_at, now))
+
+  // En attente école : l'école n'a pas encore accusé réception (status === 'pending')
+  // depuis > 24h. On mesure l'ancienneté depuis created_at (school_acknowledged_at
+  // est null par définition tant que pending).
+  const pendingSchool = tickets
+    .filter((t) => t.status === 'pending' && ageMs(t.created_at, now) > HOUR_MS * 24)
+    .sort((a, b) => ageMs(b.created_at, now) - ageMs(a.created_at, now))
+
+  // En attente atelier : status escalated_to_workshop sans réception de l'aile
+  // (wing_received_workshop_at IS NULL) depuis > 48h. On prend escalated_to_workshop_at
+  // comme point de départ, avec fallback sur updated_at.
+  const pendingWorkshop = tickets
+    .filter((t) => {
+      if (t.status !== 'escalated_to_workshop') return false
+      if (t.wing_received_workshop_at !== null) return false
+      const start = t.escalated_to_workshop_at ?? t.updated_at
+      return ageMs(start, now) > HOUR_MS * 48
+    })
+    .sort((a, b) => {
+      const aStart = a.escalated_to_workshop_at ?? a.updated_at
+      const bStart = b.escalated_to_workshop_at ?? b.updated_at
+      return ageMs(bStart, now) - ageMs(aStart, now)
+    })
+
+  return [
+    {
+      key:        'no_activity',
+      emoji:      '🔴',
+      label:      'Sans activité > 3 j',
+      title:      'Tickets sans activité > 3 jours',
+      hint:       'Aucune mise à jour récente',
+      tone:       'red',
+      dateOf:     (t) => t.updated_at,
+      tickets:    noActivity,
+      linkPrefix: '/school/ticket',
+    },
+    {
+      key:        'pending_school',
+      emoji:      '🟠',
+      label:      'En attente école > 24 h',
+      title:      'En attente école > 24h',
+      hint:       "L'école n'a pas accusé réception",
+      tone:       'orange',
+      dateOf:     (t) => t.created_at,
+      tickets:    pendingSchool,
+      linkPrefix: '/school/ticket',
+    },
+    {
+      key:        'pending_workshop',
+      emoji:      '🟡',
+      label:      'En attente atelier > 48 h',
+      title:      'En attente atelier > 48h',
+      hint:       "L'aile n'est pas arrivée à l'atelier",
+      tone:       'yellow',
+      dateOf:     (t) => t.escalated_to_workshop_at ?? t.updated_at,
+      tickets:    pendingWorkshop,
+      linkPrefix: '/workshop/ticket',
+    },
+  ]
+}
 
 // KPI groups alignés sur le pipeline d'étapes (migration 20260509000000).
 // On inclut les statuts hérités (processing/approved) dans leurs colonnes
@@ -110,6 +204,10 @@ export default async function PlumeDashboardPage() {
   // Stagnant tickets (T3)
   const stagnant = findStagnantTickets(tickets)
 
+  // Alertes SLA (T8) — 3 catégories : sans activité > 3 j, attente école > 24 h,
+  // attente atelier > 48 h. Calcul côté serveur, ouverture/fermeture côté client.
+  const alertGroups = buildAlertGroups(tickets)
+
   return (
     <main className="mx-auto max-w-6xl space-y-8 px-4 py-8">
       {/* Header */}
@@ -123,6 +221,9 @@ export default async function PlumeDashboardPage() {
           <Link href="/workshop" className="btn-secondary text-xs px-4 py-2">Vue Atelier</Link>
         </div>
       </header>
+
+      {/* Alertes SLA — bandeau compteur + 3 catégories collapsibles */}
+      <AdminAlerts groups={alertGroups} />
 
       {/* Défauts graves — alerte sécurité de plus haut niveau */}
       {plumeUrgent.length > 0 && (
