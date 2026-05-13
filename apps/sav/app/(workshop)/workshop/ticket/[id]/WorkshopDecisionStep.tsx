@@ -205,7 +205,20 @@ function WorkshopDecisionModal({
   }, [costInput])
 
   const costExceedsThreshold =
-    choice === 'repair' && parsedCost != null && parsedCost > thresholdEur
+    parsedCost != null && parsedCost > thresholdEur
+  const costWithinBudget =
+    parsedCost != null && parsedCost <= thresholdEur
+
+  // Auto-bascule : si l'atelier saisit un montant qui dépasse le plafond
+  // garanti pendant qu'il est sur l'option « Réparation », on force la
+  // sélection vers « Remplacement » — le devis est refusé par Plume.
+  // Le coût saisi reste en mémoire et est ré-affiché dans la card
+  // Remplacement avec le bandeau rouge expliquant pourquoi on bascule.
+  useEffect(() => {
+    if (costExceedsThreshold && choice === 'repair') {
+      setChoice('replacement')
+    }
+  }, [costExceedsThreshold, choice])
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -215,11 +228,14 @@ function WorkshopDecisionModal({
       return
     }
     if (choice === 'repair' && parsedCost == null) {
-      setError('Saisissez le coût estimé de la réparation.')
+      setError('Saisissez le coût estimé HT de la réparation.')
       return
     }
-    if (costExceedsThreshold) {
-      setError(`Coût > seuil ${formatEur(thresholdEur)} — choisissez « Remplacement ».`)
+    // Cost > seuil n'est interdit QUE sur 'repair' (Plume refuse le devis).
+    // 'replacement' avec un coût > seuil est légitime — c'est la justification
+    // même du remplacement.
+    if (choice === 'repair' && costExceedsThreshold) {
+      setError(`Devis refusé : coût > seuil ${formatEur(thresholdEur)} HT — choisissez « Remplacement ».`)
       return
     }
 
@@ -272,7 +288,8 @@ function WorkshopDecisionModal({
         </div>
 
         <p className="text-xs text-slate-500">
-          Seuil Plume : <strong>{formatEur(thresholdEur)}</strong>. Au-delà, on remplace l&apos;aile plutôt que de réparer.
+          Seuil Plume : <strong>{formatEur(thresholdEur)} HT</strong>. Au-delà du plafond garanti,
+          on remplace l&apos;aile plutôt que de la réparer.
         </p>
 
         <fieldset className="space-y-2">
@@ -293,28 +310,30 @@ function WorkshopDecisionModal({
             onSelect={() => setChoice('repair')}
             emoji="🔧"
             title="Réparation"
-            subtitle="Coût estimé requis. Doit rester ≤ seuil Plume pour valider."
+            subtitle="Coût estimé HT requis. Doit rester ≤ seuil Plume HT pour valider."
           >
             {choice === 'repair' && (
-              <div className="mt-2 space-y-1">
-                <label htmlFor="decision-cost" className="block text-xs font-medium text-slate-600">
-                  Coût estimé de la réparation (€)
-                </label>
-                <input
-                  id="decision-cost"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={costInput}
-                  onChange={(e) => setCostInput(e.target.value)}
-                  className="field-input"
-                  placeholder={`Ex. ${Math.round(thresholdEur / 2)}`}
-                  inputMode="decimal"
-                  autoFocus
-                />
-                {costExceedsThreshold && (
-                  <p className="text-xs text-amber-700">
-                    ⚠️ {formatEur(parsedCost!)} dépasse le seuil — il faut choisir « Remplacement ».
+              <div className="mt-2 space-y-2">
+                <div>
+                  <label htmlFor="decision-cost" className="block text-xs font-medium text-slate-600">
+                    Coût estimé de la réparation HT (€)
+                  </label>
+                  <input
+                    id="decision-cost"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={costInput}
+                    onChange={(e) => setCostInput(e.target.value)}
+                    className="field-input mt-1"
+                    placeholder={`Ex. ${Math.round(thresholdEur / 2)}`}
+                    inputMode="decimal"
+                    autoFocus
+                  />
+                </div>
+                {costWithinBudget && (
+                  <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800 ring-1 ring-emerald-200">
+                    ✅ Devis dans le budget — réparation autorisée
                   </p>
                 )}
               </div>
@@ -328,7 +347,20 @@ function WorkshopDecisionModal({
             emoji="🆕"
             title="Remplacement de l'aile"
             subtitle="Coût > seuil, réparation impossible, ou aile irrécupérable. Plume HQ pilote la suite."
-          />
+          >
+            {choice === 'replacement' && costExceedsThreshold && (
+              <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800">
+                <p className="font-bold">
+                  ❌ Devis refusé — le montant dépasse le plafond garanti.
+                </p>
+                <p className="mt-1 font-normal text-red-700">
+                  {formatEur(parsedCost!)} HT &gt; seuil {formatEur(thresholdEur)} HT.
+                  Une aile neuve sera envoyée au client. Le client devra nous renvoyer
+                  l&apos;aile défectueuse.
+                </p>
+              </div>
+            )}
+          </OptionCard>
         </fieldset>
 
         <div>
@@ -363,7 +395,7 @@ function WorkshopDecisionModal({
           </button>
           <button
             type="submit"
-            disabled={isPending || !choice || costExceedsThreshold}
+            disabled={isPending || !choice || (choice === 'repair' && costExceedsThreshold)}
             className="btn-primary"
           >
             {isPending ? 'Enregistrement…' : 'Valider la décision'}
