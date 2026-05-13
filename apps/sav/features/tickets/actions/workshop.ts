@@ -16,6 +16,7 @@ import type {
   TicketStatus,
   TicketUpdate,
   WarrantyStatus,
+  WarrantyTier,
   WizardProblemCategory,
   WorkshopDecision,
 } from '../types'
@@ -373,13 +374,15 @@ export async function submitWorkshopDecisionAction(formData: FormData) {
   // ultérieures (révision d'une décision déjà prise).
   const { data: ticket, error: ticketError } = await supabase
     .from('service_requests')
-    .select('id, status, purchase_date')
+    .select('id, status, purchase_date, warranty_tier, ticket_number')
     .eq('id', ticketId)
     .single()
     .returns<{
-      id:            string
-      status:        RequestStatus
-      purchase_date: string | null
+      id:             string
+      status:         RequestStatus
+      purchase_date:  string | null
+      warranty_tier:  WarrantyTier | null
+      ticket_number:  string | null
     }>()
 
   if (ticketError || !ticket) {
@@ -405,16 +408,46 @@ export async function submitWorkshopDecisionAction(formData: FormData) {
   }
 
   const settings = await getPlumeSettings()
-  const threshold = settings.repairReplacementThresholdEur
 
-  // Garde-fou serveur : 'repair' impose cost ≤ threshold. Au-dessus, on
-  // refuse et on suggère 'replacement' (l'UI propose les 2 options en
-  // parallèle, donc on n'a pas de fallback automatique).
-  if (decision === 'repair' && estimatedCost != null && estimatedCost > threshold) {
+  // Plafond effectif selon le tier figé sur le ticket :
+  // - standard / plume_override : repair_replacement_threshold_eur
+  // - extended                  : repair_threshold_extended_eur
+  // - out_of_warranty           : pas de plafond (devis libre soumis au client)
+  // - null (ticket pré-chantier garantie) : on retombe sur le standard
+  const ticketTier = ticket.warranty_tier
+  const effectiveThreshold: number | null =
+    ticketTier === 'out_of_warranty' ? null :
+    ticketTier === 'extended'        ? settings.repairThresholdExtendedEur :
+    settings.repairReplacementThresholdEur
+
+  // Garde-fou serveur : 'repair' impose cost ≤ threshold quand il existe.
+  // En hors garantie, le seuil est null → check skippé (devis libre).
+  if (
+    decision === 'repair' &&
+    estimatedCost != null &&
+    effectiveThreshold != null &&
+    estimatedCost > effectiveThreshold
+  ) {
     return {
       error: {
         estimatedCost: [
-          `Coût ${estimatedCost} € > seuil Plume ${threshold} € — choisissez « Remplacement ».`,
+          `Coût ${estimatedCost} € > seuil Plume ${effectiveThreshold} € HT — choisissez « Remplacement ».`,
+        ],
+      },
+    }
+  }
+
+  // Refuse 'replacement' en garantie étendue si Plume ne le couvre pas.
+  if (
+    decision === 'replacement' &&
+    ticketTier === 'extended' &&
+    !settings.extendedCoversReplacement
+  ) {
+    return {
+      error: {
+        _form: [
+          "Plume ne couvre pas le remplacement en garantie étendue. " +
+          "Coordonnez avec Plume HQ pour un override.",
         ],
       },
     }
@@ -468,12 +501,14 @@ export async function submitWorkshopDecisionAction(formData: FormData) {
 
   // Audit trail — utile pour comprendre le saut de statut (no_issue) et
   // garder trace des justifications de remplacement.
+  const seuilLabel = effectiveThreshold != null ? `, seuil ${effectiveThreshold} € HT` : ', hors garantie (devis libre)'
   const decisionLabel =
     decision === 'no_issue'    ? 'aucun défaut détecté' :
-    decision === 'repair'      ? `réparation (coût estimé ${estimatedCost} €, seuil ${threshold} €)` :
+    decision === 'repair'      ? `réparation (coût estimé ${estimatedCost} €${seuilLabel})` :
                                  'remplacement'
   const auditNote = [
     `[T6] Décision atelier : ${decisionLabel}.`,
+    ticketTier ? `Tier : ${ticketTier}.` : null,
     warrantyStatus ? `Garantie : ${warrantyStatus === 'under_warranty' ? 'active' : 'hors garantie'}.` : null,
     note?.trim() ? `Note : ${note.trim()}` : null,
   ].filter(Boolean).join(' ')
@@ -487,10 +522,37 @@ export async function submitWorkshopDecisionAction(formData: FormData) {
   })
   if (histError) console.error('[workshop decision] history insert failed:', histError.message)
 
+  // Flow devis client (hors garantie + repair) : poste le devis dans le
+  // canal client_workshop pour validation. Best-effort — n'échoue pas la
+  // décision si l'insert message foire.
+  if (ticketTier === 'out_of_warranty' && decision === 'repair' && estimatedCost != null) {
+    const ticketRef = ticket.ticket_number ?? `#${ticketId.slice(0, 8).toUpperCase()}`
+    const quoteMessage =
+      `📨 Devis SAV ${ticketRef}\n\n` +
+      `Suite au diagnostic atelier, le coût estimé de la réparation est de ` +
+      `${estimatedCost} € HT.\n\n` +
+      `Votre aile étant hors garantie, ce devis est à votre charge. ` +
+      `Merci de nous répondre dans ce canal pour valider ou refuser. ` +
+      `Tant que vous n'avez pas validé, aucune intervention n'est lancée.` +
+      (note?.trim() ? `\n\nNote de l'atelier : ${note.trim()}` : '')
+    const { error: quoteError } = await supabase.from('ticket_messages').insert({
+      ticket_id:        ticketId,
+      sender_id:        user.id,
+      sender_role:      'workshop',
+      content:          quoteMessage,
+      is_internal:      false,
+      visibility_level: 'all',
+      channel:          'client_workshop',
+    })
+    if (quoteError) {
+      console.warn('[workshop decision] devis message insert failed:', quoteError.message)
+    }
+  }
+
   revalidatePath(`/workshop/ticket/${ticketId}`)
   revalidatePath(`/school/ticket/${ticketId}`)
   revalidatePath(`/client/ticket/${ticketId}`)
   revalidatePath('/plume')
 
-  return { success: true, decision, threshold }
+  return { success: true, decision, threshold: effectiveThreshold }
 }

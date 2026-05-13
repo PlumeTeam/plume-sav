@@ -25,7 +25,7 @@ import { DiagnosticViewSwitcher } from './DiagnosticViewSwitcher'
 import { parseClientDescription } from './parseClientDescription'
 import { ClientHistorySummary } from './ClientHistorySummary'
 import { PROBLEM_CATEGORIES } from '@/features/tickets/types'
-import type { CloserRole, ClosureOutcome, TicketMessage, WarrantyStatus, WorkshopDecision, WorkshopReturnDestination } from '@/features/tickets/types'
+import type { CloserRole, ClosureOutcome, TicketMessage, WarrantyStatus, WarrantyTier, WorkshopDecision, WorkshopReturnDestination } from '@/features/tickets/types'
 
 // Garantie : 2 ans à compter de la date d'achat (politique Plume Paragliders).
 // Retourne null si on n'a pas la date — l'UI doit alors masquer le badge.
@@ -383,6 +383,9 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                   workshopDecisionWarrantyStatus={ticket.workshop_decision_warranty_status as WarrantyStatus | null}
                   workshopDecisionNote={ticket.workshop_decision_note}
                   repairReplacementThresholdEur={plumeSettings.repairReplacementThresholdEur}
+                  repairThresholdExtendedEur={plumeSettings.repairThresholdExtendedEur}
+                  extendedCoversReplacement={plumeSettings.extendedCoversReplacement}
+                  warrantyTier={(ticket.warranty_tier as WarrantyTier | null) ?? null}
                 />
               </section>
 

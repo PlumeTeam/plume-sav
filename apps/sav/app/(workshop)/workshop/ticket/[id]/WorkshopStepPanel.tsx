@@ -13,7 +13,7 @@ import {
 import { ScanGateModal } from '@/features/tickets/components/ScanGateModal'
 import { RevertStepLink } from '@/features/tickets/components/RevertStepLink'
 import { formatDateTime, statusGte } from '@/features/tickets/utils'
-import type { RequestStatus, WarrantyStatus, WorkshopDecision } from '@/features/tickets/types'
+import type { RequestStatus, WarrantyStatus, WarrantyTier, WorkshopDecision } from '@/features/tickets/types'
 import { WorkshopDecisionStep } from './WorkshopDecisionStep'
 
 interface WorkshopStepPanelProps {
@@ -34,8 +34,14 @@ interface WorkshopStepPanelProps {
   workshopEstimatedRepairCost:       number | null
   workshopDecisionWarrantyStatus:    WarrantyStatus | null
   workshopDecisionNote:              string | null
-  /** Seuil €€ Plume pour valider une réparation côté modal. */
+  /** Seuil €€ Plume pour valider une réparation côté modal — standard. */
   repairReplacementThresholdEur:     number
+  /** Seuil €€ Plume — garantie étendue (plus bas). */
+  repairThresholdExtendedEur:        number
+  /** Toggle HQ : la garantie étendue couvre-t-elle le remplacement ? */
+  extendedCoversReplacement:         boolean
+  /** Tier de garantie figé sur le ticket — pilote toute la décision. */
+  warrantyTier:                      WarrantyTier | null
 }
 
 // Étapes linéaires (hors triage post-réception et pré-check qui sont des
@@ -131,6 +137,9 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
     workshopEstimatedRepairCost,
     workshopDecisionNote,
     repairReplacementThresholdEur,
+    repairThresholdExtendedEur,
+    extendedCoversReplacement,
+    warrantyTier,
   } = props
   const [isPending, startTransition] = useTransition()
   const [recipient, setRecipient] = useState<'school' | 'client'>('school')
@@ -500,6 +509,9 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
             warrantyStatus={props.workshopDecisionWarrantyStatus}
             note={workshopDecisionNote}
             thresholdEur={repairReplacementThresholdEur}
+            thresholdExtendedEur={repairThresholdExtendedEur}
+            extendedCoversReplacement={extendedCoversReplacement}
+            warrantyTier={warrantyTier}
             isReachable={diagnosisDone}
           />
         )}
