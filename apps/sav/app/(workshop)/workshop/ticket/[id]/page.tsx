@@ -14,7 +14,7 @@ import { SchoolCheckSummary } from '@/features/tickets/inspection/SchoolCheckSum
 import { DiagnosisChecklist } from '@/features/tickets/components/DiagnosisChecklist'
 import { WORKSHOP_TECHNICAL_CHECKLIST } from '@/features/tickets/constants'
 import { saveWorkshopChecklistAction } from '@/features/tickets/actions'
-import { formatDate } from '@/features/tickets/utils'
+import { formatDate, formatDateTime } from '@/features/tickets/utils'
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
 import { CloseTicketButton } from '@/features/tickets/components/CloseTicketButton'
 import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
@@ -23,7 +23,7 @@ import { WorkshopStepPanel } from './WorkshopStepPanel'
 import { WorkshopRepairDecisionPanel } from './WorkshopRepairDecisionPanel'
 import { WorkshopTicketTabs } from './WorkshopTicketTabs'
 import { statusGte } from '@/features/tickets/utils'
-import type { CloserRole, ClosureOutcome, WarrantyStatus, WorkshopDecision, WorkshopReturnDestination } from '@/features/tickets/types'
+import type { CloserRole, ClosureOutcome, TicketMessage, WarrantyStatus, WorkshopDecision, WorkshopReturnDestination } from '@/features/tickets/types'
 
 // Garantie : 2 ans à compter de la date d'achat (politique Plume Paragliders).
 // Retourne null si on n'a pas la date — l'UI doit alors masquer le badge.
@@ -91,6 +91,15 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
   // doit voir ; on filtre juste sur "channel posé" pour exclure les
   // anciens messages legacy.
   const channelMessages = ticket.ticket_messages.filter((m) => m.channel)
+
+  // Premier message du client (posté à la création du ticket, canal
+  // 'school_client'). Hissé hors du thread pour apparaître en spotlight
+  // doré en tête de l'onglet Messages — c'est la voix du pilote, le
+  // contexte le plus important quand l'atelier ouvre le ticket.
+  const firstClientMessage: TicketMessage | null =
+    channelMessages
+      .filter((m) => m.sender_role === 'client' && !m.is_internal)
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0] ?? null
 
   const ticketRef = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
 
@@ -173,6 +182,14 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
       </header>
 
       <main className="mx-auto max-w-4xl space-y-3 p-4 pb-12">
+        {/* Banner urgence — sorti de la section Demande pour rester visible
+            quel que soit l'onglet actif. */}
+        {ticket.urgency_level === 2 && (
+          <p className="rounded-2xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+            🚨 Signalé comme urgent
+          </p>
+        )}
+
         <WorkshopTicketTabs
           messagesCount={channelMessages.length}
           state={
@@ -183,6 +200,65 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                 closureOutcome={ticket.closure_outcome as ClosureOutcome | null}
                 closureNote={ticket.closure_note}
               />
+
+              {/* Banner livraison école → atelier (amber). Apparaît dès qu'un
+                  ticket est escaladé : si l'école a généré un bon de transport,
+                  on signale l'envoi par transporteur + tracking ; sinon on
+                  suppose une remise en main propre. */}
+              {ticket.escalated_to_workshop_at && (
+                <section className="card flex items-start gap-3 p-4 border-2 border-amber-200 bg-amber-50">
+                  <span aria-hidden className="text-2xl">
+                    {ticket.school_workshop_tracking ? '📦' : '🤝'}
+                  </span>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-amber-900">
+                      {ticket.school_workshop_tracking
+                        ? "L'école envoie l'aile par transporteur"
+                        : "L'école dépose l'aile en main propre"}
+                    </p>
+                    {ticket.school_workshop_tracking ? (
+                      <div className="mt-2 flex flex-wrap items-center gap-2 break-all rounded-xl bg-white/60 px-3 py-1.5 text-[11px] text-amber-900">
+                        <span>Tracking GLS&nbsp;:</span>
+                        <span className="font-mono">{ticket.school_workshop_tracking}</span>
+                        <a
+                          href={buildGlsTrackingUrl(ticket.school_workshop_tracking)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium text-amber-900 underline hover:no-underline"
+                        >
+                          Suivre →
+                        </a>
+                      </div>
+                    ) : (
+                      <p className="mt-0.5 text-xs text-amber-800/80">
+                        L&apos;école vous contactera pour convenir d&apos;un rendez-vous.
+                      </p>
+                    )}
+                  </div>
+                </section>
+              )}
+
+              {/* Briefing école — remonté en tête : check structuré + note libre
+                  d'escalade, c'est ce que l'atelier doit lire d'abord. */}
+              {schoolCheckPayload && (
+                <section className="card p-5">
+                  <h2 className="section-title mb-3">Check de l&apos;école</h2>
+                  <SchoolCheckSummary raw={ticket.school_checklist} />
+                </section>
+              )}
+
+              {ticket.school_resolution === 'escalated_to_workshop' && ticket.school_resolution_note && (
+                <section className="card p-5 bg-brand-gold/5 border-brand-gold/30">
+                  <h2 className="section-title mb-3">Note d&apos;escalade de l&apos;école</h2>
+                  {schoolCheckInspector && !schoolCheckPayload && (
+                    <div className="mb-3 flex items-center gap-2 rounded-xl bg-white/60 px-3 py-2 text-sm text-brand-ink">
+                      <span aria-hidden>👤</span>
+                      <span>Check effectué par <strong>{schoolCheckInspector}</strong></span>
+                    </div>
+                  )}
+                  <p className="whitespace-pre-line text-sm text-brand-ink">{ticket.school_resolution_note}</p>
+                </section>
+              )}
 
               <section className="card p-5">
                 <h2 className="section-title mb-4">Étapes atelier</h2>
@@ -204,30 +280,6 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                 <h2 className="section-title mb-4">Suivi global</h2>
                 <ClientJourneyTimeline ticket={ticket} />
               </section>
-
-              {/* Check école — synthèse color-codée du diagnostic terrain. Affichée
-                  dès qu'un payload V2 structuré est disponible. */}
-              {schoolCheckPayload && (
-                <section className="card p-5">
-                  <h2 className="section-title mb-3">Check de l&apos;école</h2>
-                  <SchoolCheckSummary raw={ticket.school_checklist} />
-                </section>
-              )}
-
-              {/* Contexte de l'escalation école — note libre laissée par l'école
-                  au moment d'escalader. Complémentaire du check structuré. */}
-              {ticket.school_resolution === 'escalated_to_workshop' && ticket.school_resolution_note && (
-                <section className="card p-5 bg-brand-gold/5 border-brand-gold/30">
-                  <h2 className="section-title mb-3">Note d&apos;escalade de l&apos;école</h2>
-                  {schoolCheckInspector && !schoolCheckPayload && (
-                    <div className="mb-3 flex items-center gap-2 rounded-xl bg-white/60 px-3 py-2 text-sm text-brand-ink">
-                      <span aria-hidden>👤</span>
-                      <span>Check effectué par <strong>{schoolCheckInspector}</strong></span>
-                    </div>
-                  )}
-                  <p className="whitespace-pre-line text-sm text-brand-ink">{ticket.school_resolution_note}</p>
-                </section>
-              )}
 
               {/* Expédition entrante école → atelier (P3) */}
               {(ticket.school_workshop_tracking || ticket.escalated_to_workshop_at) && (
@@ -355,11 +407,6 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                 {ticket.description && (
                   <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">{ticket.description}</p>
                 )}
-                {ticket.urgency_level === 2 && (
-                  <p className="mt-3 rounded-2xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
-                    🚨 Signalé comme urgent
-                  </p>
-                )}
               </section>
 
               {ticket.ticket_photos.length > 0 && (
@@ -481,6 +528,41 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
           }
           messages={
             <>
+              {/* Spotlight doré : voix du pilote (message à la création) — calque
+                  la convention école. Précède toujours les canaux. */}
+              {firstClientMessage ? (
+                <section className="rounded-card border-2 border-brand-gold bg-brand-gold/5 p-5 shadow-plume">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-brand-gold">
+                      Message du client
+                    </p>
+                    <p className="font-mono text-[11px] text-slate-500">
+                      {formatDateTime(firstClientMessage.created_at)}
+                    </p>
+                  </div>
+                  <p className="mt-3 whitespace-pre-line text-base leading-relaxed text-brand-ink">
+                    {firstClientMessage.content}
+                  </p>
+                </section>
+              ) : (
+                <section className="card border-dashed p-4 text-center">
+                  <p className="text-sm text-slate-500">
+                    Le client n&apos;a pas laissé de message à la création.
+                  </p>
+                </section>
+              )}
+
+              {/* Photos du client juste après le spotlight — contexte visuel
+                  pour le diagnostic atelier. */}
+              {ticket.ticket_photos.length > 0 && (
+                <section className="card p-5">
+                  <h2 className="section-title mb-3">
+                    Photos du client ({ticket.ticket_photos.length})
+                  </h2>
+                  <PhotoLightbox photos={ticket.ticket_photos} />
+                </section>
+              )}
+
               <section>
                 {currentUser && (
                   <WorkshopChannelTabs
