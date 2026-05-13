@@ -451,8 +451,11 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                 </section>
               )}
 
+              {/* Diagnostic technicien — saisie + récap fusionnés. Le composer
+                  messages a été retiré : la messagerie passe par l'onglet
+                  Messages uniquement. */}
               <section className="card p-5">
-                <h2 className="section-title mb-4">Actions atelier</h2>
+                <h2 className="section-title mb-4">Diagnostic technicien</h2>
                 <WorkshopActionBar
                   ticketId={ticket.id}
                   diagnosisNotes={ticket.diagnosis_notes}
@@ -494,32 +497,6 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                         {' → '}
                         {formatDate(ticket.pre_check_completed_at)}
                       </span>
-                    )}
-                  </div>
-                </section>
-              )}
-
-              {(ticket.diagnosis_notes || ticket.estimated_cost != null) && (
-                <section className="card p-5">
-                  <h2 className="section-title mb-3">Diagnostic</h2>
-                  <div className="space-y-3">
-                    {ticket.diagnosis_notes && (
-                      <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">{ticket.diagnosis_notes}</p>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      {ticket.estimated_hours != null && (
-                        <span className="rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
-                          ⏱ {ticket.estimated_hours} h estimées
-                        </span>
-                      )}
-                      {ticket.estimated_cost != null && (
-                        <span className="rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
-                          💰 {ticket.estimated_cost} € estimés
-                        </span>
-                      )}
-                    </div>
-                    {ticket.parts_needed && (
-                      <p className="text-xs text-slate-500">Pièces : {ticket.parts_needed}</p>
                     )}
                   </div>
                 </section>

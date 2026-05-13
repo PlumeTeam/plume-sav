@@ -119,16 +119,26 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
   } = props
   const [isPending, startTransition] = useTransition()
   const [recipient, setRecipient] = useState<'school' | 'client'>('school')
-  const [feedback, setFeedback] = useState<{ type: 'ok' | 'error'; msg: string } | null>(null)
+  // Errors only — success est exprimé par le timestamp ✓ persistant sur
+  // chaque carte une fois l'étape franchie (cf. SequentialStep / pré-check).
+  const [feedback, setFeedback] = useState<{ msg: string } | null>(null)
   const [scanGateFor, setScanGateFor] = useState<ScanGateKey | null>(null)
 
   // Pré-check : observations en cours de saisie + état UI (form ouvert/fermé)
   const [preCheckOpen, setPreCheckOpen] = useState(false)
   const [observations, setObservations] = useState('')
 
-  function showFeedback(type: 'ok' | 'error', msg: string) {
-    setFeedback({ type, msg })
-    if (type === 'ok') setTimeout(() => setFeedback(null), 2200)
+  // Plus de toast success qui s'efface après 1800–2200 ms : chaque carte
+  // expose son propre "✓ Validé le …" persistant une fois l'étape franchie
+  // (cf. SequentialStep ci-dessous et la carte pré-check). On garde uniquement
+  // le feedback d'erreur, qui reste affiché tant qu'une nouvelle action n'est
+  // pas tentée.
+  function showError(msg: string) {
+    setFeedback({ msg })
+  }
+
+  function clearError() {
+    setFeedback(null)
   }
 
   function executeStep(key: StepKey) {
@@ -147,9 +157,9 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
       if (!r) return
       if ('error' in r && r.error) {
         const msg = (r.error._form as string[] | undefined)?.[0] ?? 'Erreur'
-        showFeedback('error', msg)
+        showError(msg)
       } else {
-        showFeedback('ok', 'Étape validée.')
+        clearError()
       }
     })
   }
@@ -172,9 +182,9 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
       const r = await startWorkshopDiagnosisAction(fd)
       if (r && 'error' in r && r.error) {
         const msg = (r.error._form as string[] | undefined)?.[0] ?? 'Erreur'
-        showFeedback('error', msg)
+        showError(msg)
       } else {
-        showFeedback('ok', 'Diagnostic démarré.')
+        clearError()
       }
     })
   }
@@ -187,10 +197,10 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
       if (r && 'error' in r && r.error) {
         const flat = r.error as Record<string, string[] | undefined>
         const msg = flat._form?.[0] ?? flat.ticketId?.[0] ?? 'Erreur'
-        showFeedback('error', msg)
+        showError(msg)
       } else {
         setPreCheckOpen(true)
-        showFeedback('ok', 'Pré-check démarré.')
+        clearError()
       }
     })
   }
@@ -198,7 +208,7 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
   function handleFinishPreCheck(e: React.FormEvent) {
     e.preventDefault()
     if (observations.trim().length < 10) {
-      showFeedback('error', 'Observations trop courtes (10 caractères min)')
+      showError('Observations trop courtes (10 caractères min)')
       return
     }
     startTransition(async () => {
@@ -209,11 +219,11 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
       if (r && 'error' in r && r.error) {
         const flat = r.error as Record<string, string[] | undefined>
         const msg = flat._form?.[0] ?? flat.observations?.[0] ?? 'Erreur'
-        showFeedback('error', msg)
+        showError(msg)
       } else {
         setPreCheckOpen(false)
         setObservations('')
-        showFeedback('ok', 'Pré-check terminé — diagnostic en cours.')
+        clearError()
       }
     })
   }
@@ -276,9 +286,7 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
     <>
       <div className="space-y-3">
         {feedback && (
-          <p className={`rounded-xl px-3 py-2 text-sm ${
-            feedback.type === 'ok' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
-          }`}>
+          <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
             {feedback.msg}
           </p>
         )}
@@ -382,12 +390,24 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
                   type="button"
                   onClick={() => setPreCheckOpen(true)}
                   disabled={isPending}
-                  className="btn-primary shrink-0"
+                  className="btn-primary hidden shrink-0 sm:inline-flex"
                 >
                   Clôturer le pré-check
                 </button>
               )}
             </div>
+
+            {/* Variante mobile pleine-largeur — desktop affiche le bouton à droite */}
+            {preCheckIsCurrent && !preCheckOpen && (
+              <button
+                type="button"
+                onClick={() => setPreCheckOpen(true)}
+                disabled={isPending}
+                className="btn-primary mt-3 w-full sm:hidden"
+              >
+                Clôturer le pré-check
+              </button>
+            )}
 
             {preCheckIsCurrent && preCheckOpen && (
               <form onSubmit={handleFinishPreCheck} className="mt-3 space-y-2">
@@ -575,12 +595,24 @@ function SequentialStep({
             type="button"
             onClick={onClick}
             disabled={isPending}
-            className="btn-primary shrink-0"
+            className="btn-primary hidden shrink-0 sm:inline-flex"
           >
             {isPending ? '…' : step.label}
           </button>
         )}
       </div>
+
+      {/* Variante mobile pleine-largeur — desktop garde le bouton à droite */}
+      {isActive && (
+        <button
+          type="button"
+          onClick={onClick}
+          disabled={isPending}
+          className="btn-primary mt-3 w-full sm:hidden"
+        >
+          {isPending ? '…' : step.label}
+        </button>
+      )}
 
       {/* Bypass scan QR — réservé à la phase de test/démo (cf. T4). */}
       {isActive && step.requiresScan && (
