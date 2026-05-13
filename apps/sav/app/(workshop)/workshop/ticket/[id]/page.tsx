@@ -21,6 +21,7 @@ import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCa
 import { WorkshopActionBar } from './WorkshopActionBar'
 import { WorkshopStepPanel } from './WorkshopStepPanel'
 import { WorkshopRepairDecisionPanel } from './WorkshopRepairDecisionPanel'
+import { WorkshopTicketTabs } from './WorkshopTicketTabs'
 import { statusGte } from '@/features/tickets/utils'
 import type { CloserRole, ClosureOutcome, WarrantyStatus, WorkshopDecision, WorkshopReturnDestination } from '@/features/tickets/types'
 
@@ -172,321 +173,334 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
       </header>
 
       <main className="mx-auto max-w-4xl space-y-3 p-4 pb-12">
-        <TicketClosureCard
-          closedAt={ticket.closed_at}
-          closedByRole={ticket.closed_by_role as CloserRole | null}
-          closureOutcome={ticket.closure_outcome as ClosureOutcome | null}
-          closureNote={ticket.closure_note}
-        />
-
-        <section className="card p-5">
-          <h2 className="section-title mb-4">Étapes atelier</h2>
-          <WorkshopStepPanel
-            ticketId={ticket.id}
-            status={ticket.status}
-            wingSerial={ticket.serial_number ?? null}
-            wingReceivedWorkshopAt={ticket.wing_received_workshop_at}
-            preCheckStartedAt={ticket.pre_check_started_at}
-            preCheckCompletedAt={ticket.pre_check_completed_at}
-            preCheckFeeEurConfig={plumeSettings.preCheckFeeEur}
-            workshopDiagnosisAt={ticket.workshop_diagnosis_at}
-            workshopRepairDoneAt={ticket.workshop_repair_done_at}
-            wingReturnedAt={ticket.wing_returned_at}
-          />
-        </section>
-
-        <section className="card p-5">
-          <h2 className="section-title mb-4">Suivi global</h2>
-          <ClientJourneyTimeline ticket={ticket} />
-        </section>
-
-        {/* Check école — synthèse color-codée du diagnostic terrain. Affichée
-            dès qu'un payload V2 structuré est disponible. */}
-        {schoolCheckPayload && (
-          <section className="card p-5">
-            <h2 className="section-title mb-3">Check de l&apos;école</h2>
-            <SchoolCheckSummary raw={ticket.school_checklist} />
-          </section>
-        )}
-
-        {/* Contexte de l'escalation école — note libre laissée par l'école
-            au moment d'escalader. Complémentaire du check structuré. */}
-        {ticket.school_resolution === 'escalated_to_workshop' && ticket.school_resolution_note && (
-          <section className="card p-5 bg-brand-gold/5 border-brand-gold/30">
-            <h2 className="section-title mb-3">Note d&apos;escalade de l&apos;école</h2>
-            {schoolCheckInspector && !schoolCheckPayload && (
-              <div className="mb-3 flex items-center gap-2 rounded-xl bg-white/60 px-3 py-2 text-sm text-brand-ink">
-                <span aria-hidden>👤</span>
-                <span>Check effectué par <strong>{schoolCheckInspector}</strong></span>
-              </div>
-            )}
-            <p className="whitespace-pre-line text-sm text-brand-ink">{ticket.school_resolution_note}</p>
-          </section>
-        )}
-
-        {/* Expédition entrante école → atelier (P3) */}
-        {(ticket.school_workshop_tracking || ticket.escalated_to_workshop_at) && (
-          <section className="card p-5">
-            <h2 className="section-title mb-3">Expédition depuis l&apos;école</h2>
-            <div className="space-y-2 text-sm">
-              {ticket.escalated_to_workshop_at && (
-                <p className="text-brand-ink">
-                  <span className="text-xs text-slate-500">Escaladée le </span>
-                  {formatDate(ticket.escalated_to_workshop_at)}
-                </p>
-              )}
-              {ticket.school_workshop_tracking ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-slate-500">Tracking GLS :</span>
-                  <span className="font-mono text-xs text-brand-ink">{ticket.school_workshop_tracking}</span>
-                  <a
-                    href={buildGlsTrackingUrl(ticket.school_workshop_tracking)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs font-medium text-brand-gold hover:underline"
-                  >
-                    Suivre →
-                  </a>
-                </div>
-              ) : (
-                <p className="text-xs text-slate-500">
-                  L&apos;école n&apos;a pas encore généré de bon de transport pour ce ticket.
-                </p>
-              )}
-              {ticket.wing_received_workshop_at && (
-                <p className="text-xs text-emerald-700">
-                  ✓ Aile réceptionnée le {formatDate(ticket.wing_received_workshop_at)}
-                </p>
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* Checklist technique atelier — les notes vivent dans WorkshopActionBar (P2) */}
-        <section className="card p-5">
-          <h2 className="section-title mb-3">Checklist diagnostic technique</h2>
-          <DiagnosisChecklist
-            ticketId={ticket.id}
-            items={WORKSHOP_TECHNICAL_CHECKLIST}
-            initialChecked={initialChecked}
-            initialNotes={initialNotes}
-            saveAction={saveWorkshopChecklistAction}
-            variant="navy"
-            hideNotes
-          />
-        </section>
-
-        {/* T6 — Décision réparation vs remplacement (post pré-check) */}
-        {showRepairDecision && (
-          <section className="card p-5">
-            <h2 className="section-title mb-3">Décision : réparation ou remplacement&nbsp;?</h2>
-            <p className="mb-4 text-sm text-slate-600">
-              Coût estimé saisi → on compare au seuil Plume pour décider entre réparation et aile neuve. La garantie 2 ans
-              est lue automatiquement depuis la date d&apos;achat de l&apos;aile.
-            </p>
-            <WorkshopRepairDecisionPanel
-              ticketId={ticket.id}
-              purchaseDate={ticket.purchase_date}
-              thresholdEur={plumeSettings.repairReplacementThresholdEur}
-              warrantyDurationMonths={plumeSettings.warrantyDurationMonths}
-              initial={repairDecisionInitial}
-            />
-          </section>
-        )}
-
-        {/* Bon de transport retour atelier → école/client */}
-        {shouldOfferReturnShipping && (
-          <section className="card p-5">
-            <h2 className="section-title mb-3">Bon de transport retour</h2>
-            <p className="mb-4 text-sm text-slate-600">
-              {ticket.workshop_return_label_url
-                ? "Étiquette GLS retour prête — collez-la sur le colis avant expédition."
-                : "Générez l'étiquette pour renvoyer l'aile à l'école partenaire ou directement au client."}
-            </p>
-            <ShippingLabelButton
-              ticketId={ticket.id}
-              leg="workshop_to_return"
-              initialTracking={ticket.workshop_return_tracking}
-              initialLabelUrl={ticket.workshop_return_label_url}
-              defaultReturnDestination={returnDest}
-            />
-          </section>
-        )}
-
-        <section className="card p-5">
-          <h2 className="section-title mb-4">Actions atelier</h2>
-          <WorkshopActionBar
-            ticketId={ticket.id}
-            diagnosisNotes={ticket.diagnosis_notes}
-            estimatedCost={ticket.estimated_cost}
-            estimatedHours={ticket.estimated_hours}
-            partsNeeded={ticket.parts_needed}
-          />
-          {(canCloseFromWorkshop || isPlumeAdmin) && (
-            <div className="mt-4 border-t border-brand-stone/40 pt-4">
-              <p className="mb-2 text-xs text-slate-500">
-                Quand le SAV est terminé : déclarez le statut final pour clôturer le ticket.
-              </p>
-              <CloseTicketButton
-                ticketId={ticket.id}
-                ticketRef={ticketRef}
-                closerRole={closerRole}
-                variant="ghost"
+        <WorkshopTicketTabs
+          messagesCount={channelMessages.length}
+          state={
+            <>
+              <TicketClosureCard
+                closedAt={ticket.closed_at}
+                closedByRole={ticket.closed_by_role as CloserRole | null}
+                closureOutcome={ticket.closure_outcome as ClosureOutcome | null}
+                closureNote={ticket.closure_note}
               />
-            </div>
-          )}
-        </section>
 
-        {/* Pré-check : trace des observations + tarif figé (facturé à Plume) */}
-        {ticket.pre_check_observations && (
-          <section className="card p-5">
-            <h2 className="section-title mb-3">Pré-check</h2>
-            <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">
-              {ticket.pre_check_observations}
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {ticket.pre_check_fee_eur != null && (
-                <span className="rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
-                  💰 {ticket.pre_check_fee_eur} € facturés à Plume
-                </span>
-              )}
-              {ticket.pre_check_started_at && ticket.pre_check_completed_at && (
-                <span className="rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
-                  ⏱ {formatDate(ticket.pre_check_started_at)}
-                  {' → '}
-                  {formatDate(ticket.pre_check_completed_at)}
-                </span>
-              )}
-            </div>
-          </section>
-        )}
-
-        {(ticket.diagnosis_notes || ticket.estimated_cost != null) && (
-          <section className="card p-5">
-            <h2 className="section-title mb-3">Diagnostic</h2>
-            <div className="space-y-3">
-              {ticket.diagnosis_notes && (
-                <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">{ticket.diagnosis_notes}</p>
-              )}
-              <div className="flex flex-wrap gap-2">
-                {ticket.estimated_hours != null && (
-                  <span className="rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
-                    ⏱ {ticket.estimated_hours} h estimées
-                  </span>
-                )}
-                {ticket.estimated_cost != null && (
-                  <span className="rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
-                    💰 {ticket.estimated_cost} € estimés
-                  </span>
-                )}
-              </div>
-              {ticket.parts_needed && (
-                <p className="text-xs text-slate-500">Pièces : {ticket.parts_needed}</p>
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* École partenaire — client direct de l'atelier. Affichée d'abord car
-            c'est l'interlocuteur quotidien du technicien. */}
-        <section className="card p-5">
-          <h2 className="section-title mb-3">École partenaire</h2>
-          {school ? (
-            <div className="space-y-2">
-              <InfoRow label="Nom" value={school.name || '—'} />
-              {(school.city || school.region) && (
-                <InfoRow
-                  label="Localisation"
-                  value={[school.city, school.region].filter(Boolean).join(' · ') || '—'}
+              <section className="card p-5">
+                <h2 className="section-title mb-4">Étapes atelier</h2>
+                <WorkshopStepPanel
+                  ticketId={ticket.id}
+                  status={ticket.status}
+                  wingSerial={ticket.serial_number ?? null}
+                  wingReceivedWorkshopAt={ticket.wing_received_workshop_at}
+                  preCheckStartedAt={ticket.pre_check_started_at}
+                  preCheckCompletedAt={ticket.pre_check_completed_at}
+                  preCheckFeeEurConfig={plumeSettings.preCheckFeeEur}
+                  workshopDiagnosisAt={ticket.workshop_diagnosis_at}
+                  workshopRepairDoneAt={ticket.workshop_repair_done_at}
+                  wingReturnedAt={ticket.wing_returned_at}
                 />
+              </section>
+
+              <section className="card p-5">
+                <h2 className="section-title mb-4">Suivi global</h2>
+                <ClientJourneyTimeline ticket={ticket} />
+              </section>
+
+              {/* Check école — synthèse color-codée du diagnostic terrain. Affichée
+                  dès qu'un payload V2 structuré est disponible. */}
+              {schoolCheckPayload && (
+                <section className="card p-5">
+                  <h2 className="section-title mb-3">Check de l&apos;école</h2>
+                  <SchoolCheckSummary raw={ticket.school_checklist} />
+                </section>
               )}
-              {school.email && (
-                <InfoRowLink label="Email" value={school.email} href={`mailto:${school.email}`} />
+
+              {/* Contexte de l'escalation école — note libre laissée par l'école
+                  au moment d'escalader. Complémentaire du check structuré. */}
+              {ticket.school_resolution === 'escalated_to_workshop' && ticket.school_resolution_note && (
+                <section className="card p-5 bg-brand-gold/5 border-brand-gold/30">
+                  <h2 className="section-title mb-3">Note d&apos;escalade de l&apos;école</h2>
+                  {schoolCheckInspector && !schoolCheckPayload && (
+                    <div className="mb-3 flex items-center gap-2 rounded-xl bg-white/60 px-3 py-2 text-sm text-brand-ink">
+                      <span aria-hidden>👤</span>
+                      <span>Check effectué par <strong>{schoolCheckInspector}</strong></span>
+                    </div>
+                  )}
+                  <p className="whitespace-pre-line text-sm text-brand-ink">{ticket.school_resolution_note}</p>
+                </section>
               )}
-              {school.phone && (
-                <InfoRowLink label="Téléphone" value={school.phone} href={`tel:${school.phone.replace(/\s+/g, '')}`} />
+
+              {/* Expédition entrante école → atelier (P3) */}
+              {(ticket.school_workshop_tracking || ticket.escalated_to_workshop_at) && (
+                <section className="card p-5">
+                  <h2 className="section-title mb-3">Expédition depuis l&apos;école</h2>
+                  <div className="space-y-2 text-sm">
+                    {ticket.escalated_to_workshop_at && (
+                      <p className="text-brand-ink">
+                        <span className="text-xs text-slate-500">Escaladée le </span>
+                        {formatDate(ticket.escalated_to_workshop_at)}
+                      </p>
+                    )}
+                    {ticket.school_workshop_tracking ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs text-slate-500">Tracking GLS :</span>
+                        <span className="font-mono text-xs text-brand-ink">{ticket.school_workshop_tracking}</span>
+                        <a
+                          href={buildGlsTrackingUrl(ticket.school_workshop_tracking)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-medium text-brand-gold hover:underline"
+                        >
+                          Suivre →
+                        </a>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-500">
+                        L&apos;école n&apos;a pas encore généré de bon de transport pour ce ticket.
+                      </p>
+                    )}
+                    {ticket.wing_received_workshop_at && (
+                      <p className="text-xs text-emerald-700">
+                        ✓ Aile réceptionnée le {formatDate(ticket.wing_received_workshop_at)}
+                      </p>
+                    )}
+                  </div>
+                </section>
               )}
-              {school.address && (
-                <div className="pt-1">
-                  <p className="mb-1 text-xs text-slate-500">Adresse</p>
-                  <p className="whitespace-pre-line text-right text-sm text-brand-ink">{school.address}</p>
+
+              {/* Bon de transport retour atelier → école/client */}
+              {shouldOfferReturnShipping && (
+                <section className="card p-5">
+                  <h2 className="section-title mb-3">Bon de transport retour</h2>
+                  <p className="mb-4 text-sm text-slate-600">
+                    {ticket.workshop_return_label_url
+                      ? "Étiquette GLS retour prête — collez-la sur le colis avant expédition."
+                      : "Générez l'étiquette pour renvoyer l'aile à l'école partenaire ou directement au client."}
+                  </p>
+                  <ShippingLabelButton
+                    ticketId={ticket.id}
+                    leg="workshop_to_return"
+                    initialTracking={ticket.workshop_return_tracking}
+                    initialLabelUrl={ticket.workshop_return_label_url}
+                    defaultReturnDestination={returnDest}
+                  />
+                </section>
+              )}
+
+              {/* École partenaire — client direct de l'atelier. Affichée d'abord car
+                  c'est l'interlocuteur quotidien du technicien. */}
+              <section className="card p-5">
+                <h2 className="section-title mb-3">École partenaire</h2>
+                {school ? (
+                  <div className="space-y-2">
+                    <InfoRow label="Nom" value={school.name || '—'} />
+                    {(school.city || school.region) && (
+                      <InfoRow
+                        label="Localisation"
+                        value={[school.city, school.region].filter(Boolean).join(' · ') || '—'}
+                      />
+                    )}
+                    {school.email && (
+                      <InfoRowLink label="Email" value={school.email} href={`mailto:${school.email}`} />
+                    )}
+                    {school.phone && (
+                      <InfoRowLink label="Téléphone" value={school.phone} href={`tel:${school.phone.replace(/\s+/g, '')}`} />
+                    )}
+                    {school.address && (
+                      <div className="pt-1">
+                        <p className="mb-1 text-xs text-slate-500">Adresse</p>
+                        <p className="whitespace-pre-line text-right text-sm text-brand-ink">{school.address}</p>
+                      </div>
+                    )}
+                  </div>
+                ) : ticket.assigned_workshop_label ? (
+                  <p className="text-sm text-slate-500">
+                    École rattachée non disponible — atelier assigné&nbsp;: {ticket.assigned_workshop_label}
+                  </p>
+                ) : (
+                  <p className="text-sm text-slate-500">École non renseignée sur ce ticket.</p>
+                )}
+              </section>
+
+              <section className="card p-5">
+                <h2 className="section-title mb-3">Client final (pilote)</h2>
+                <div className="space-y-2">
+                  <InfoRow label="Nom" value={clientName} />
+                  {ticket.email && (
+                    <InfoRowLink label="Email" value={ticket.email} href={`mailto:${ticket.email}`} />
+                  )}
+                  {ticket.phone && (
+                    <InfoRowLink label="Téléphone" value={ticket.phone} href={`tel:${ticket.phone.replace(/\s+/g, '')}`} />
+                  )}
                 </div>
+              </section>
+
+              <section className="card p-5">
+                <h2 className="section-title mb-3">Aile</h2>
+                <div className="space-y-2">
+                  <InfoRow label="Marque / Modèle" value={`${ticket.product_brand ?? '—'} ${ticket.product_model ?? '—'}`} />
+                  {ticket.wing_size && <InfoRow label="Taille" value={ticket.wing_size} />}
+                  <InfoRow label="N° de série" value={ticket.serial_number ?? '—'} mono />
+                  {ticket.purchase_date && <InfoRow label="Date d'achat" value={formatDate(ticket.purchase_date)} />}
+                  {warranty && (
+                    <div className="flex items-start justify-between gap-4 pt-1">
+                      <p className="flex-shrink-0 text-xs text-slate-500">Garantie</p>
+                      <WarrantyBadge warranty={warranty} />
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className="card p-5">
+                <h2 className="section-title mb-3">Demande</h2>
+                {ticket.description && (
+                  <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">{ticket.description}</p>
+                )}
+                {ticket.urgency_level === 2 && (
+                  <p className="mt-3 rounded-2xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+                    🚨 Signalé comme urgent
+                  </p>
+                )}
+              </section>
+
+              {ticket.ticket_photos.length > 0 && (
+                <section className="card p-5">
+                  <h2 className="section-title mb-3">Photos ({ticket.ticket_photos.length})</h2>
+                  <PhotoLightbox photos={ticket.ticket_photos} />
+                </section>
               )}
-            </div>
-          ) : ticket.assigned_workshop_label ? (
-            <p className="text-sm text-slate-500">
-              École rattachée non disponible — atelier assigné&nbsp;: {ticket.assigned_workshop_label}
-            </p>
-          ) : (
-            <p className="text-sm text-slate-500">École non renseignée sur ce ticket.</p>
-          )}
-        </section>
+            </>
+          }
+          diagnostic={
+            <>
+              {/* Checklist technique atelier — les notes vivent dans WorkshopActionBar (P2) */}
+              <section className="card p-5">
+                <h2 className="section-title mb-3">Checklist diagnostic technique</h2>
+                <DiagnosisChecklist
+                  ticketId={ticket.id}
+                  items={WORKSHOP_TECHNICAL_CHECKLIST}
+                  initialChecked={initialChecked}
+                  initialNotes={initialNotes}
+                  saveAction={saveWorkshopChecklistAction}
+                  variant="navy"
+                  hideNotes
+                />
+              </section>
 
-        <section className="card p-5">
-          <h2 className="section-title mb-3">Client final (pilote)</h2>
-          <div className="space-y-2">
-            <InfoRow label="Nom" value={clientName} />
-            {ticket.email && (
-              <InfoRowLink label="Email" value={ticket.email} href={`mailto:${ticket.email}`} />
-            )}
-            {ticket.phone && (
-              <InfoRowLink label="Téléphone" value={ticket.phone} href={`tel:${ticket.phone.replace(/\s+/g, '')}`} />
-            )}
-          </div>
-        </section>
+              {/* T6 — Décision réparation vs remplacement (post pré-check) */}
+              {showRepairDecision && (
+                <section className="card p-5">
+                  <h2 className="section-title mb-3">Décision : réparation ou remplacement&nbsp;?</h2>
+                  <p className="mb-4 text-sm text-slate-600">
+                    Coût estimé saisi → on compare au seuil Plume pour décider entre réparation et aile neuve. La garantie 2 ans
+                    est lue automatiquement depuis la date d&apos;achat de l&apos;aile.
+                  </p>
+                  <WorkshopRepairDecisionPanel
+                    ticketId={ticket.id}
+                    purchaseDate={ticket.purchase_date}
+                    thresholdEur={plumeSettings.repairReplacementThresholdEur}
+                    warrantyDurationMonths={plumeSettings.warrantyDurationMonths}
+                    initial={repairDecisionInitial}
+                  />
+                </section>
+              )}
 
-        <section className="card p-5">
-          <h2 className="section-title mb-3">Aile</h2>
-          <div className="space-y-2">
-            <InfoRow label="Marque / Modèle" value={`${ticket.product_brand ?? '—'} ${ticket.product_model ?? '—'}`} />
-            {ticket.wing_size && <InfoRow label="Taille" value={ticket.wing_size} />}
-            <InfoRow label="N° de série" value={ticket.serial_number ?? '—'} mono />
-            {ticket.purchase_date && <InfoRow label="Date d'achat" value={formatDate(ticket.purchase_date)} />}
-            {warranty && (
-              <div className="flex items-start justify-between gap-4 pt-1">
-                <p className="flex-shrink-0 text-xs text-slate-500">Garantie</p>
-                <WarrantyBadge warranty={warranty} />
-              </div>
-            )}
-          </div>
-        </section>
+              <section className="card p-5">
+                <h2 className="section-title mb-4">Actions atelier</h2>
+                <WorkshopActionBar
+                  ticketId={ticket.id}
+                  diagnosisNotes={ticket.diagnosis_notes}
+                  estimatedCost={ticket.estimated_cost}
+                  estimatedHours={ticket.estimated_hours}
+                  partsNeeded={ticket.parts_needed}
+                />
+                {(canCloseFromWorkshop || isPlumeAdmin) && (
+                  <div className="mt-4 border-t border-brand-stone/40 pt-4">
+                    <p className="mb-2 text-xs text-slate-500">
+                      Quand le SAV est terminé : déclarez le statut final pour clôturer le ticket.
+                    </p>
+                    <CloseTicketButton
+                      ticketId={ticket.id}
+                      ticketRef={ticketRef}
+                      closerRole={closerRole}
+                      variant="ghost"
+                    />
+                  </div>
+                )}
+              </section>
 
-        <section className="card p-5">
-          <h2 className="section-title mb-3">Demande</h2>
-          {ticket.description && (
-            <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">{ticket.description}</p>
-          )}
-          {ticket.urgency_level === 2 && (
-            <p className="mt-3 rounded-2xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
-              🚨 Signalé comme urgent
-            </p>
-          )}
-        </section>
+              {/* Pré-check : trace des observations + tarif figé (facturé à Plume) */}
+              {ticket.pre_check_observations && (
+                <section className="card p-5">
+                  <h2 className="section-title mb-3">Pré-check</h2>
+                  <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">
+                    {ticket.pre_check_observations}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {ticket.pre_check_fee_eur != null && (
+                      <span className="rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
+                        💰 {ticket.pre_check_fee_eur} € facturés à Plume
+                      </span>
+                    )}
+                    {ticket.pre_check_started_at && ticket.pre_check_completed_at && (
+                      <span className="rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
+                        ⏱ {formatDate(ticket.pre_check_started_at)}
+                        {' → '}
+                        {formatDate(ticket.pre_check_completed_at)}
+                      </span>
+                    )}
+                  </div>
+                </section>
+              )}
 
-        {ticket.ticket_photos.length > 0 && (
-          <section className="card p-5">
-            <h2 className="section-title mb-3">Photos ({ticket.ticket_photos.length})</h2>
-            <PhotoLightbox photos={ticket.ticket_photos} />
-          </section>
-        )}
+              {(ticket.diagnosis_notes || ticket.estimated_cost != null) && (
+                <section className="card p-5">
+                  <h2 className="section-title mb-3">Diagnostic</h2>
+                  <div className="space-y-3">
+                    {ticket.diagnosis_notes && (
+                      <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">{ticket.diagnosis_notes}</p>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      {ticket.estimated_hours != null && (
+                        <span className="rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
+                          ⏱ {ticket.estimated_hours} h estimées
+                        </span>
+                      )}
+                      {ticket.estimated_cost != null && (
+                        <span className="rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
+                          💰 {ticket.estimated_cost} € estimés
+                        </span>
+                      )}
+                    </div>
+                    {ticket.parts_needed && (
+                      <p className="text-xs text-slate-500">Pièces : {ticket.parts_needed}</p>
+                    )}
+                  </div>
+                </section>
+              )}
+            </>
+          }
+          messages={
+            <>
+              <section>
+                {currentUser && (
+                  <WorkshopChannelTabs
+                    ticketId={ticket.id}
+                    messages={channelMessages}
+                    currentUserId={currentUser.id}
+                  />
+                )}
+              </section>
 
-        <section>
-          {currentUser && (
-            <WorkshopChannelTabs
-              ticketId={ticket.id}
-              messages={channelMessages}
-              currentUserId={currentUser.id}
-            />
-          )}
-        </section>
-
-        {/* Composer Plume HQ legacy — réservé aux plume_admin (vue support).
-            Conservé pour les notes hors-canal (visibility_level). */}
-        {isPlumeAdmin && (
-          <section>
-            <PlumeNoteComposer ticketId={ticket.id} />
-          </section>
-        )}
+              {/* Composer Plume HQ legacy — réservé aux plume_admin (vue support).
+                  Conservé pour les notes hors-canal (visibility_level). */}
+              {isPlumeAdmin && (
+                <section>
+                  <PlumeNoteComposer ticketId={ticket.id} />
+                </section>
+              )}
+            </>
+          }
+        />
       </main>
     </div>
   )
