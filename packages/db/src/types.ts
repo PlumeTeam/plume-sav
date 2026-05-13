@@ -163,7 +163,7 @@ export interface Database {
           shipping_decided_by:         string | null
           // Repair vs replacement decision (migration 20260512010000)
           workshop_estimated_repair_cost:     number | null
-          workshop_decision:                  'repair' | 'replacement' | null
+          workshop_decision:                  'repair' | 'replacement' | 'no_issue' | null
           workshop_decision_at:               string | null
           workshop_decision_by:               string | null
           workshop_decision_warranty_status:  'under_warranty' | 'out_of_warranty' | null
@@ -256,7 +256,7 @@ export interface Database {
           shipping_decided_at?:         string | null
           shipping_decided_by?:         string | null
           workshop_estimated_repair_cost?:     number | null
-          workshop_decision?:                  'repair' | 'replacement' | null
+          workshop_decision?:                  'repair' | 'replacement' | 'no_issue' | null
           workshop_decision_at?:               string | null
           workshop_decision_by?:               string | null
           workshop_decision_warranty_status?:  'under_warranty' | 'out_of_warranty' | null
@@ -348,7 +348,7 @@ export interface Database {
           shipping_decided_at?:         string | null
           shipping_decided_by?:         string | null
           workshop_estimated_repair_cost?:     number | null
-          workshop_decision?:                  'repair' | 'replacement' | null
+          workshop_decision?:                  'repair' | 'replacement' | 'no_issue' | null
           workshop_decision_at?:               string | null
           workshop_decision_by?:               string | null
           workshop_decision_warranty_status?:  'under_warranty' | 'out_of_warranty' | null

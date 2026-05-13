@@ -24,6 +24,7 @@ import {
   repairDecisionSchema,
   startWorkshopPreCheckSchema,
   workshopChecklistSchema,
+  workshopDecisionSchema,
 } from '../schemas'
 import { sendClientStepUpdateEmail, type ClientStepEmail, type TicketEmailContext } from '../email'
 import { computeRepairDecision, computeWarrantyStatus } from '../utils'
@@ -335,3 +336,161 @@ export async function submitRepairDecisionAction(formData: FormData) {
   return result
 }
 
+// ============================================================
+// Décision atelier 3-options — étape "Prise de décision" du pipeline
+// ============================================================
+// Branches :
+//  - 'no_issue'    : aucun défaut → on saute directement à wing_returned
+//  - 'repair'      : coût ≤ seuil Plume → workshop_repairing
+//  - 'replacement' : coût > seuil OU non réparable → status conservé
+//                    (le remplacement est piloté manuellement avec Plume HQ).
+//
+// Le seuil est relu côté serveur depuis plume_settings (jamais reçu du
+// client). Le check est strict pour 'repair' : si cost > threshold,
+// on refuse et on demande à l'atelier de choisir 'replacement'.
+export async function submitWorkshopDecisionAction(formData: FormData) {
+  const parsed = workshopDecisionSchema.safeParse({
+    ticketId:      formData.get('ticketId'),
+    decision:      formData.get('decision'),
+    estimatedCost: formData.get('estimatedCost') ?? undefined,
+    note:          formData.get('note') ?? undefined,
+  })
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: { _form: ['Non authentifié'] } }
+
+  const roles = await getCurrentUserRoles()
+  if (!roles.includes('workshop') && !roles.includes('plume_admin')) {
+    return { error: { _form: ["Réservé à l'atelier ou Plume HQ"] } }
+  }
+
+  const { ticketId, decision, estimatedCost, note } = parsed.data
+
+  // La prise de décision n'a de sens qu'après réception de l'aile et
+  // démarrage du diagnostic atelier. On reste tolérant sur les étapes
+  // ultérieures (révision d'une décision déjà prise).
+  const { data: ticket, error: ticketError } = await supabase
+    .from('service_requests')
+    .select('id, status, purchase_date')
+    .eq('id', ticketId)
+    .single()
+    .returns<{
+      id:            string
+      status:        RequestStatus
+      purchase_date: string | null
+    }>()
+
+  if (ticketError || !ticket) {
+    return { error: { _form: ['Ticket introuvable'] } }
+  }
+
+  const allowedStatuses: RequestStatus[] = [
+    'wing_received_workshop',
+    'workshop_pre_checking',
+    'workshop_diagnosing',
+    'workshop_repairing',
+    'workshop_done',
+  ]
+  if (!allowedStatuses.includes(ticket.status)) {
+    return {
+      error: {
+        _form: [
+          `La décision n'est possible qu'après réception/diagnostic de l'aile ` +
+          `(statut courant : « ${ticket.status} »).`,
+        ],
+      },
+    }
+  }
+
+  const settings = await getPlumeSettings()
+  const threshold = settings.repairReplacementThresholdEur
+
+  // Garde-fou serveur : 'repair' impose cost ≤ threshold. Au-dessus, on
+  // refuse et on suggère 'replacement' (l'UI propose les 2 options en
+  // parallèle, donc on n'a pas de fallback automatique).
+  if (decision === 'repair' && estimatedCost != null && estimatedCost > threshold) {
+    return {
+      error: {
+        estimatedCost: [
+          `Coût ${estimatedCost} € > seuil Plume ${threshold} € — choisissez « Remplacement ».`,
+        ],
+      },
+    }
+  }
+
+  const warrantyStatus: WarrantyStatus | null = computeWarrantyStatus(
+    ticket.purchase_date,
+    settings.warrantyDurationMonths,
+  )
+  // 'no_issue' = aucun travail → pas de couverture à calculer. 'repair' et
+  // 'replacement' suivent le statut garantie (Plume couvre quand active).
+  const warrantyCovered = decision === 'no_issue'
+    ? null
+    : warrantyStatus === 'under_warranty'
+
+  const nowIso = new Date().toISOString()
+
+  // Mapping décision → statut suivant.
+  // 'no_issue'    → wing_returned (skip réparation / done)
+  // 'repair'      → workshop_repairing (le bouton step 4 prend le relai après)
+  // 'replacement' → on conserve le statut courant (Plume HQ pilote la suite)
+  const nextStatus: RequestStatus | null =
+    decision === 'no_issue' ? 'wing_returned' :
+    decision === 'repair'   ? 'workshop_repairing' :
+    null
+
+  const updatePayload: TicketUpdate = {
+    workshop_decision:                  decision,
+    workshop_decision_at:               nowIso,
+    workshop_decision_by:               user.id,
+    workshop_decision_warranty_status:  warrantyStatus,
+    workshop_decision_warranty_covered: warrantyCovered,
+    workshop_decision_note:             note?.trim() ? note.trim() : null,
+    ...(decision === 'repair' && estimatedCost != null
+      ? { workshop_estimated_repair_cost: estimatedCost, estimated_cost: estimatedCost }
+      : {}),
+    ...(nextStatus ? { status: nextStatus } : {}),
+    // 'no_issue' saute repair/done — on pose wing_returned_at tout de suite
+    // pour que le badge final ait son timestamp.
+    ...(decision === 'no_issue' ? { wing_returned_at: nowIso } : {}),
+  }
+
+  const { error: updateError } = await supabase
+    .from('service_requests')
+    .update(updatePayload)
+    .eq('id', ticketId)
+
+  if (updateError) {
+    return { error: { _form: [`Erreur lors de la sauvegarde (${updateError.message})`] } }
+  }
+
+  // Audit trail — utile pour comprendre le saut de statut (no_issue) et
+  // garder trace des justifications de remplacement.
+  const decisionLabel =
+    decision === 'no_issue'    ? 'aucun défaut détecté' :
+    decision === 'repair'      ? `réparation (coût estimé ${estimatedCost} €, seuil ${threshold} €)` :
+                                 'remplacement'
+  const auditNote = [
+    `[T6] Décision atelier : ${decisionLabel}.`,
+    warrantyStatus ? `Garantie : ${warrantyStatus === 'under_warranty' ? 'active' : 'hors garantie'}.` : null,
+    note?.trim() ? `Note : ${note.trim()}` : null,
+  ].filter(Boolean).join(' ')
+
+  const { error: histError } = await supabase.from('ticket_status_history').insert({
+    ticket_id:  ticketId,
+    old_status: requestStatusToSavStatus(ticket.status),
+    new_status: requestStatusToSavStatus(nextStatus ?? ticket.status),
+    changed_by: user.id,
+    note:       auditNote,
+  })
+  if (histError) console.error('[workshop decision] history insert failed:', histError.message)
+
+  revalidatePath(`/workshop/ticket/${ticketId}`)
+  revalidatePath(`/school/ticket/${ticketId}`)
+  revalidatePath(`/client/ticket/${ticketId}`)
+  revalidatePath('/plume')
+
+  return { success: true, decision, threshold }
+}

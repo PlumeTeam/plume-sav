@@ -12,7 +12,8 @@ import {
 } from '@/features/tickets/actions'
 import { ScanGateModal } from '@/features/tickets/components/ScanGateModal'
 import { formatDateTime, statusGte } from '@/features/tickets/utils'
-import type { RequestStatus } from '@/features/tickets/types'
+import type { RequestStatus, WarrantyStatus, WorkshopDecision } from '@/features/tickets/types'
+import { WorkshopDecisionStep } from './WorkshopDecisionStep'
 
 interface WorkshopStepPanelProps {
   ticketId:                string
@@ -26,6 +27,14 @@ interface WorkshopStepPanelProps {
   workshopDiagnosisAt:     string | null
   workshopRepairDoneAt:    string | null
   wingReturnedAt:          string | null
+  // T6 — Étape "Prise de décision" insérée entre diagnostic et réparation.
+  workshopDecision:                  WorkshopDecision | null
+  workshopDecisionAt:                string | null
+  workshopEstimatedRepairCost:       number | null
+  workshopDecisionWarrantyStatus:    WarrantyStatus | null
+  workshopDecisionNote:              string | null
+  /** Seuil €€ Plume pour valider une réparation côté modal. */
+  repairReplacementThresholdEur:     number
 }
 
 // Étapes linéaires (hors triage post-réception et pré-check qui sont des
@@ -116,6 +125,11 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
     preCheckCompletedAt,
     preCheckFeeEurConfig,
     workshopDiagnosisAt,
+    workshopDecision,
+    workshopDecisionAt,
+    workshopEstimatedRepairCost,
+    workshopDecisionNote,
+    repairReplacementThresholdEur,
   } = props
   const [isPending, startTransition] = useTransition()
   const [recipient, setRecipient] = useState<'school' | 'client'>('school')
@@ -445,8 +459,7 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
           </div>
         )}
 
-        {/* Étape diagnostic — démarrée par la branche triage ou par la fin du
-            pré-check. On affiche juste l'état "fait" pour la lisibilité. */}
+        {/* Étape 2 — diagnostic démarré. État "fait" uniquement, pas d'action. */}
         {diagnosisDone && (
           <div className="flex items-start gap-4 rounded-card border border-emerald-200 bg-emerald-50/50 p-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-base font-bold text-white" aria-hidden>
@@ -469,12 +482,35 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
           </div>
         )}
 
-        {/* Suite linéaire post-diagnostic */}
-        {STEPS.filter((s) => s.key !== 'received').map((step, idx) => (
+        {/* Étape 3 — Prise de décision (no_issue / repair / replacement).
+            Disponible dès que le diagnostic atelier est engagé. */}
+        {diagnosisDone && (
+          <WorkshopDecisionStep
+            ticketId={ticketId}
+            idx={3}
+            decision={workshopDecision}
+            decisionAt={workshopDecisionAt}
+            estimatedCost={workshopEstimatedRepairCost}
+            warrantyStatus={props.workshopDecisionWarrantyStatus}
+            note={workshopDecisionNote}
+            thresholdEur={repairReplacementThresholdEur}
+            isReachable={diagnosisDone}
+          />
+        )}
+
+        {/* Étapes 4–6 — Réparation en cours, terminée, aile renvoyée.
+            Quand la décision est 'no_issue', on saute repair + done : le
+            statut va direct à wing_returned, on n'affiche donc que la 6ᵉ
+            étape (renumérotée 4 pour ne pas afficher de "trous"). */}
+        {STEPS.filter((s) => {
+          if (s.key === 'received') return false
+          if (workshopDecision === 'no_issue' && (s.key === 'repair' || s.key === 'done')) return false
+          return true
+        }).map((step, idx) => (
           <SequentialStep
             key={step.key}
             step={step}
-            idx={idx + 3 /* received=1, diagnostic=2, donc repair commence à 3 */}
+            idx={idx + 4 /* received=1, diagnostic=2, décision=3, donc post-décision commence à 4 */}
             status={status}
             props={props}
             isPending={isPending}

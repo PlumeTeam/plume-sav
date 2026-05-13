@@ -23,6 +23,7 @@ export {
   startWorkshopPreCheckAction,
   startWorkshopRepairAction,
   submitRepairDecisionAction,
+  submitWorkshopDecisionAction,
 } from './workshop'
 export {
   acknowledgeTicketAction,

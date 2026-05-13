@@ -20,9 +20,7 @@ import { CloseTicketButton } from '@/features/tickets/components/CloseTicketButt
 import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
 import { WorkshopActionBar } from './WorkshopActionBar'
 import { WorkshopStepPanel } from './WorkshopStepPanel'
-import { WorkshopRepairDecisionPanel } from './WorkshopRepairDecisionPanel'
 import { WorkshopTicketTabs } from './WorkshopTicketTabs'
-import { statusGte } from '@/features/tickets/utils'
 import type { CloserRole, ClosureOutcome, TicketMessage, WarrantyStatus, WorkshopDecision, WorkshopReturnDestination } from '@/features/tickets/types'
 
 // Garantie : 2 ans à compter de la date d'achat (politique Plume Paragliders).
@@ -145,21 +143,6 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
     ].includes(ticket.status)
   const closerRole: CloserRole = isPlumeAdmin ? 'plume_admin' : 'workshop'
 
-  // T6 — décision réparation/remplacement n'est proposée qu'après réception
-  // de l'aile à l'atelier (pré-check effectué). On reste tolérant : si la
-  // décision est déjà prise, on l'affiche même au-delà.
-  const showRepairDecision = statusGte(ticket.status, 'wing_received_workshop')
-  const repairDecisionInitial = {
-    estimatedCost:   ticket.workshop_estimated_repair_cost != null
-      ? Number(ticket.workshop_estimated_repair_cost)
-      : null,
-    decision:        (ticket.workshop_decision ?? null) as WorkshopDecision | null,
-    warrantyStatus:  (ticket.workshop_decision_warranty_status ?? null) as WarrantyStatus | null,
-    warrantyCovered: ticket.workshop_decision_warranty_covered ?? null,
-    decisionAt:      ticket.workshop_decision_at ?? null,
-    note:            ticket.workshop_decision_note ?? null,
-  }
-
   return (
     <div className="min-h-screen">
       <header className="bg-brand-cream">
@@ -273,6 +256,16 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                   workshopDiagnosisAt={ticket.workshop_diagnosis_at}
                   workshopRepairDoneAt={ticket.workshop_repair_done_at}
                   wingReturnedAt={ticket.wing_returned_at}
+                  workshopDecision={ticket.workshop_decision as WorkshopDecision | null}
+                  workshopDecisionAt={ticket.workshop_decision_at}
+                  workshopEstimatedRepairCost={
+                    ticket.workshop_estimated_repair_cost != null
+                      ? Number(ticket.workshop_estimated_repair_cost)
+                      : null
+                  }
+                  workshopDecisionWarrantyStatus={ticket.workshop_decision_warranty_status as WarrantyStatus | null}
+                  workshopDecisionNote={ticket.workshop_decision_note}
+                  repairReplacementThresholdEur={plumeSettings.repairReplacementThresholdEur}
                 />
               </section>
 
@@ -432,24 +425,6 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                   hideNotes
                 />
               </section>
-
-              {/* T6 — Décision réparation vs remplacement (post pré-check) */}
-              {showRepairDecision && (
-                <section className="card p-5">
-                  <h2 className="section-title mb-3">Décision : réparation ou remplacement&nbsp;?</h2>
-                  <p className="mb-4 text-sm text-slate-600">
-                    Coût estimé saisi → on compare au seuil Plume pour décider entre réparation et aile neuve. La garantie 2 ans
-                    est lue automatiquement depuis la date d&apos;achat de l&apos;aile.
-                  </p>
-                  <WorkshopRepairDecisionPanel
-                    ticketId={ticket.id}
-                    purchaseDate={ticket.purchase_date}
-                    thresholdEur={plumeSettings.repairReplacementThresholdEur}
-                    warrantyDurationMonths={plumeSettings.warrantyDurationMonths}
-                    initial={repairDecisionInitial}
-                  />
-                </section>
-              )}
 
               {/* Diagnostic technicien — saisie + récap fusionnés. Le composer
                   messages a été retiré : la messagerie passe par l'onglet

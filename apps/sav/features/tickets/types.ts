@@ -151,7 +151,11 @@ export type WorkshopReturnDestination = 'school' | 'client'
 // T6 — Décision atelier après pré-check
 //  - repair       : coût estimé ≤ seuil plume_settings → réparation
 //  - replacement  : coût estimé > seuil → aile neuve
-export type WorkshopDecision = 'repair' | 'replacement'
+// T6+ — Décision atelier après pré-check / diagnostic :
+//  - 'no_issue'    : aucun défaut, l'aile repart telle quelle (skip réparation)
+//  - 'repair'      : coût ≤ seuil → réparation
+//  - 'replacement' : coût > seuil OU non réparable → remplacement aile neuve
+export type WorkshopDecision = 'no_issue' | 'repair' | 'replacement'
 
 // Statut de garantie au moment de la décision atelier — figé à la prise
 // de décision pour traçabilité (purchase_date pouvant être corrigé plus tard).

@@ -335,6 +335,30 @@ export const repairDecisionSchema = z.object({
   note: z.string().trim().max(2000).optional(),
 })
 
+// Décision atelier 3-options (étape "Prise de décision" du WorkshopStepPanel).
+// Cost requis uniquement pour 'repair' ; 'no_issue' et 'replacement' acceptent
+// une note libre optionnelle. Le check coût ≤ seuil reste côté serveur.
+export const workshopDecisionSchema = z.object({
+  ticketId: z.string().uuid(),
+  decision: z.enum(['no_issue', 'repair', 'replacement']),
+  estimatedCost: z.preprocess(
+    (v) => (v === '' || v == null ? undefined : Number(v)),
+    z.number({ invalid_type_error: 'Coût invalide' })
+      .min(0, 'Le coût doit être positif')
+      .max(100000, 'Coût trop élevé')
+      .optional(),
+  ),
+  note: z.string().trim().max(2000).optional(),
+}).superRefine((data, ctx) => {
+  if (data.decision === 'repair' && data.estimatedCost == null) {
+    ctx.addIssue({
+      code:    z.ZodIssueCode.custom,
+      path:    ['estimatedCost'],
+      message: 'Coût estimé requis pour une réparation',
+    })
+  }
+})
+
 export const diagnosisSchema = z.object({
   ticketId: z.string().uuid(),
   diagnosisNotes: z.string().max(5000).optional(),
@@ -369,7 +393,8 @@ export type UpdateStatusInput = z.infer<typeof updateStatusSchema>
 export type RoleMessageInput = z.infer<typeof roleMessageSchema>
 export type DiagnosisInput = z.infer<typeof diagnosisSchema>
 export type ChannelMessageInput = z.infer<typeof channelMessageSchema>
-export type RepairDecisionInput = z.infer<typeof repairDecisionSchema>
+export type RepairDecisionInput     = z.infer<typeof repairDecisionSchema>
+export type WorkshopDecisionInput   = z.infer<typeof workshopDecisionSchema>
 export type SchoolChecklistInput   = z.infer<typeof schoolChecklistSchema>
 export type SchoolResolutionInput  = z.infer<typeof schoolResolutionSchema>
 export type WorkshopChecklistInput = z.infer<typeof workshopChecklistSchema>
