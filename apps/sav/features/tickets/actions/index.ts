@@ -37,6 +37,7 @@ export {
   adminCloseTicketAction,
   adminReassignSchoolAction,
   adminRemindSchoolAction,
+  applyPlumeOverrideAction,
   assignWorkshopForCommunicationAction,
 } from './admin'
 

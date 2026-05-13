@@ -15,6 +15,7 @@ import type {
   ShipmentLeg,
   TicketStatus,
   TicketUpdate,
+  WarrantyTier,
   WizardProblemCategory,
 } from '../types'
 import {
@@ -284,4 +285,85 @@ export async function adminRemindSchoolAction(formData: FormData) {
   return { success: true }
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Override garantie — Plume HQ prend en charge un ticket extended/HG
+// ────────────────────────────────────────────────────────────────────────────
+//
+// Bascule warranty_tier vers 'plume_override' (qui se comporte ensuite comme
+// 'standard' pour le reste du flow) avec une note de justification obligatoire,
+// l'identité Plume HQ et un timestamp. Reservé plume_admin et ne s'applique
+// que si le tier courant est 'extended' ou 'out_of_warranty' — pas la peine
+// d'écraser un standard déjà couvert, et un override existant ne devrait pas
+// être ré-overridé sans audit dédié.
+export async function applyPlumeOverrideAction(formData: FormData) {
+  const ticketId = String(formData.get('ticketId') ?? '')
+  const note     = String(formData.get('note') ?? '').trim()
+  if (!ticketId)        return { error: { _form: ['Identifiant manquant'] } }
+  if (note.length < 3)  return { error: { note: ['Note de justification requise (3 caractères min)'] } }
+  if (note.length > 2000) return { error: { note: ['Note trop longue (2000 caractères max)'] } }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: { _form: ['Non authentifié'] } }
+
+  const roles = await getCurrentUserRoles()
+  if (!roles.includes('plume_admin')) {
+    return { error: { _form: ['Réservé à Plume HQ'] } }
+  }
+
+  const { data: ticket, error: fetchError } = await supabase
+    .from('service_requests')
+    .select('id, status, warranty_tier')
+    .eq('id', ticketId)
+    .single()
+    .returns<{ id: string; status: RequestStatus; warranty_tier: WarrantyTier | null }>()
+
+  if (fetchError || !ticket) {
+    return { error: { _form: ['Ticket introuvable'] } }
+  }
+
+  if (ticket.warranty_tier !== 'extended' && ticket.warranty_tier !== 'out_of_warranty') {
+    return {
+      error: {
+        _form: [
+          `Override possible uniquement si le tier courant est 'extended' ou ` +
+          `'out_of_warranty' (actuel : ${ticket.warranty_tier ?? '—'}).`,
+        ],
+      },
+    }
+  }
+
+  const nowIso = new Date().toISOString()
+  const { error: updateError } = await supabase
+    .from('service_requests')
+    .update({
+      warranty_tier:          'plume_override',
+      warranty_override_by:   user.id,
+      warranty_override_at:   nowIso,
+      warranty_override_note: note,
+    })
+    .eq('id', ticketId)
+
+  if (updateError) {
+    return { error: { _form: [`Erreur de sauvegarde (${updateError.message})`] } }
+  }
+
+  // Audit — l'override est un changement non-trivial qui mérite sa propre
+  // entrée dans l'historique. old_status = new_status (pas un changement
+  // de pipeline, mais une bascule de couverture).
+  const { error: histError } = await supabase.from('ticket_status_history').insert({
+    ticket_id:  ticketId,
+    old_status: requestStatusToSavStatus(ticket.status),
+    new_status: requestStatusToSavStatus(ticket.status),
+    changed_by: user.id,
+    note:       `🦅 Override garantie Plume HQ (depuis « ${ticket.warranty_tier} »). Motif : ${note}`,
+  })
+  if (histError) console.error('[applyPlumeOverrideAction] history insert failed:', histError.message)
+
+  revalidatePath(`/workshop/ticket/${ticketId}`)
+  revalidatePath(`/school/ticket/${ticketId}`)
+  revalidatePath(`/client/ticket/${ticketId}`)
+  revalidatePath('/plume')
+  return { success: true }
+}
 
