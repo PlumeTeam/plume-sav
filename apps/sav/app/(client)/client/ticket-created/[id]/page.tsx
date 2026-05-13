@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getTicketDetail, getPartnerSchoolById } from '@/features/tickets/queries'
+import { WarrantyTierBadge } from '@/features/tickets/components/WarrantyTierBadge'
+import type { WarrantyTier } from '@/features/tickets/types'
 
 interface PageProps { params: { id: string } }
 
@@ -18,6 +20,7 @@ export default async function TicketCreatedPage({ params }: PageProps) {
   const ticketRef  = ticket.ticket_number ?? `#${ticket.id.slice(0, 8).toUpperCase()}`
   const schoolName = school?.name ?? 'Votre école partenaire'
   const cityRegion = [school?.city, school?.region].filter(Boolean).join(' · ')
+  const tier: WarrantyTier = (ticket.warranty_tier as WarrantyTier | null) ?? 'out_of_warranty'
 
   return (
     <main className="mx-auto max-w-2xl space-y-5 px-4 py-8">
@@ -39,12 +42,42 @@ export default async function TicketCreatedPage({ params }: PageProps) {
         </p>
       </section>
 
+      {/* ── Tier de garantie ────────────────────────────────────── */}
+      <section className="card flex items-center justify-between gap-3 p-4">
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            Garantie de votre aile
+          </p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {tier === 'standard' && 'Tout est pris en charge par Plume.'}
+            {tier === 'extended' && 'Couverture partielle — transport client→école à votre charge.'}
+            {tier === 'out_of_warranty' && 'Transport et réparation à votre charge.'}
+            {tier === 'plume_override' && 'Prise en charge exceptionnelle Plume HQ.'}
+          </p>
+        </div>
+        <WarrantyTierBadge tier={tier} size="sm" compact />
+      </section>
+
       {/* ── Prochaine étape — bloc d'action proéminent ───────────── */}
       <section className="rounded-card border-2 border-brand-gold bg-brand-gold/10 p-5 shadow-plume">
         <p className="mb-2 text-xs font-bold uppercase tracking-wider text-brand-ink">
           👉 Prochaine étape
         </p>
-        {isPostal ? (
+        {tier === 'out_of_warranty' ? (
+          <p className="text-base leading-relaxed text-brand-ink">
+            <strong>{schoolName}</strong> va recevoir votre demande et
+            transmettre votre aile à un atelier partenaire pour devis. Le
+            transport et la réparation sont à votre charge — vous validerez
+            le devis avant toute intervention.
+          </p>
+        ) : tier === 'extended' ? (
+          <p className="text-base leading-relaxed text-brand-ink">
+            <strong>{schoolName}</strong> va effectuer un pré-check de votre
+            demande. <strong>Le transport client → école est à votre charge ;</strong>
+            {' '}la suite (atelier, réparation) est prise en charge par Plume
+            selon la politique de garantie étendue.
+          </p>
+        ) : isPostal ? (
           <p className="text-base leading-relaxed text-brand-ink">
             <strong>{schoolName}</strong> va effectuer un pré-check de votre
             demande à partir des informations renseignées en ligne. Une fois

@@ -1,10 +1,14 @@
-import { getClientWings, getPartnerSchools, getPartnerSchoolById } from '@/features/tickets/queries'
+import { getClientWings, getPartnerSchools, getPartnerSchoolById, getPlumeSettings } from '@/features/tickets/queries'
 import { TicketWizard } from '@/features/tickets/components/wizard/TicketWizard'
 
 export const dynamic = 'force-dynamic'
 
 export default async function NewTicketPage() {
-  const [wings, baseSchools] = await Promise.all([getClientWings(), getPartnerSchools()])
+  const [wings, baseSchools, policy] = await Promise.all([
+    getClientWings(),
+    getPartnerSchools(),
+    getPlumeSettings(),
+  ])
 
   // Ensure every wing's referent school is in the picker list. getPartnerSchools()
   // filters by is_affiliated/active first, so a referent school that's neither
@@ -27,5 +31,5 @@ export default async function NewTicketPage() {
     : []
   const schools = [...baseSchools, ...extras]
 
-  return <TicketWizard wings={wings} schools={schools} />
+  return <TicketWizard wings={wings} schools={schools} policy={policy} />
 }

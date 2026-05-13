@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useWizardStore } from '../../store'
-import type { PartnerSchool } from '../../queries'
+import type { PartnerSchool, PlumeSettings } from '../../queries'
 import type { SchoolChangeReasonCode } from '../../types'
 import { StepLayout, StepNav } from './StepLayout'
+import { WarrantyTierBanner } from './WarrantyTierBanner'
 
 // Leaflet must not run on the server (uses window/document)
 const SchoolMapPicker = dynamic(
@@ -22,6 +23,7 @@ const SchoolMapPicker = dynamic(
 
 interface StepSchoolProps {
   schools:  PartnerSchool[]
+  policy:   PlumeSettings
   onNext:   () => void
   onBack:   () => void
 }
@@ -38,7 +40,7 @@ const REASONS: Array<{ code: SchoolChangeReasonCode; label: string; description:
     description: 'Je précise dans le champ texte.', emoji: '📝' },
 ]
 
-export function StepSchool({ schools, onNext, onBack }: StepSchoolProps) {
+export function StepSchool({ schools, policy, onNext, onBack }: StepSchoolProps) {
   const { problem, setProblem, wingInfo } = useWizardStore()
 
   // The referent school comes from the wing the user picked in step 1.
@@ -118,6 +120,7 @@ export function StepSchool({ schools, onNext, onBack }: StepSchoolProps) {
         }
       >
         <div className="space-y-4">
+          <WarrantyTierBanner policy={policy} />
           <div className="card flex items-start gap-3 border-2 border-brand-gold bg-brand-gold/10 p-5 shadow-plume">
             <span aria-hidden className="text-3xl">🏫</span>
             <div className="min-w-0 flex-1">
@@ -227,6 +230,7 @@ export function StepSchool({ schools, onNext, onBack }: StepSchoolProps) {
       }
     >
       <div className="space-y-4">
+        <WarrantyTierBanner policy={policy} />
         <SchoolMapPicker
           schools={schools}
           selectedId={pickedId}
