@@ -140,6 +140,20 @@ export const schoolResolutionSchema = z.object({
   }
 })
 
+// Wizard client : attache des photos à un ticket déjà créé. Utilisé par le
+// flow transactionnel — création ticket d'abord, upload photos ensuite avec
+// le ticket_id en préfixe de path. Si l'utilisateur ferme entre les deux,
+// les fichiers orphelins éventuels portent le ticket_id dans leur chemin et
+// sont identifiables pour un cleanup ultérieur.
+export const attachTicketPhotosSchema = z.object({
+  ticketId: z.string().uuid(),
+  photos: z.array(z.object({
+    storagePath: z.string().min(1).max(500),
+    photoType:   z.enum(['overview', 'damage_closeup', 'serial_tag', 'other']),
+    caption:     z.string().max(500).optional(),
+  })).min(1).max(20),
+})
+
 // Atelier : sauvegarde de la checklist diagnostic technique
 export const workshopChecklistSchema = z.object({
   ticketId:    z.string().uuid(),
@@ -398,6 +412,7 @@ export type WorkshopDecisionInput   = z.infer<typeof workshopDecisionSchema>
 export type SchoolChecklistInput   = z.infer<typeof schoolChecklistSchema>
 export type SchoolResolutionInput  = z.infer<typeof schoolResolutionSchema>
 export type WorkshopChecklistInput = z.infer<typeof workshopChecklistSchema>
+export type AttachTicketPhotosInput = z.infer<typeof attachTicketPhotosSchema>
 export type AssignWorkshopInput    = z.infer<typeof assignWorkshopSchema>
 export type ClientShippingAddressInput   = z.infer<typeof clientShippingAddressSchema>
 export type GenerateShippingLabelInput   = z.infer<typeof generateShippingLabelSchema>

@@ -1,4 +1,4 @@
-﻿export { createTicketAction } from './creation'
+﻿export { createTicketAction, attachTicketPhotosAction } from './creation'
 export {
   addChannelMessageAction,
   addMessageAction,

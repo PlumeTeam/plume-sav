@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useWizardStore } from '../../store'
-import { createTicketAction } from '../../actions'
+import { attachTicketPhotosAction, createTicketAction } from '../../actions'
 import { PROBLEM_CATEGORIES, type WizardWingHistory } from '../../types'
 import { createClient } from '@/lib/supabase/client'
 import type { PartnerSchool } from '../../queries'
@@ -49,80 +49,16 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
         return
       }
 
-      const uploadedPhotos: Array<{
-        storagePath: string
-        photoType: 'overview' | 'damage_closeup' | 'serial_tag' | 'other'
-        caption?: string
-      }> = []
-
-      // Last error captured so we can surface it to the user verbatim if
-      // every upload fails. Otherwise it's just logged for diagnosis.
-      let lastUploadError: string | null = null
-
-      setProgress({ done: 0, total: photos.length })
-      for (let i = 0; i < photos.length; i++) {
-        const photo = photos[i]
-        const file  = _photoFiles[i]
-        if (!photo || !file) continue
-
-        // Only [a-z0-9] in the extension — keeps the path safe even if
-        // the input file had something unusual.
-        const rawExt = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-        const ext = /^[a-z0-9]+$/.test(rawExt) ? rawExt : 'jpg'
-        const storagePath = `${user.id}/${Date.now()}-${i}.${ext}`
-
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[upload] →', {
-            bucket: 'tickets',
-            path: storagePath,
-            size: file.size,
-            type: file.type,
-          })
-        }
-
-        const { error: uploadError } = await supabase.storage
-          .from('tickets')
-          .upload(storagePath, file, {
-            upsert: false,
-            contentType: file.type || `image/${ext}`,
-            cacheControl: '3600',
-          })
-
-        if (uploadError) {
-          // Supabase Storage errors carry .message and sometimes .statusCode
-          // / .error — log everything we have to ease diagnosis.
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const e = uploadError as any
-          console.error('[upload] error:', {
-            message:    uploadError.message,
-            statusCode: e.statusCode ?? e.status ?? '?',
-            name:       e.name ?? '?',
-            error:      e.error ?? '?',
-          })
-          lastUploadError = uploadError.message
-          continue
-        }
-
-        uploadedPhotos.push({
-          storagePath,
-          photoType: photo.photoType,
-          caption:   photo.caption || undefined,
-        })
-        setProgress({ done: i + 1, total: photos.length })
-      }
-
-      // Photos are optional — but if the user added some and they all failed
-      // to upload, surface the actual Supabase error rather than a generic message.
-      if (photos.length > 0 && uploadedPhotos.length === 0) {
-        const detail = lastUploadError ? ` (${lastUploadError})` : ''
-        setSubmitError(`Échec de l'upload des photos${detail}.`)
-        setIsSubmitting(false)
-        submitLockRef.current = false
-        setProgress(null)
-        return
-      }
-
-      const result = await createTicketAction({
+      // Flow transactionnel (anti-orphelins) :
+      //  1. Création du ticket SANS photos → on récupère ticketId
+      //  2. Upload photos vers Storage avec ticket_id en préfixe de path
+      //     → si l'utilisateur ferme le navigateur ici, les fichiers
+      //     éventuels portent le ticket_id et sont rattachables / nettoyables
+      //  3. Insert ticket_photos en DB
+      // L'ancien flow uploadait AVANT de créer le ticket, ce qui produisait
+      // des fichiers orphelins (path `<userId>/<timestamp>`) sans aucun lien
+      // avec un ticket si le navigateur fermait au mauvais moment.
+      const createRes = await createTicketAction({
         wingBrand:              wingInfo.wingBrand,
         wingModel:              wingInfo.wingModel,
         wingSize:               wingInfo.wingSize,
@@ -141,11 +77,11 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
         schoolChangeReasonCode: problem.schoolChangeReasonCode,
         schoolChangeReasonNote: problem.schoolChangeReasonNote,
         deliveryMethod:         problem.deliveryMethod,
-        photoPaths:             uploadedPhotos,
+        photoPaths:             [],  // photos uploadées en 2 étapes post-création
       })
 
-      if (result?.error) {
-        const errorMsg = Object.values(result.error).flat().join(' — ')
+      if (createRes?.error) {
+        const errorMsg = Object.values(createRes.error).flat().join(' — ')
         setSubmitError(errorMsg || 'Erreur lors de la soumission.')
         setIsSubmitting(false)
         submitLockRef.current = false
@@ -153,15 +89,90 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
         return
       }
 
-      // Reset wizard state BEFORE navigating so that going Back doesn't
-      // resurrect the just-submitted draft. Then route to the confirmation page.
-      const ticketId = (result as { ticketId?: string } | null)?.ticketId
-      reset()
-      if (ticketId) {
-        router.push(`/client/ticket-created/${ticketId}`)
-      } else {
-        router.push('/client')
+      const ticketId = (createRes as { ticketId?: string } | null)?.ticketId
+      if (!ticketId) {
+        setSubmitError('Ticket créé mais identifiant manquant. Contactez le support.')
+        setIsSubmitting(false)
+        submitLockRef.current = false
+        setProgress(null)
+        return
       }
+
+      // Étape 2 — upload photos avec ticket_id en préfixe de path.
+      const uploadedPhotos: Array<{
+        storagePath: string
+        photoType: 'overview' | 'damage_closeup' | 'serial_tag' | 'other'
+        caption?: string
+      }> = []
+      let lastUploadError: string | null = null
+
+      if (photos.length > 0) {
+        setProgress({ done: 0, total: photos.length })
+        for (let i = 0; i < photos.length; i++) {
+          const photo = photos[i]
+          const file  = _photoFiles[i]
+          if (!photo || !file) continue
+
+          const rawExt = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+          const ext = /^[a-z0-9]+$/.test(rawExt) ? rawExt : 'jpg'
+          // Préfixe ticket_id — les orphelins éventuels sont rattachables.
+          const storagePath = `${user.id}/${ticketId}/${i}-${Date.now()}.${ext}`
+
+          const { error: uploadError } = await supabase.storage
+            .from('tickets')
+            .upload(storagePath, file, {
+              upsert: false,
+              contentType: file.type || `image/${ext}`,
+              cacheControl: '3600',
+            })
+
+          if (uploadError) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const e = uploadError as any
+            console.error('[upload] error:', {
+              message:    uploadError.message,
+              statusCode: e.statusCode ?? e.status ?? '?',
+            })
+            lastUploadError = uploadError.message
+            continue
+          }
+
+          uploadedPhotos.push({
+            storagePath,
+            photoType: photo.photoType,
+            caption:   photo.caption || undefined,
+          })
+          setProgress({ done: i + 1, total: photos.length })
+        }
+
+        // Étape 3 — attach DB. Best-effort : si attach échoue, le ticket
+        // existe sans photos (l'inverse — fichiers orphelins — était le
+        // problème qu'on fixe ici). On surface l'erreur en non-bloquant.
+        if (uploadedPhotos.length > 0) {
+          const attachRes = await attachTicketPhotosAction({
+            ticketId,
+            photos: uploadedPhotos,
+          })
+          if (attachRes?.error) {
+            const flat = attachRes.error as Record<string, string[] | undefined>
+            console.warn('[attachTicketPhotos] failed:', flat._form?.[0] ?? 'unknown')
+            // On continue malgré l'échec : le ticket est créé, l'utilisateur
+            // ira sur la page de confirmation et pourra ré-uploader plus tard.
+          }
+        }
+
+        // Si l'utilisateur a fourni des photos et qu'elles ont TOUTES échoué
+        // à l'upload, on l'avertit mais le ticket est créé — il peut revenir
+        // les ajouter via la page du ticket.
+        if (photos.length > 0 && uploadedPhotos.length === 0 && lastUploadError) {
+          console.warn(`[wizard] tous les uploads photos ont échoué : ${lastUploadError}`)
+        }
+      }
+
+      // Reset wizard state BEFORE navigating so que back ne ressuscite pas
+      // le draft tout juste soumis.
+      reset()
+      router.push(`/client/ticket-created/${ticketId}`)
     } catch (err) {
       console.error('Submit error:', err)
       setSubmitError('Une erreur inattendue est survenue. Réessayez.')

@@ -18,7 +18,7 @@ import type {
   TicketUpdate,
   WizardProblemCategory,
 } from '../types'
-import { createTicketSchema } from '../schemas'
+import { attachTicketPhotosSchema, createTicketSchema } from '../schemas'
 import { resolveClientIdentity } from '@/features/auth/identity'
 import {
   sendClientConfirmationEmail,
@@ -237,4 +237,59 @@ export async function createTicketAction(input: unknown) {
   return { ok: true as const, ticketId: ticket.id }
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Attach photos to a ticket (transactional wizard flow)
+// ────────────────────────────────────────────────────────────────────────────
+//
+// Le wizard SAV client crée d'abord le ticket (createTicketAction sans
+// photos), puis upload les photos vers Storage avec le ticket_id en
+// préfixe de path. Cette action insère les entrées ticket_photos
+// correspondantes. Si l'utilisateur ferme le navigateur entre l'upload
+// et l'insert DB, les fichiers orphelins portent le ticket_id dans leur
+// chemin et restent identifiables pour un cleanup ultérieur (l'ancien
+// flow stockait sous `<userId>/<timestamp>` sans lien avec un ticket,
+// d'où des photos orphelines impossibles à associer).
+export async function attachTicketPhotosAction(input: unknown) {
+  const parsed = attachTicketPhotosSchema.safeParse(input)
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors }
 
+  const { ticketId, photos } = parsed.data
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: { _form: ['Non authentifié'] } }
+
+  // Vérifie que le ticket appartient bien au user — un client ne peut
+  // attacher des photos qu'à ses propres tickets. La RLS sur ticket_photos
+  // pose déjà le garde-fou via le join service_requests.client_id, mais
+  // on échoue tôt avec un message explicite plutôt que sur une erreur DB
+  // énigmatique.
+  const { data: ticket, error: ticketErr } = await supabase
+    .from('service_requests')
+    .select('id, client_id')
+    .eq('id', ticketId)
+    .single()
+    .returns<{ id: string; client_id: string | null }>()
+  if (ticketErr || !ticket) {
+    return { error: { _form: ['Ticket introuvable'] } }
+  }
+  if (ticket.client_id !== user.id) {
+    return { error: { _form: ['Vous ne pouvez pas modifier ce ticket'] } }
+  }
+
+  const photoRows = photos.map((p, idx) => ({
+    ticket_id:    ticketId,
+    storage_path: p.storagePath,
+    photo_type:   p.photoType,
+    caption:      p.caption ?? null,
+    sort_order:   idx,
+  }))
+  const { error: insertError } = await supabase.from('ticket_photos').insert(photoRows)
+  if (insertError) {
+    return { error: { _form: [`Erreur lors de l'enregistrement des photos (${insertError.message})`] } }
+  }
+
+  revalidatePath(`/client/ticket/${ticketId}`)
+  revalidatePath('/client')
+  return { ok: true as const, count: photoRows.length }
+}
