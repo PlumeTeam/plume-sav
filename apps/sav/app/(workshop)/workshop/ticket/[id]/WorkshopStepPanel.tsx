@@ -518,6 +518,15 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
             onBypassScan={() => executeStep(step.key)}
             recipient={step.key === 'returned' ? recipient : undefined}
             onRecipientChange={step.key === 'returned' ? setRecipient : undefined}
+            // Garde-fou métier : on n'autorise 'Réparation en cours' (et,
+            // par cohérence, 'Réparation terminée') que si la décision
+            // atelier est explicitement 'repair'. Pour 'replacement', les
+            // deux étapes restent verrouillées — Plume HQ pilote la suite.
+            gate={
+              step.key === 'repair' || step.key === 'done'
+                ? workshopDecision === 'repair'
+                : true
+            }
           />
         ))}
       </div>
@@ -544,13 +553,18 @@ interface SequentialStepProps {
   onBypassScan:       () => void
   recipient?:         'school' | 'client'
   onRecipientChange?: (r: 'school' | 'client') => void
+  /** Garde-fou métier additionnel : si false, l'étape reste verrouillée
+   *  même si le statut autoriserait l'activation. Utilisé pour gater
+   *  'Réparation en cours' sur workshop_decision === 'repair'. */
+  gate?:              boolean
 }
 
 function SequentialStep({
   step, idx, status, props, isPending, onClick, onBypassScan, recipient, onRecipientChange,
+  gate = true,
 }: SequentialStepProps) {
   const isDone   = statusGte(status, step.doneFrom)
-  const isActive = step.activeWhen.includes(status) && !isDone
+  const isActive = gate && step.activeWhen.includes(status) && !isDone
   const isLocked = !isActive && !isDone
   const at       = step.tsKey ? props[step.tsKey] : null
 
