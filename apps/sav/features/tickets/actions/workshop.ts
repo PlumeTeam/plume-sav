@@ -420,22 +420,10 @@ export async function submitWorkshopDecisionAction(formData: FormData) {
     ticketTier === 'extended'        ? settings.repairThresholdExtendedEur :
     settings.repairReplacementThresholdEur
 
-  // Garde-fou serveur : 'repair' impose cost ≤ threshold quand il existe.
-  // En hors garantie, le seuil est null → check skippé (devis libre).
-  if (
-    decision === 'repair' &&
-    estimatedCost != null &&
-    effectiveThreshold != null &&
-    estimatedCost > effectiveThreshold
-  ) {
-    return {
-      error: {
-        estimatedCost: [
-          `Coût ${estimatedCost} € > seuil Plume ${effectiveThreshold} € HT — choisissez « Remplacement ».`,
-        ],
-      },
-    }
-  }
+  // Le seuil Plume est une recommandation informative côté UI — l'atelier
+  // garde le contrôle final sur la décision (peut décider de réparer même
+  // au-dessus du plafond ; la justification vit dans la note + l'audit
+  // trail). Pas de check bloquant ici.
 
   // Refuse 'replacement' en garantie étendue si Plume ne le couvre pas.
   if (

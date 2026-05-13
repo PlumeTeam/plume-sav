@@ -240,22 +240,15 @@ function WorkshopDecisionModal({
     return Number.isFinite(n) && n >= 0 ? n : null
   }, [costInput])
 
-  // En hors garantie, il n'y a pas de plafond : le client validera le devis
-  // via le canal client_workshop. Le check 'cost > seuil' n'a donc lieu
-  // qu'en standard / extended / override.
+  // Comparaison cost / seuil — purement informative. Le seuil n'est plus un
+  // garde-fou bloquant : c'est une recommandation. L'atelier garde le
+  // contrôle total de la décision (peut décider de réparer au-dessus du
+  // plafond et facturer à Plume / au client selon le tier ; c'est l'audit
+  // de la note qui justifiera la décision).
   const costExceedsThreshold =
     effectiveThreshold != null && parsedCost != null && parsedCost > effectiveThreshold
   const costWithinBudget =
     effectiveThreshold != null && parsedCost != null && parsedCost <= effectiveThreshold
-
-  // Auto-bascule vers Remplacement : seulement si Plume couvre le
-  // remplacement pour ce tier (standard, override) ou si étendu+toggle.
-  // Hors garantie → pas d'autoswitch (devis libre soumis au client).
-  useEffect(() => {
-    if (!isOutOfWarranty && !replacementBlocked && costExceedsThreshold && choice === 'repair') {
-      setChoice('replacement')
-    }
-  }, [isOutOfWarranty, replacementBlocked, costExceedsThreshold, choice])
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -268,10 +261,10 @@ function WorkshopDecisionModal({
       setError('Saisissez le coût estimé HT de la réparation.')
       return
     }
-    if (choice === 'repair' && costExceedsThreshold) {
-      setError(`Devis refusé : coût > seuil ${formatEur(effectiveThreshold!)} HT — choisissez « Remplacement ».`)
-      return
-    }
+    // Plus de check de plafond ici — c'est une recommandation, pas un blocage.
+    // Le replacement reste bloqué quand non couvert par Plume sur garantie
+    // étendue : c'est une règle métier (pas de prise en charge) et non une
+    // recommandation de seuil. L'atelier doit demander un override HQ.
     if (choice === 'replacement' && replacementBlocked) {
       setError("Plume ne couvre pas le remplacement en garantie étendue. Coordonnez avec Plume HQ pour un override.")
       return
@@ -396,8 +389,21 @@ function WorkshopDecisionModal({
                 </div>
                 {!isOutOfWarranty && costWithinBudget && (
                   <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800 ring-1 ring-emerald-200">
-                    ✅ Devis dans le budget — réparation autorisée
+                    ✅ Devis dans le budget — réparation dans les conditions Plume.
                   </p>
+                )}
+                {!isOutOfWarranty && costExceedsThreshold && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800">
+                    <p className="font-bold">
+                      ⚠️ Coût au-dessus du plafond Plume
+                    </p>
+                    <p className="mt-1 font-normal text-red-700">
+                      {formatEur(parsedCost!)} HT &gt; seuil {formatEur(effectiveThreshold!)} HT.
+                      Information seulement : c&apos;est vous qui décidez. Si la
+                      réparation reste pertinente, justifiez-la dans la note ci-dessous ;
+                      sinon basculez sur « Remplacement de l&apos;aile ».
+                    </p>
+                  </div>
                 )}
                 {isOutOfWarranty && parsedCost != null && (
                   <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 ring-1 ring-amber-200">
@@ -422,20 +428,7 @@ function WorkshopDecisionModal({
                   : "Coût > seuil, réparation impossible, ou aile irrécupérable. Plume HQ pilote la suite."
             }
             disabled={replacementBlocked}
-          >
-            {choice === 'replacement' && costExceedsThreshold && !replacementBlocked && (
-              <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800">
-                <p className="font-bold">
-                  ❌ Devis refusé — le montant dépasse le plafond garanti.
-                </p>
-                <p className="mt-1 font-normal text-red-700">
-                  {formatEur(parsedCost!)} HT &gt; seuil {formatEur(effectiveThreshold!)} HT.
-                  Une aile neuve sera envoyée au client. Le client devra nous renvoyer
-                  l&apos;aile défectueuse.
-                </p>
-              </div>
-            )}
-          </OptionCard>
+          />
         </fieldset>
 
         <div>
@@ -470,7 +463,7 @@ function WorkshopDecisionModal({
           </button>
           <button
             type="submit"
-            disabled={isPending || !choice || (choice === 'repair' && costExceedsThreshold)}
+            disabled={isPending || !choice || (choice === 'replacement' && replacementBlocked)}
             className="btn-primary"
           >
             {isPending ? 'Enregistrement…' : 'Valider la décision'}
