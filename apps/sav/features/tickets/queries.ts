@@ -80,29 +80,77 @@ function enrichWithCoords(s: PartnerSchool): PartnerSchool {
   return coords ? { ...s, lat: coords.lat, lng: coords.lng } : s
 }
 
-// T6 — Paramètres globaux Plume (singleton id = 1).
-// Lecture autorisée à tout user authentifié par RLS — l'atelier en a besoin
-// pour calculer la décision repair/replacement, l'école pour comprendre.
-// Si la table ou la row manque, fallback sur les valeurs par défaut produit
-// (seuil 1500 €, garantie 24 mois) pour ne jamais bloquer l'UI atelier.
+// Paramètres globaux Plume (singleton id = 1). Lecture autorisée à tout user
+// authentifié par RLS. Inclut la politique de garantie (chantier garantie) :
+// durées, plafonds, max SAV par tier, couvertures de la garantie étendue.
+// Fallback sur les valeurs par défaut produit pour ne jamais bloquer l'UI
+// si la table ou la row est manquante.
 export interface PlumeSettings {
-  repairReplacementThresholdEur: number
-  warrantyDurationMonths:        number
-  /** Tarif fixe (€) facturé à Plume pour un pré-check atelier (~1h max). */
+  // Plafonds réparation
+  repairReplacementThresholdEur: number  // standard (legacy: repair_replacement_threshold_eur)
+  repairThresholdExtendedEur:    number  // étendue
+  // Tarif pré-check
   preCheckFeeEur:                number
+  // Durées garantie
+  warrantyStandardYears:         number
+  warrantyExtendedYears:         number
+  /** @deprecated rétrocompat — préférer warrantyStandardYears * 12 */
+  warrantyDurationMonths:        number
+  // Quotas SAV par tier (0 = illimité)
+  maxSavClaimsStandard:          number
+  maxSavClaimsExtended:          number
+  // Couvertures de la garantie étendue (toggles HQ)
+  extendedCoversPreCheck:                boolean
+  extendedCoversSchoolWorkshopShipping:  boolean
+  extendedCoversRepair:                  boolean
+  extendedCoversReplacement:             boolean
 }
 
 const DEFAULT_PLUME_SETTINGS: PlumeSettings = {
   repairReplacementThresholdEur: 1500,
-  warrantyDurationMonths:        24,
+  repairThresholdExtendedEur:    150,
   preCheckFeeEur:                50,
+  warrantyStandardYears:         2,
+  warrantyExtendedYears:         3,
+  warrantyDurationMonths:        24,
+  maxSavClaimsStandard:          0, // illimité
+  maxSavClaimsExtended:          1,
+  extendedCoversPreCheck:                true,
+  extendedCoversSchoolWorkshopShipping:  true,
+  extendedCoversRepair:                  false,
+  extendedCoversReplacement:             false,
+}
+
+// Coerce un champ DB numeric (souvent renvoyé en string par PostgREST) en
+// number, ou retourne le fallback si non finite.
+function toNum(v: unknown, fallback: number): number {
+  const n = typeof v === 'number' ? v : Number(v)
+  return Number.isFinite(n) ? n : fallback
+}
+
+function toBool(v: unknown, fallback: boolean): boolean {
+  if (typeof v === 'boolean') return v
+  return fallback
 }
 
 export async function getPlumeSettings(): Promise<PlumeSettings> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('plume_settings')
-    .select('repair_replacement_threshold_eur, warranty_duration_months, pre_check_fee_eur')
+    .select(`
+      repair_replacement_threshold_eur,
+      repair_threshold_extended_eur,
+      warranty_duration_months,
+      warranty_standard_years,
+      warranty_extended_years,
+      max_sav_claims_standard,
+      max_sav_claims_extended,
+      extended_covers_precheck,
+      extended_covers_school_workshop_shipping,
+      extended_covers_repair,
+      extended_covers_replacement,
+      pre_check_fee_eur
+    `)
     .eq('id', 1)
     .maybeSingle()
 
@@ -111,13 +159,19 @@ export async function getPlumeSettings(): Promise<PlumeSettings> {
     return DEFAULT_PLUME_SETTINGS
   }
 
-  const threshold = Number(data.repair_replacement_threshold_eur)
-  const warranty  = Number(data.warranty_duration_months)
-  const fee       = Number(data.pre_check_fee_eur)
   return {
-    repairReplacementThresholdEur: Number.isFinite(threshold) ? threshold : DEFAULT_PLUME_SETTINGS.repairReplacementThresholdEur,
-    warrantyDurationMonths:        Number.isFinite(warranty)  ? warranty  : DEFAULT_PLUME_SETTINGS.warrantyDurationMonths,
-    preCheckFeeEur:                Number.isFinite(fee)       ? fee       : DEFAULT_PLUME_SETTINGS.preCheckFeeEur,
+    repairReplacementThresholdEur: toNum(data.repair_replacement_threshold_eur, DEFAULT_PLUME_SETTINGS.repairReplacementThresholdEur),
+    repairThresholdExtendedEur:    toNum(data.repair_threshold_extended_eur,    DEFAULT_PLUME_SETTINGS.repairThresholdExtendedEur),
+    preCheckFeeEur:                toNum(data.pre_check_fee_eur,                DEFAULT_PLUME_SETTINGS.preCheckFeeEur),
+    warrantyStandardYears:         toNum(data.warranty_standard_years,          DEFAULT_PLUME_SETTINGS.warrantyStandardYears),
+    warrantyExtendedYears:         toNum(data.warranty_extended_years,          DEFAULT_PLUME_SETTINGS.warrantyExtendedYears),
+    warrantyDurationMonths:        toNum(data.warranty_duration_months,         DEFAULT_PLUME_SETTINGS.warrantyDurationMonths),
+    maxSavClaimsStandard:          toNum(data.max_sav_claims_standard,          DEFAULT_PLUME_SETTINGS.maxSavClaimsStandard),
+    maxSavClaimsExtended:          toNum(data.max_sav_claims_extended,          DEFAULT_PLUME_SETTINGS.maxSavClaimsExtended),
+    extendedCoversPreCheck:                toBool(data.extended_covers_precheck,                  DEFAULT_PLUME_SETTINGS.extendedCoversPreCheck),
+    extendedCoversSchoolWorkshopShipping:  toBool(data.extended_covers_school_workshop_shipping,  DEFAULT_PLUME_SETTINGS.extendedCoversSchoolWorkshopShipping),
+    extendedCoversRepair:                  toBool(data.extended_covers_repair,                    DEFAULT_PLUME_SETTINGS.extendedCoversRepair),
+    extendedCoversReplacement:             toBool(data.extended_covers_replacement,               DEFAULT_PLUME_SETTINGS.extendedCoversReplacement),
   }
 }
 

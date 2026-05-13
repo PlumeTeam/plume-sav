@@ -1,11 +1,12 @@
 import Link from 'next/link'
-import { getPreCheckFeeEur } from '@/features/settings/queries'
+import { getPlumeSettings } from '@/features/tickets/queries'
 import { PreCheckFeeForm } from './PreCheckFeeForm'
+import { WarrantyPolicyForm } from './WarrantyPolicyForm'
 
 export const dynamic = 'force-dynamic'
 
 export default async function PlumeSettingsPage() {
-  const currentFee = await getPreCheckFeeEur()
+  const settings = await getPlumeSettings()
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 py-8">
@@ -25,7 +26,31 @@ export default async function PlumeSettingsPage() {
           figé sur le ticket au moment de la clôture du pré-check, donc une modif
           ici n&apos;affecte pas les tickets déjà traités.
         </p>
-        <PreCheckFeeForm currentFee={currentFee} />
+        <PreCheckFeeForm currentFee={settings.preCheckFeeEur} />
+      </section>
+
+      <section className="card p-5">
+        <h2 className="section-title mb-1">Politique de garantie</h2>
+        <p className="mb-4 text-sm text-slate-600">
+          Durées, quotas SAV, plafonds réparation et éléments couverts par la
+          garantie étendue. Le tier (standard / étendue / hors garantie) est
+          calculé automatiquement à la création d&apos;un ticket et figé dessus —
+          modifier ces paramètres n&apos;affecte que les tickets créés ensuite.
+        </p>
+        <WarrantyPolicyForm
+          initial={{
+            warrantyStandardYears:        settings.warrantyStandardYears,
+            warrantyExtendedYears:        settings.warrantyExtendedYears,
+            maxSavClaimsStandard:         settings.maxSavClaimsStandard,
+            maxSavClaimsExtended:         settings.maxSavClaimsExtended,
+            repairThresholdStandardEur:   settings.repairReplacementThresholdEur,
+            repairThresholdExtendedEur:   settings.repairThresholdExtendedEur,
+            extendedCoversPreCheck:                settings.extendedCoversPreCheck,
+            extendedCoversSchoolWorkshopShipping:  settings.extendedCoversSchoolWorkshopShipping,
+            extendedCoversRepair:                  settings.extendedCoversRepair,
+            extendedCoversReplacement:             settings.extendedCoversReplacement,
+          }}
+        />
       </section>
     </main>
   )

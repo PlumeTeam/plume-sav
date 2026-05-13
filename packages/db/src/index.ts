@@ -11,4 +11,5 @@ export type {
   MessageChannel,
   SchoolResolution,
   ClosureOutcome,
+  WarrantyTier,
 } from './types'

@@ -49,6 +49,18 @@ export type MessageChannel =
   | 'group'
   | 'workshop_plume'
 
+// Tier de garantie calculé à la création du ticket (chantier garantie).
+//  - 'standard'       : garantie d'origine (< warranty_standard_years)
+//  - 'extended'       : garantie étendue (< warranty_extended_years, dans
+//                       les limites de max_sav_claims_extended)
+//  - 'out_of_warranty': hors période ou quota SAV dépassé
+//  - 'plume_override' : Plume HQ prend en charge exceptionnellement
+export type WarrantyTier =
+  | 'standard'
+  | 'extended'
+  | 'out_of_warranty'
+  | 'plume_override'
+
 // Statut final SAV — choisi à la clôture (migration 20260512200000 — T7).
 // Le client ne peut pas clôturer ; seuls école/atelier/Plume HQ ont le droit.
 export type ClosureOutcome =
@@ -175,6 +187,13 @@ export interface Database {
           closed_by_role:   'school' | 'workshop' | 'plume_admin' | null
           closure_outcome:  ClosureOutcome | null
           closure_note:     string | null
+          // Garantie (chantier garantie)
+          warranty_tier:         WarrantyTier | null
+          sav_claim_number:      number | null
+          warranty_expires_at:   string | null
+          warranty_override_by:  string | null
+          warranty_override_at:  string | null
+          warranty_override_note: string | null
           created_at: string
           updated_at: string
         }
@@ -267,6 +286,12 @@ export interface Database {
           closed_by_role?:   'school' | 'workshop' | 'plume_admin' | null
           closure_outcome?:  ClosureOutcome | null
           closure_note?:     string | null
+          warranty_tier?:         WarrantyTier | null
+          sav_claim_number?:      number | null
+          warranty_expires_at?:   string | null
+          warranty_override_by?:  string | null
+          warranty_override_at?:  string | null
+          warranty_override_note?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -359,6 +384,12 @@ export interface Database {
           closed_by_role?:   'school' | 'workshop' | 'plume_admin' | null
           closure_outcome?:  ClosureOutcome | null
           closure_note?:     string | null
+          warranty_tier?:         WarrantyTier | null
+          sav_claim_number?:      number | null
+          warranty_expires_at?:   string | null
+          warranty_override_by?:  string | null
+          warranty_override_at?:  string | null
+          warranty_override_note?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -446,6 +477,16 @@ export interface Database {
           repair_replacement_threshold_eur: number
           warranty_duration_months: number
           pre_check_fee_eur: number
+          // Politique garantie (chantier garantie)
+          warranty_standard_years: number
+          warranty_extended_years: number
+          max_sav_claims_standard: number   // 0 = illimité
+          max_sav_claims_extended: number
+          repair_threshold_extended_eur: number
+          extended_covers_precheck:                  boolean
+          extended_covers_school_workshop_shipping:  boolean
+          extended_covers_repair:                    boolean
+          extended_covers_replacement:               boolean
           updated_at: string
           updated_by: string | null
         }
@@ -454,6 +495,15 @@ export interface Database {
           repair_replacement_threshold_eur?: number
           warranty_duration_months?: number
           pre_check_fee_eur?: number
+          warranty_standard_years?: number
+          warranty_extended_years?: number
+          max_sav_claims_standard?: number
+          max_sav_claims_extended?: number
+          repair_threshold_extended_eur?: number
+          extended_covers_precheck?:                  boolean
+          extended_covers_school_workshop_shipping?:  boolean
+          extended_covers_repair?:                    boolean
+          extended_covers_replacement?:               boolean
           updated_at?: string
           updated_by?: string | null
         }
@@ -462,6 +512,15 @@ export interface Database {
           repair_replacement_threshold_eur?: number
           warranty_duration_months?: number
           pre_check_fee_eur?: number
+          warranty_standard_years?: number
+          warranty_extended_years?: number
+          max_sav_claims_standard?: number
+          max_sav_claims_extended?: number
+          repair_threshold_extended_eur?: number
+          extended_covers_precheck?:                  boolean
+          extended_covers_school_workshop_shipping?:  boolean
+          extended_covers_repair?:                    boolean
+          extended_covers_replacement?:               boolean
           updated_at?: string
           updated_by?: string | null
         }
