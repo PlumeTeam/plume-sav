@@ -4,8 +4,9 @@ import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { TicketContactsBlock } from '@/features/tickets/components/TicketContactsBlock'
+import { WarrantyTierBadge } from '@/features/tickets/components/WarrantyTierBadge'
 import { formatDate } from '@/features/tickets/utils'
-import type { RequestStatus } from '@/features/tickets/types'
+import type { RequestStatus, WarrantyTier } from '@/features/tickets/types'
 import type { TicketWithContacts } from '@/features/tickets/contacts'
 
 // Deux types métier visibles côté atelier :
@@ -258,6 +259,13 @@ function WorkshopTicketRow({ ticket }: { ticket: TicketWithContacts }) {
       <div className="flex flex-wrap items-center gap-2">
         <TypeBadge kind={kind} />
         <StatusBadge status={ticket.status} size="sm" />
+        {ticket.warranty_tier && (
+          <WarrantyTierBadge
+            tier={ticket.warranty_tier as WarrantyTier}
+            size="sm"
+            compact
+          />
+        )}
         {ticket.is_plume_urgent && (
           <span className="inline-flex items-center rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
             ⚠ Sécurité

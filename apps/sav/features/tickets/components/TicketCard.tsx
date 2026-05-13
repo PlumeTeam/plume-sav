@@ -2,8 +2,9 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { StatusBadge } from './StatusBadge'
 import { TicketContactsBlock } from './TicketContactsBlock'
+import { WarrantyTierBadge } from './WarrantyTierBadge'
 import { formatDate, getSupabasePublicUrl } from '../utils'
-import type { TicketWithPhotos } from '../types'
+import type { TicketWithPhotos, WarrantyTier } from '../types'
 import type { TicketContacts } from '../contacts'
 
 interface TicketCardProps {
@@ -63,7 +64,16 @@ export function TicketCard({ ticket, basePath = '/client', showUrgency = false, 
               </span>
             )}
           </p>
-          <p className="mt-1 text-xs text-slate-400">{formatDate(ticket.created_at)}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <span className="text-xs text-slate-400">{formatDate(ticket.created_at)}</span>
+            {ticket.warranty_tier && (
+              <WarrantyTierBadge
+                tier={ticket.warranty_tier as WarrantyTier}
+                size="sm"
+                compact
+              />
+            )}
+          </div>
         </div>
 
         <span className="shrink-0 text-lg text-slate-300 group-hover:text-brand-gold transition-colors" aria-hidden>›</span>

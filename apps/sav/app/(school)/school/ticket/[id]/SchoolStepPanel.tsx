@@ -13,7 +13,7 @@ import { ScanGateModal } from '@/features/tickets/components/ScanGateModal'
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
 import { RevertStepLink } from '@/features/tickets/components/RevertStepLink'
 import { formatDateTime } from '@/features/tickets/utils'
-import type { DeliveryMethod, RequestStatus, SchoolResolution } from '@/features/tickets/types'
+import type { DeliveryMethod, RequestStatus, SchoolResolution, WarrantyTier } from '@/features/tickets/types'
 import { SchoolResolutionPanel } from './SchoolResolutionPanel'
 import { SchoolShippingApprovalCard } from './SchoolShippingApprovalCard'
 
@@ -44,6 +44,12 @@ interface SchoolStepPanelProps {
   shippingApproved:        boolean | null
   /** Raison saisie par l'école en cas de refus. */
   shippingRefusalReason:   string | null
+  /** Tier de garantie figé sur le ticket. Détermine si Plume couvre le
+   *  transport école → atelier. */
+  warrantyTier:                          WarrantyTier | null
+  /** Toggle Plume HQ — la garantie étendue couvre-t-elle le transport
+   *  école → atelier ? Lu depuis plume_settings. */
+  extendedCoversSchoolWorkshopShipping:  boolean
 }
 
 type StepKey = 'ack' | 'wing' | 'check' | 'decision' | 'return'
@@ -249,6 +255,8 @@ export function SchoolStepPanel({
   deliveryMethod,
   shippingApproved,
   shippingRefusalReason,
+  warrantyTier,
+  extendedCoversSchoolWorkshopShipping,
 }: SchoolStepPanelProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -795,7 +803,28 @@ export function SchoolStepPanel({
             hint="GLS viendra chercher le colis à l'école."
           />
         )
-      case 'to_workshop':
+      case 'to_workshop': {
+        // Plume couvre le transport école → atelier uniquement pour les
+        // tickets standard / plume_override, ou si la garantie étendue est
+        // configurée pour le couvrir. Hors garantie ou étendue sans toggle :
+        // le bon n'est pas généré par Plume — l'école doit gérer l'envoi
+        // hors plateforme et le client paie le transport.
+        const schoolWorkshopCovered =
+          warrantyTier === 'standard' ||
+          warrantyTier === 'plume_override' ||
+          (warrantyTier === 'extended' && extendedCoversSchoolWorkshopShipping)
+        if (!schoolWorkshopCovered) {
+          return (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
+              <p className="font-semibold">Transport non couvert par Plume</p>
+              <p className="mt-1 text-amber-800/90">
+                {warrantyTier === 'out_of_warranty'
+                  ? "L'aile est hors garantie. Le transport vers l'atelier est à organiser et facturer au client."
+                  : "La garantie étendue de cette aile ne couvre pas le transport école → atelier. Voir avec le client pour le règlement du transport."}
+              </p>
+            </div>
+          )
+        }
         if (!scannedReturnOptions.has('to_workshop')) {
           return (
             <>
@@ -828,6 +857,7 @@ export function SchoolStepPanel({
             triggerLabel="Générer le bon école → atelier"
           />
         )
+      }
     }
   }
 }

@@ -1,8 +1,9 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getSchoolTicketDetail } from '@/features/tickets/queries'
+import { getSchoolTicketDetail, getPlumeSettings } from '@/features/tickets/queries'
 import { markTicketReadBySchoolAction } from '@/features/tickets/messages-actions-school'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
+import { WarrantyTierBadge } from '@/features/tickets/components/WarrantyTierBadge'
 import { TicketTimeline } from '@/features/tickets/components/TicketTimeline'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { TicketChannelSwitch, type TicketChannel } from '@/features/tickets/components/TicketChannelSwitch'
@@ -14,7 +15,7 @@ import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCa
 import { SchoolStepPanel } from './SchoolStepPanel'
 import { SchoolTicketTabs } from './SchoolTicketTabs'
 import { SchoolWorkshopChannel } from './SchoolWorkshopChannel'
-import type { CloserRole, ClosureOutcome, TicketMessage } from '@/features/tickets/types'
+import type { CloserRole, ClosureOutcome, TicketMessage, WarrantyTier } from '@/features/tickets/types'
 
 interface PageProps { params: { id: string } }
 
@@ -23,8 +24,13 @@ export const dynamic = 'force-dynamic'
 type ChecklistJson = { checkedIds?: string[]; notes?: string | null } | null
 
 export default async function SchoolTicketDetailPage({ params }: PageProps) {
-  const ticket = await getSchoolTicketDetail(params.id)
+  const [ticket, policy] = await Promise.all([
+    getSchoolTicketDetail(params.id),
+    getPlumeSettings(),
+  ])
   if (!ticket) notFound()
+
+  const ticketWarrantyTier = (ticket.warranty_tier as WarrantyTier | null) ?? null
 
   // Best-effort: mark this ticket as read for the current school user. The RPC
   // checks ownership via current_user_partner_school_ids() server-side.
@@ -129,6 +135,8 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           deliveryMethod={ticket.delivery_method}
           shippingApproved={ticket.shipping_approved ?? null}
           shippingRefusalReason={ticket.shipping_refusal_reason ?? null}
+          warrantyTier={ticketWarrantyTier}
+          extendedCoversSchoolWorkshopShipping={policy.extendedCoversSchoolWorkshopShipping}
         />
       </section>
 
@@ -329,7 +337,12 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
               {ticket.product_brand} {ticket.product_model}
             </p>
           </div>
-          <StatusBadge status={ticket.status} size="sm" />
+          <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
+            {ticketWarrantyTier && (
+              <WarrantyTierBadge tier={ticketWarrantyTier} size="sm" compact />
+            )}
+            <StatusBadge status={ticket.status} size="sm" />
+          </div>
         </div>
       </header>
 
