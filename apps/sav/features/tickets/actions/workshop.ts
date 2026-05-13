@@ -27,6 +27,7 @@ import {
   workshopChecklistSchema,
   workshopDecisionSchema,
 } from '../schemas'
+import { workshopChecklistPayloadSchema } from '../workshop-checklist'
 import { sendClientStepUpdateEmail, type ClientStepEmail, type TicketEmailContext } from '../email'
 import { computeRepairDecision, computeWarrantyStatus } from '../utils'
 import { getPreCheckFeeEur } from '@/features/settings/queries'
@@ -54,6 +55,52 @@ export async function saveWorkshopChecklistAction(formData: FormData) {
     .eq('id', ticketId)
 
   if (error) return { error: { _form: ['Erreur lors de la sauvegarde'] } }
+
+  revalidatePath(`/workshop/ticket/${ticketId}`)
+  return { success: true }
+}
+
+// Save de la checklist v2 (structurée 6 sections). Le payload arrive
+// stringifié dans le form pour préserver la structure complexe.
+export async function saveWorkshopFullChecklistAction(formData: FormData) {
+  const ticketId   = String(formData.get('ticketId') ?? '')
+  const payloadRaw = String(formData.get('payload') ?? '')
+  if (!ticketId)        return { error: { _form: ['Identifiant manquant'] } }
+  if (!payloadRaw)      return { error: { _form: ['Payload vide'] } }
+
+  let parsedJson: unknown
+  try {
+    parsedJson = JSON.parse(payloadRaw)
+  } catch {
+    return { error: { _form: ['Payload invalide (JSON malformé)'] } }
+  }
+
+  const parsed = workshopChecklistPayloadSchema.safeParse(parsedJson)
+  if (!parsed.success) {
+    console.error('[saveWorkshopFullChecklistAction] schema error:', parsed.error.flatten())
+    return { error: { _form: ['Payload invalide (structure inattendue)'] } }
+  }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: { _form: ['Non authentifié'] } }
+
+  const stored = {
+    ...parsed.data,
+    updatedAt: new Date().toISOString(),
+    updatedBy: user.id,
+  }
+
+  // Round-trip via JSON.stringify pour obtenir un Json conforme aux types
+  // strict de @supabase/postgrest-js (Json est récursif, nos interfaces
+  // typées sans index signature n'y matchent pas directement).
+  const jsonStored = JSON.parse(JSON.stringify(stored))
+  const { error } = await supabase
+    .from('service_requests')
+    .update({ workshop_checklist: jsonStored })
+    .eq('id', ticketId)
+
+  if (error) return { error: { _form: [`Erreur lors de la sauvegarde (${error.message})`] } }
 
   revalidatePath(`/workshop/ticket/${ticketId}`)
   return { success: true }

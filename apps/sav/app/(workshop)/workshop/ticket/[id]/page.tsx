@@ -11,9 +11,8 @@ import { PlumeNoteComposer } from '@/features/tickets/components/PlumeNoteCompos
 import { WorkshopChannelTabs } from '@/features/tickets/components/WorkshopChannelTabs'
 import { readSchoolCheckInspector, readSchoolCheckPayload } from '@/features/tickets/inspection/steps'
 import { SchoolCheckSummary } from '@/features/tickets/inspection/SchoolCheckSummary'
-import { DiagnosisChecklist } from '@/features/tickets/components/DiagnosisChecklist'
-import { WORKSHOP_TECHNICAL_CHECKLIST } from '@/features/tickets/constants'
-import { saveWorkshopChecklistAction } from '@/features/tickets/actions'
+import { WorkshopDiagnosticChecklist } from '@/features/tickets/components/WorkshopDiagnosticChecklist'
+import { readWorkshopChecklist } from '@/features/tickets/workshop-checklist'
 import { formatDate, formatDateTime } from '@/features/tickets/utils'
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
 import { CloseTicketButton } from '@/features/tickets/components/CloseTicketButton'
@@ -58,8 +57,6 @@ function buildGlsTrackingUrl(tracking: string): string {
 interface PageProps { params: { id: string } }
 
 export const dynamic = 'force-dynamic'
-
-type ChecklistJson = { checkedIds?: string[]; notes?: string | null } | null
 
 export default async function WorkshopTicketDetailPage({ params }: PageProps) {
   const [ticket, currentRoles, currentUser, plumeSettings] = await Promise.all([
@@ -129,9 +126,12 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
   // Nom client formaté (prénom + nom) ou fallback.
   const clientName = [ticket.first_name, ticket.last_name].filter(Boolean).join(' ') || '—'
 
-  const stored: ChecklistJson = (ticket.workshop_checklist ?? null) as ChecklistJson
-  const initialChecked = Array.isArray(stored?.checkedIds) ? stored!.checkedIds! : []
-  const initialNotes   = typeof stored?.notes === 'string' ? stored!.notes! : ''
+  // Checklist diagnostic atelier — payload v2 (6 sections) lu depuis
+  // workshop_checklist. Si l'ancien payload v1 est encore stocké, on
+  // retourne un état vide v2 (l'atelier ressaisit). Le user connecté
+  // pré-alimente le champ inspecteur (email à défaut d'un nom).
+  const workshopChecklistPayload = readWorkshopChecklist(ticket.workshop_checklist)
+  const inspectorDefaultName     = currentUser?.email ?? ''
 
   // Le bon de transport retour est utile à partir du moment où la réparation
   // est terminée (workshop_done) et tant que l'aile n'a pas encore été
@@ -425,17 +425,15 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
             <DiagnosticViewSwitcher
               workshop={
                 <>
-                  {/* Checklist technique atelier — les notes vivent dans WorkshopActionBar (P2) */}
+                  {/* Checklist diagnostic technique v2 — 6 sections inspirées
+                      de la procédure AIRDESIGN, adaptées Plume. Accordéons,
+                      code couleur, badge progression par section. */}
                   <section className="card p-5">
                     <h2 className="section-title mb-3">Checklist diagnostic technique</h2>
-                    <DiagnosisChecklist
+                    <WorkshopDiagnosticChecklist
                       ticketId={ticket.id}
-                      items={WORKSHOP_TECHNICAL_CHECKLIST}
-                      initialChecked={initialChecked}
-                      initialNotes={initialNotes}
-                      saveAction={saveWorkshopChecklistAction}
-                      variant="navy"
-                      hideNotes
+                      initial={workshopChecklistPayload}
+                      defaultInspectorName={inspectorDefaultName}
                     />
                   </section>
 

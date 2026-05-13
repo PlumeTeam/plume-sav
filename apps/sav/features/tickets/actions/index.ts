@@ -19,6 +19,7 @@ export {
   markWingReceivedWorkshopAction,
   markWorkshopDoneAction,
   saveWorkshopChecklistAction,
+  saveWorkshopFullChecklistAction,
   startWorkshopDiagnosisAction,
   startWorkshopPreCheckAction,
   startWorkshopRepairAction,
