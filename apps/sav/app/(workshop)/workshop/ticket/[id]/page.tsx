@@ -23,6 +23,7 @@ import { WorkshopStepPanel } from './WorkshopStepPanel'
 import { WorkshopTicketTabs } from './WorkshopTicketTabs'
 import { DiagnosticViewSwitcher } from './DiagnosticViewSwitcher'
 import { parseClientDescription } from './parseClientDescription'
+import { ClientHistorySummary } from './ClientHistorySummary'
 import { PROBLEM_CATEGORIES } from '@/features/tickets/types'
 import type { CloserRole, ClosureOutcome, TicketMessage, WarrantyStatus, WorkshopDecision, WorkshopReturnDestination } from '@/features/tickets/types'
 
@@ -529,13 +530,28 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                 </>
               }
               client={
-                <>
-                  {/* Problème signalé : badges catégorie + urgence en tête,
-                      texte libre du pilote (extrait du préfixe `[Section]`
-                      par parseClientDescription) en dessous. */}
-                  <section className="card p-5">
-                    <h2 className="section-title mb-3">Problème signalé</h2>
-                    <div className="mb-3 flex flex-wrap gap-2">
+                <div className="space-y-4">
+                  {/* Bandeau verdict + Historique aile : pattern identique à
+                      SchoolCheckSummary (même atomes Severity / SummarySection
+                      / SummaryRow / VerdictBanner). */}
+                  {parsedClient.history.length > 0 ? (
+                    <ClientHistorySummary history={parsedClient.history} />
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-brand-stone bg-white p-4 text-center">
+                      <p className="text-sm text-slate-500">
+                        Le pilote n&apos;a pas renseigné d&apos;historique pour cette aile.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Problème signalé — badges catégorie/urgence + texte libre +
+                      comportements. Carte au style école (rounded-2xl border
+                      brand-stone bg-white p-4). */}
+                  <section className="rounded-2xl border border-brand-stone bg-white p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-brand-navy/70">
+                      Problème signalé
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
                       {clientCategory && (
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
                           <span aria-hidden>{clientCategory.emoji}</span>
@@ -548,30 +564,33 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                         </span>
                       )}
                     </div>
-                    {parsedClient.freeText ? (
-                      <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">
-                        {parsedClient.freeText}
-                      </p>
-                    ) : (
-                      <p className="text-sm italic text-slate-500">
-                        Le pilote n&apos;a pas rédigé de description libre.
-                      </p>
-                    )}
+                    <div className="mt-3">
+                      {parsedClient.freeText ? (
+                        <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">
+                          {parsedClient.freeText}
+                        </p>
+                      ) : (
+                        <p className="text-sm italic text-slate-500">
+                          Le pilote n&apos;a pas rédigé de description libre.
+                        </p>
+                      )}
+                    </div>
                     {parsedClient.behaviors && (
-                      <div className="mt-3 border-t border-brand-stone/40 pt-3">
-                        <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      <div className="mt-3 rounded-xl bg-brand-cream/60 px-3 py-2">
+                        <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
                           Comportements signalés
                         </p>
-                        <p className="text-sm text-brand-ink">{parsedClient.behaviors}</p>
+                        <p className="mt-1 text-sm text-brand-ink">{parsedClient.behaviors}</p>
                       </div>
                     )}
                   </section>
 
-                  {/* Aile concernée : reconstruite à partir des colonnes ticket
-                      (toutes typées), pas du texte de description. */}
-                  <section className="card p-5">
-                    <h2 className="section-title mb-3">Aile concernée</h2>
-                    <dl className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+                  {/* Aile concernée — carte au style école, grille label/valeur. */}
+                  <section className="rounded-2xl border border-brand-stone bg-white p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-brand-navy/70">
+                      Aile concernée
+                    </p>
+                    <dl className="mt-3 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
                       <ClientField
                         label="Marque / Modèle"
                         value={[ticket.product_brand, ticket.product_model].filter(Boolean).join(' ') || null}
@@ -590,52 +609,22 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                     </dl>
                   </section>
 
-                  {/* Historique aile : items parsés depuis [Historique aile]
-                      du préfixe richDescription. Affichés en label/valeur,
-                      jamais en bullet point brut. */}
-                  {parsedClient.history.length > 0 ? (
-                    <section className="card p-5">
-                      <h2 className="section-title mb-3">Historique de l&apos;aile</h2>
-                      <dl className="space-y-2">
-                        {parsedClient.history.map((item, i) => (
-                          <div
-                            key={`${item.label}-${i}`}
-                            className="flex items-start justify-between gap-4 border-b border-brand-stone/30 pb-2 last:border-0 last:pb-0"
-                          >
-                            <dt className="flex-shrink-0 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                              {item.label}
-                            </dt>
-                            <dd className="text-right text-sm text-brand-ink">
-                              {item.value}
-                            </dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </section>
-                  ) : (
-                    <section className="card border-dashed p-4 text-center">
-                      <p className="text-sm text-slate-500">
-                        Le pilote n&apos;a pas renseigné d&apos;historique pour cette aile.
-                      </p>
-                    </section>
-                  )}
-
                   {/* Photos uploadées par le client à la création du ticket. */}
                   {ticket.ticket_photos.length > 0 ? (
-                    <section className="card p-5">
-                      <h2 className="section-title mb-3">
+                    <section className="rounded-2xl border border-brand-stone bg-white p-4">
+                      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-brand-navy/70">
                         Photos du client ({ticket.ticket_photos.length})
-                      </h2>
+                      </p>
                       <PhotoLightbox photos={ticket.ticket_photos} />
                     </section>
                   ) : (
-                    <section className="card border-dashed p-4 text-center">
+                    <div className="rounded-2xl border border-dashed border-brand-stone bg-white p-4 text-center">
                       <p className="text-sm text-slate-500">
                         Le client n&apos;a pas joint de photo à sa demande.
                       </p>
-                    </section>
+                    </div>
                   )}
-                </>
+                </div>
               }
             />
           }
