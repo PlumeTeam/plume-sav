@@ -11,40 +11,38 @@ interface ChannelDef {
   label:       string
   emoji:       string
   description: string
-  /** Si vrai, l'atelier ne peut pas poster (transparence consultation). */
-  readOnly?:   boolean
 }
 
-// Ordre des onglets côté atelier : du plus immédiat (client) au plus interne (Plume).
+// Onglets côté atelier — libellés à la première personne (point de vue
+// atelier). 4 canaux : Client, École, Groupe, Plume.
+//
+// Note : Plume HQ reçoit aussi le canal Groupe en lecture silencieuse pour
+// la supervision, mais ce détail n'est pas exposé dans l'UI atelier — la
+// description doit rester centrée sur les acteurs visibles côté technicien.
+// Le canal 'school_client' (école↔client) n'est plus surfacé ici : il n'a
+// pas d'intérêt opérationnel pour l'atelier.
 const CHANNELS: ChannelDef[] = [
   {
     id:          'client_workshop',
-    label:       'Client ↔ Atelier',
+    label:       'Client',
     emoji:       '👤',
     description: 'Discussion directe avec le client. L\'école ne voit pas.',
   },
   {
     id:          'workshop_school',
-    label:       'Atelier ↔ École',
+    label:       'École',
     emoji:       '🏫',
     description: 'Échange technique avec l\'école qui a escaladé. Le client ne voit pas.',
   },
   {
     id:          'group',
-    label:       'Groupe (tous)',
+    label:       'Groupe',
     emoji:       '👥',
-    description: 'Discussion à 4 — client, école, atelier et Plume HQ ensemble.',
-  },
-  {
-    id:          'school_client',
-    label:       'École ↔ Client',
-    emoji:       '🔍',
-    description: 'Consultation : ce que l\'école dit au client. Lecture seule pour l\'atelier.',
-    readOnly:    true,
+    description: 'Discussion visible par le client, l\'école et l\'atelier.',
   },
   {
     id:          'workshop_plume',
-    label:       'Atelier ↔ Plume',
+    label:       'Plume',
     emoji:       '🦅',
     description: 'Canal privé avec Plume HQ. Ni le client ni l\'école ne voient.',
   },
@@ -153,19 +151,17 @@ export function WorkshopChannelTabs({
         <ChannelThread
           messages={visible}
           bucket={bucket}
-          emptyText={active.readOnly ? 'Aucun échange école ↔ client pour le moment.' : 'Aucun message dans ce canal. Soyez le premier à écrire.'}
+          emptyText="Aucun message dans ce canal. Soyez le premier à écrire."
         />
       </section>
 
-      {!active.readOnly && (
-        <ChannelComposer
-          key={active.id}
-          ticketId={ticketId}
-          channel={active.id}
-          bucket={bucket}
-          currentUserId={currentUserId}
-        />
-      )}
+      <ChannelComposer
+        key={active.id}
+        ticketId={ticketId}
+        channel={active.id}
+        bucket={bucket}
+        currentUserId={currentUserId}
+      />
     </div>
   )
 }
