@@ -186,6 +186,148 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
           </p>
         )}
 
+        {/* Bandeau d'info compact — regroupe les 4 contextes que le technicien
+            consulte le plus souvent (expédition, école, client, aile). Reste
+            au-dessus des onglets pour rester accessible quelle que soit la vue. */}
+        <section className="card grid grid-cols-1 gap-x-5 gap-y-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
+          {/* ─── Expédition ─────────────────────────────────────────────── */}
+          <div className="min-w-0">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              Expédition
+            </p>
+            {ticket.school_workshop_tracking ? (
+              <div className="space-y-0.5 text-sm text-brand-ink">
+                <p className="flex items-center gap-1.5">
+                  <span aria-hidden>📦</span>
+                  <span>Transporteur GLS</span>
+                </p>
+                <p className="break-all font-mono text-[11px] text-slate-500">
+                  {ticket.school_workshop_tracking}
+                </p>
+                <a
+                  href={buildGlsTrackingUrl(ticket.school_workshop_tracking)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block text-xs font-medium text-brand-gold hover:underline"
+                >
+                  Suivre →
+                </a>
+                {ticket.wing_received_workshop_at && (
+                  <p className="text-[11px] text-emerald-700">
+                    ✓ Reçue le {formatDate(ticket.wing_received_workshop_at)}
+                  </p>
+                )}
+              </div>
+            ) : ticket.escalated_to_workshop_at ? (
+              <div className="space-y-0.5 text-sm text-brand-ink">
+                <p className="flex items-center gap-1.5">
+                  <span aria-hidden>🤝</span>
+                  <span>Remise en main propre</span>
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Escaladée le {formatDate(ticket.escalated_to_workshop_at)}
+                </p>
+                {ticket.wing_received_workshop_at && (
+                  <p className="text-[11px] text-emerald-700">
+                    ✓ Reçue le {formatDate(ticket.wing_received_workshop_at)}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm italic text-slate-500">Pas encore escaladée</p>
+            )}
+          </div>
+
+          {/* ─── École partenaire ───────────────────────────────────────── */}
+          <div className="min-w-0">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              École
+            </p>
+            {school ? (
+              <div className="space-y-0.5 text-sm text-brand-ink">
+                <p className="truncate font-medium">{school.name}</p>
+                {(school.city || school.region) && (
+                  <p className="truncate text-[11px] text-slate-500">
+                    {[school.city, school.region].filter(Boolean).join(' · ')}
+                  </p>
+                )}
+                {school.email && (
+                  <a
+                    href={`mailto:${school.email}`}
+                    className="block truncate text-[11px] text-brand-gold hover:underline"
+                  >
+                    {school.email}
+                  </a>
+                )}
+                {school.phone && (
+                  <a
+                    href={`tel:${school.phone.replace(/\s+/g, '')}`}
+                    className="block truncate text-[11px] text-brand-gold hover:underline"
+                  >
+                    {school.phone}
+                  </a>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm italic text-slate-500">Non renseignée</p>
+            )}
+          </div>
+
+          {/* ─── Client final ──────────────────────────────────────────── */}
+          <div className="min-w-0">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              Client
+            </p>
+            <div className="space-y-0.5 text-sm text-brand-ink">
+              <p className="truncate font-medium">{clientName}</p>
+              {ticket.email && (
+                <a
+                  href={`mailto:${ticket.email}`}
+                  className="block truncate text-[11px] text-brand-gold hover:underline"
+                >
+                  {ticket.email}
+                </a>
+              )}
+              {ticket.phone && (
+                <a
+                  href={`tel:${ticket.phone.replace(/\s+/g, '')}`}
+                  className="block truncate text-[11px] text-brand-gold hover:underline"
+                >
+                  {ticket.phone}
+                </a>
+              )}
+            </div>
+          </div>
+
+          {/* ─── Aile ──────────────────────────────────────────────────── */}
+          <div className="min-w-0">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              Aile
+            </p>
+            <div className="space-y-0.5 text-sm text-brand-ink">
+              <p className="truncate font-medium">
+                {[ticket.product_brand, ticket.product_model].filter(Boolean).join(' ') || '—'}
+              </p>
+              <p className="truncate text-[11px] text-slate-500">
+                {[
+                  ticket.wing_size && `Taille ${ticket.wing_size}`,
+                  ticket.wing_color,
+                ].filter(Boolean).join(' · ') || '—'}
+              </p>
+              {ticket.serial_number && (
+                <p className="break-all font-mono text-[11px] text-slate-500">
+                  S/N {ticket.serial_number}
+                </p>
+              )}
+              {warranty && (
+                <div className="pt-0.5">
+                  <WarrantyBadge warranty={warranty} />
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
         <WorkshopTicketTabs
           messagesCount={channelMessages.length}
           state={
@@ -197,55 +339,8 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                 closureNote={ticket.closure_note}
               />
 
-              {/* Banner livraison école → atelier (amber). Apparaît dès qu'un
-                  ticket est escaladé : si l'école a généré un bon de transport,
-                  on signale l'envoi par transporteur + tracking ; sinon on
-                  suppose une remise en main propre. */}
-              {ticket.escalated_to_workshop_at && (
-                <section className="card flex items-start gap-3 p-4 border-2 border-amber-200 bg-amber-50">
-                  <span aria-hidden className="text-2xl">
-                    {ticket.school_workshop_tracking ? '📦' : '🤝'}
-                  </span>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-amber-900">
-                      {ticket.school_workshop_tracking
-                        ? "L'école envoie l'aile par transporteur"
-                        : "L'école dépose l'aile en main propre"}
-                    </p>
-                    {ticket.school_workshop_tracking ? (
-                      <div className="mt-2 flex flex-wrap items-center gap-2 break-all rounded-xl bg-white/60 px-3 py-1.5 text-[11px] text-amber-900">
-                        <span>Tracking GLS&nbsp;:</span>
-                        <span className="font-mono">{ticket.school_workshop_tracking}</span>
-                        <a
-                          href={buildGlsTrackingUrl(ticket.school_workshop_tracking)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-medium text-amber-900 underline hover:no-underline"
-                        >
-                          Suivre →
-                        </a>
-                      </div>
-                    ) : (
-                      <p className="mt-0.5 text-xs text-amber-800/80">
-                        L&apos;école vous contactera pour convenir d&apos;un rendez-vous.
-                      </p>
-                    )}
-                  </div>
-                </section>
-              )}
-
-              {/* Briefing école — remonté en tête : check structuré + note libre
-                  d'escalade, c'est ce que l'atelier doit lire d'abord. */}
-              {schoolCheckPayload && (
-                <section className="card p-5">
-                  <h2 className="section-title mb-3">Check de l&apos;école</h2>
-                  <SchoolCheckSummary
-                    raw={ticket.school_checklist}
-                    schoolName={school?.name ?? null}
-                  />
-                </section>
-              )}
-
+              {/* Note libre d'escalade école — info contenu, complémentaire
+                  du Check structuré qui vit dans l'onglet Diagnostic > École. */}
               {ticket.school_resolution === 'escalated_to_workshop' && ticket.school_resolution_note && (
                 <section className="card p-5 bg-brand-gold/5 border-brand-gold/30">
                   <h2 className="section-title mb-3">Note d&apos;escalade de l&apos;école</h2>
@@ -295,44 +390,6 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                 <ClientJourneyTimeline ticket={ticket} />
               </section>
 
-              {/* Expédition entrante école → atelier (P3) */}
-              {(ticket.school_workshop_tracking || ticket.escalated_to_workshop_at) && (
-                <section className="card p-5">
-                  <h2 className="section-title mb-3">Expédition depuis l&apos;école</h2>
-                  <div className="space-y-2 text-sm">
-                    {ticket.escalated_to_workshop_at && (
-                      <p className="text-brand-ink">
-                        <span className="text-xs text-slate-500">Escaladée le </span>
-                        {formatDate(ticket.escalated_to_workshop_at)}
-                      </p>
-                    )}
-                    {ticket.school_workshop_tracking ? (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs text-slate-500">Tracking GLS :</span>
-                        <span className="font-mono text-xs text-brand-ink">{ticket.school_workshop_tracking}</span>
-                        <a
-                          href={buildGlsTrackingUrl(ticket.school_workshop_tracking)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs font-medium text-brand-gold hover:underline"
-                        >
-                          Suivre →
-                        </a>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-slate-500">
-                        L&apos;école n&apos;a pas encore généré de bon de transport pour ce ticket.
-                      </p>
-                    )}
-                    {ticket.wing_received_workshop_at && (
-                      <p className="text-xs text-emerald-700">
-                        ✓ Aile réceptionnée le {formatDate(ticket.wing_received_workshop_at)}
-                      </p>
-                    )}
-                  </div>
-                </section>
-              )}
-
               {/* Bon de transport retour atelier → école/client */}
               {shouldOfferReturnShipping && (
                 <section className="card p-5">
@@ -351,77 +408,6 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                   />
                 </section>
               )}
-
-              {/* École partenaire — client direct de l'atelier. Affichée d'abord car
-                  c'est l'interlocuteur quotidien du technicien. */}
-              <section className="card p-5">
-                <h2 className="section-title mb-3">École partenaire</h2>
-                {school ? (
-                  <div className="space-y-2">
-                    <InfoRow label="Nom" value={school.name || '—'} />
-                    {(school.city || school.region) && (
-                      <InfoRow
-                        label="Localisation"
-                        value={[school.city, school.region].filter(Boolean).join(' · ') || '—'}
-                      />
-                    )}
-                    {school.email && (
-                      <InfoRowLink label="Email" value={school.email} href={`mailto:${school.email}`} />
-                    )}
-                    {school.phone && (
-                      <InfoRowLink label="Téléphone" value={school.phone} href={`tel:${school.phone.replace(/\s+/g, '')}`} />
-                    )}
-                    {school.address && (
-                      <div className="pt-1">
-                        <p className="mb-1 text-xs text-slate-500">Adresse</p>
-                        <p className="whitespace-pre-line text-right text-sm text-brand-ink">{school.address}</p>
-                      </div>
-                    )}
-                  </div>
-                ) : ticket.assigned_workshop_label ? (
-                  <p className="text-sm text-slate-500">
-                    École rattachée non disponible — atelier assigné&nbsp;: {ticket.assigned_workshop_label}
-                  </p>
-                ) : (
-                  <p className="text-sm text-slate-500">École non renseignée sur ce ticket.</p>
-                )}
-              </section>
-
-              <section className="card p-5">
-                <h2 className="section-title mb-3">Client final (pilote)</h2>
-                <div className="space-y-2">
-                  <InfoRow label="Nom" value={clientName} />
-                  {ticket.email && (
-                    <InfoRowLink label="Email" value={ticket.email} href={`mailto:${ticket.email}`} />
-                  )}
-                  {ticket.phone && (
-                    <InfoRowLink label="Téléphone" value={ticket.phone} href={`tel:${ticket.phone.replace(/\s+/g, '')}`} />
-                  )}
-                </div>
-              </section>
-
-              <section className="card p-5">
-                <h2 className="section-title mb-3">Aile</h2>
-                <div className="space-y-2">
-                  <InfoRow label="Marque / Modèle" value={`${ticket.product_brand ?? '—'} ${ticket.product_model ?? '—'}`} />
-                  {ticket.wing_size && <InfoRow label="Taille" value={ticket.wing_size} />}
-                  <InfoRow label="N° de série" value={ticket.serial_number ?? '—'} mono />
-                  {ticket.purchase_date && <InfoRow label="Date d'achat" value={formatDate(ticket.purchase_date)} />}
-                  {warranty && (
-                    <div className="flex items-start justify-between gap-4 pt-1">
-                      <p className="flex-shrink-0 text-xs text-slate-500">Garantie</p>
-                      <WarrantyBadge warranty={warranty} />
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              <section className="card p-5">
-                <h2 className="section-title mb-3">Demande</h2>
-                {ticket.description && (
-                  <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">{ticket.description}</p>
-                )}
-              </section>
 
               {ticket.ticket_photos.length > 0 && (
                 <section className="card p-5">
@@ -715,15 +701,6 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
   )
 }
 
-function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <p className="flex-shrink-0 text-xs text-slate-500">{label}</p>
-      <p className={`text-right text-sm text-brand-ink ${mono ? 'font-mono' : ''}`}>{value.trim() || '—'}</p>
-    </div>
-  )
-}
-
 // Champ label/valeur dans la grille "Aile concernée" de la vue Client.
 // `null` collapse l'item entier — on n'affiche pas un dash pour les champs
 // non renseignés (le pilote peut légitimement ignorer la taille ou la couleur).
@@ -733,20 +710,6 @@ function ClientField({ label, value, mono }: { label: string; value: string | nu
     <div>
       <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</dt>
       <dd className={`text-sm text-brand-ink ${mono ? 'font-mono' : ''}`}>{value}</dd>
-    </div>
-  )
-}
-
-function InfoRowLink({ label, value, href }: { label: string; value: string; href: string }) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <p className="flex-shrink-0 text-xs text-slate-500">{label}</p>
-      <a
-        href={href}
-        className="break-all text-right text-sm font-medium text-brand-gold hover:underline"
-      >
-        {value}
-      </a>
     </div>
   )
 }
