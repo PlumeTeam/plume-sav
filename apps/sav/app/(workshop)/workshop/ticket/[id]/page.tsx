@@ -22,6 +22,7 @@ import { WorkshopActionBar } from './WorkshopActionBar'
 import { WorkshopStepPanel } from './WorkshopStepPanel'
 import { WorkshopTicketTabs } from './WorkshopTicketTabs'
 import { DiagnosticViewSwitcher } from './DiagnosticViewSwitcher'
+import { parseClientDescription } from './parseClientDescription'
 import { PROBLEM_CATEGORIES } from '@/features/tickets/types'
 import type { CloserRole, ClosureOutcome, TicketMessage, WarrantyStatus, WorkshopDecision, WorkshopReturnDestination } from '@/features/tickets/types'
 
@@ -109,6 +110,16 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
   // Payload V2 du check école — on n'affiche le résumé color-codé que si on a
   // un payload structuré. Les anciens checks (notes en clair) tombent en null.
   const schoolCheckPayload = readSchoolCheckPayload(ticket.school_checklist)
+
+  // Déclaration client parsée — extrait l'historique aile (water, surface,
+  // tree, condition…) et le texte libre depuis la `description` riche
+  // construite par createTicketAction. Utilisé par la vue "Client" du
+  // DiagnosticViewSwitcher pour rendre des cartes structurées au lieu du
+  // texte brut avec balises `[Section]`.
+  const parsedClient = parseClientDescription(ticket.description)
+  const clientCategory = ticket.problem_category
+    ? PROBLEM_CATEGORIES.find((c) => c.value === ticket.problem_category)
+    : null
 
   // Garantie aile = 2 ans à compter de purchase_date. Null si la date n'a pas
   // été remplie au moment de la demande.
@@ -517,35 +528,95 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
               }
               client={
                 <>
-                  {/* Déclaration initiale — texte fourni par le pilote au wizard.
-                      Inclut souvent l'historique de l'aile (water, sand, hours…)
-                      replié dans la description par createTicketAction. */}
+                  {/* Problème signalé : badges catégorie + urgence en tête,
+                      texte libre du pilote (extrait du préfixe `[Section]`
+                      par parseClientDescription) en dessous. */}
                   <section className="card p-5">
-                    <h2 className="section-title mb-3">Déclaration du client</h2>
+                    <h2 className="section-title mb-3">Problème signalé</h2>
                     <div className="mb-3 flex flex-wrap gap-2">
-                      {ticket.problem_category && (() => {
-                        const cat = PROBLEM_CATEGORIES.find((c) => c.value === ticket.problem_category)
-                        return (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
-                            <span aria-hidden>{cat?.emoji ?? '🛠️'}</span>
-                            {cat?.label ?? ticket.problem_category}
-                          </span>
-                        )
-                      })()}
+                      {clientCategory && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
+                          <span aria-hidden>{clientCategory.emoji}</span>
+                          {clientCategory.label}
+                        </span>
+                      )}
                       {ticket.urgency_level === 2 && (
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700 ring-1 ring-red-200">
                           🚨 Urgent
                         </span>
                       )}
                     </div>
-                    {ticket.description ? (
+                    {parsedClient.freeText ? (
                       <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">
-                        {ticket.description}
+                        {parsedClient.freeText}
                       </p>
                     ) : (
-                      <p className="text-sm italic text-slate-500">Aucune description fournie.</p>
+                      <p className="text-sm italic text-slate-500">
+                        Le pilote n&apos;a pas rédigé de description libre.
+                      </p>
+                    )}
+                    {parsedClient.behaviors && (
+                      <div className="mt-3 border-t border-brand-stone/40 pt-3">
+                        <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                          Comportements signalés
+                        </p>
+                        <p className="text-sm text-brand-ink">{parsedClient.behaviors}</p>
+                      </div>
                     )}
                   </section>
+
+                  {/* Aile concernée : reconstruite à partir des colonnes ticket
+                      (toutes typées), pas du texte de description. */}
+                  <section className="card p-5">
+                    <h2 className="section-title mb-3">Aile concernée</h2>
+                    <dl className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+                      <ClientField
+                        label="Marque / Modèle"
+                        value={[ticket.product_brand, ticket.product_model].filter(Boolean).join(' ') || null}
+                      />
+                      <ClientField label="Taille" value={ticket.wing_size} />
+                      <ClientField label="Couleur" value={ticket.wing_color} />
+                      <ClientField label="N° de série" value={ticket.serial_number} mono />
+                      <ClientField
+                        label="Date d'achat"
+                        value={ticket.purchase_date ? formatDate(ticket.purchase_date) : null}
+                      />
+                      <ClientField
+                        label="Heures de vol (estim.)"
+                        value={ticket.flight_hours_estimate != null ? `${ticket.flight_hours_estimate} h` : null}
+                      />
+                    </dl>
+                  </section>
+
+                  {/* Historique aile : items parsés depuis [Historique aile]
+                      du préfixe richDescription. Affichés en label/valeur,
+                      jamais en bullet point brut. */}
+                  {parsedClient.history.length > 0 ? (
+                    <section className="card p-5">
+                      <h2 className="section-title mb-3">Historique de l&apos;aile</h2>
+                      <dl className="space-y-2">
+                        {parsedClient.history.map((item, i) => (
+                          <div
+                            key={`${item.label}-${i}`}
+                            className="flex items-start justify-between gap-4 border-b border-brand-stone/30 pb-2 last:border-0 last:pb-0"
+                          >
+                            <dt className="flex-shrink-0 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                              {item.label}
+                            </dt>
+                            <dd className="text-right text-sm text-brand-ink">
+                              {item.value}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </section>
+                  ) : (
+                    <section className="card border-dashed p-4 text-center">
+                      <p className="text-sm text-slate-500">
+                        Le pilote n&apos;a pas renseigné d&apos;historique pour cette aile.
+                      </p>
+                    </section>
+                  )}
 
                   {/* Photos uploadées par le client à la création du ticket. */}
                   {ticket.ticket_photos.length > 0 ? (
@@ -633,6 +704,19 @@ function InfoRow({ label, value, mono }: { label: string; value: string; mono?: 
     <div className="flex items-start justify-between gap-4">
       <p className="flex-shrink-0 text-xs text-slate-500">{label}</p>
       <p className={`text-right text-sm text-brand-ink ${mono ? 'font-mono' : ''}`}>{value.trim() || '—'}</p>
+    </div>
+  )
+}
+
+// Champ label/valeur dans la grille "Aile concernée" de la vue Client.
+// `null` collapse l'item entier — on n'affiche pas un dash pour les champs
+// non renseignés (le pilote peut légitimement ignorer la taille ou la couleur).
+function ClientField({ label, value, mono }: { label: string; value: string | null; mono?: boolean }) {
+  if (!value) return null
+  return (
+    <div>
+      <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</dt>
+      <dd className={`text-sm text-brand-ink ${mono ? 'font-mono' : ''}`}>{value}</dd>
     </div>
   )
 }
