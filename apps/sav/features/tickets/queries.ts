@@ -175,6 +175,33 @@ export async function getPlumeSettings(): Promise<PlumeSettings> {
   }
 }
 
+// Compte les SAV précédents sur la même aile (par n° de série). Utilisé par
+// computeWarrantyTier pour appliquer les quotas max_sav_claims_*. Les tickets
+// déjà hors garantie ne sont pas comptés — ils ne consomment pas le quota.
+// Option excludeTicketId pour ignorer le ticket courant (cas d'un recalcul
+// post-création). Best-effort : retourne 0 sur erreur réseau.
+export async function countPreviousSavClaims(
+  serialNumber: string | null,
+  options: { excludeTicketId?: string } = {},
+): Promise<number> {
+  if (!serialNumber) return 0
+  const supabase = await createClient()
+  let query = supabase
+    .from('service_requests')
+    .select('id', { count: 'exact', head: true })
+    .eq('serial_number', serialNumber)
+    .neq('warranty_tier', 'out_of_warranty')
+  if (options.excludeTicketId) {
+    query = query.neq('id', options.excludeTicketId)
+  }
+  const { count, error } = await query
+  if (error) {
+    console.warn('[countPreviousSavClaims] fallback to 0:', error.message)
+    return 0
+  }
+  return count ?? 0
+}
+
 export async function getPartnerSchools(): Promise<PartnerSchool[]> {
   const supabase = await createClient()
   // partner_schools is a shared-platform table not in the SAV DB types.

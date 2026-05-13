@@ -1,4 +1,4 @@
-import type { RequestStatus, Ticket, WarrantyStatus } from './types'
+import type { RequestStatus, Ticket, WarrantyStatus, WarrantyTier } from './types'
 
 export function formatDate(isoDate: string | null): string {
   if (!isoDate) return '—'
@@ -34,6 +34,82 @@ export function computeWarrantyStatus(
   const cutoff = new Date(purchase)
   cutoff.setMonth(cutoff.getMonth() + warrantyMonths)
   return now.getTime() <= cutoff.getTime() ? 'under_warranty' : 'out_of_warranty'
+}
+
+// ─── Tier de garantie (chantier garantie) ────────────────────────────────────
+//
+// Règle de calcul, dérivée de plume_settings :
+//   1. Pas de date d'achat → out_of_warranty (impossible de statuer)
+//   2. Âge ≤ warrantyStandardYears → standard, mais
+//      - si max_sav_claims_standard > 0 et nb SAV précédents ≥ max →
+//        l'aile bascule en out_of_warranty (quota épuisé)
+//   3. Âge ≤ warrantyExtendedYears (et > standard) → extended, mais
+//      - si nb SAV précédents ≥ max_sav_claims_extended → out_of_warranty
+//   4. Au-delà → out_of_warranty
+//
+// 'plume_override' n'est jamais retourné par ce helper — c'est une décision
+// manuelle de Plume HQ, posée après coup sur le ticket (cf. Tâche 7).
+export interface WarrantyTierInputs {
+  purchaseDate:            string | null | undefined
+  previousClaimCount:      number
+  warrantyStandardYears:   number
+  warrantyExtendedYears:   number
+  maxSavClaimsStandard:    number  // 0 = illimité
+  maxSavClaimsExtended:    number
+}
+
+export interface WarrantyTierResult {
+  tier:           WarrantyTier
+  expiresAt:      string | null  // ISO date — fin de la période la plus large
+  claimNumber:    number          // numéro du ticket courant dans la séquence
+  ageYears:       number | null
+}
+
+function addYears(d: Date, years: number): Date {
+  const next = new Date(d)
+  next.setFullYear(next.getFullYear() + years)
+  return next
+}
+
+export function computeWarrantyTier(
+  input: WarrantyTierInputs,
+  now: Date = new Date(),
+): WarrantyTierResult {
+  const claimNumber = input.previousClaimCount + 1
+
+  if (!input.purchaseDate) {
+    return { tier: 'out_of_warranty', expiresAt: null, claimNumber, ageYears: null }
+  }
+  const purchase = new Date(input.purchaseDate)
+  if (Number.isNaN(purchase.getTime())) {
+    return { tier: 'out_of_warranty', expiresAt: null, claimNumber, ageYears: null }
+  }
+
+  const standardEnd = addYears(purchase, input.warrantyStandardYears)
+  const extendedEnd = addYears(purchase, input.warrantyExtendedYears)
+  const ageMs       = now.getTime() - purchase.getTime()
+  const ageYears    = ageMs / (1000 * 60 * 60 * 24 * 365.25)
+
+  // Standard window
+  if (now.getTime() <= standardEnd.getTime()) {
+    const quotaStandard = input.maxSavClaimsStandard
+    if (quotaStandard > 0 && input.previousClaimCount >= quotaStandard) {
+      return { tier: 'out_of_warranty', expiresAt: extendedEnd.toISOString().slice(0, 10), claimNumber, ageYears }
+    }
+    return { tier: 'standard', expiresAt: extendedEnd.toISOString().slice(0, 10), claimNumber, ageYears }
+  }
+
+  // Extended window
+  if (now.getTime() <= extendedEnd.getTime()) {
+    const quotaExtended = input.maxSavClaimsExtended
+    if (quotaExtended > 0 && input.previousClaimCount >= quotaExtended) {
+      return { tier: 'out_of_warranty', expiresAt: extendedEnd.toISOString().slice(0, 10), claimNumber, ageYears }
+    }
+    return { tier: 'extended', expiresAt: extendedEnd.toISOString().slice(0, 10), claimNumber, ageYears }
+  }
+
+  // Au-delà de la garantie étendue
+  return { tier: 'out_of_warranty', expiresAt: extendedEnd.toISOString().slice(0, 10), claimNumber, ageYears }
 }
 
 // Décision auto en fonction du seuil. Pas de garde-fou métier ici — la

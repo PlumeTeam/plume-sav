@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUserRoles } from '@/features/auth/queries'
 import { PARTNER_WORKSHOPS } from '../constants'
-import { getPartnerSchoolById } from '../queries'
+import { countPreviousSavClaims, getPartnerSchoolById, getPlumeSettings } from '../queries'
+import { computeWarrantyTier } from '../utils'
 import type {
   ClientShippingAddress,
   MessageSenderRole,
@@ -75,6 +76,20 @@ export async function createTicketAction(input: unknown) {
     wingHistory,
   })
 
+  // Calcul du tier de garantie figé sur le ticket. On compte les SAV
+  // précédents pour le même n° de série (excluant ceux déjà out_of_warranty)
+  // et on applique la politique courante depuis plume_settings.
+  const policy = await getPlumeSettings()
+  const previousClaimCount = await countPreviousSavClaims(wingSerial)
+  const warranty = computeWarrantyTier({
+    purchaseDate,
+    previousClaimCount,
+    warrantyStandardYears: policy.warrantyStandardYears,
+    warrantyExtendedYears: policy.warrantyExtendedYears,
+    maxSavClaimsStandard:  policy.maxSavClaimsStandard,
+    maxSavClaimsExtended:  policy.maxSavClaimsExtended,
+  })
+
   // Insert payload â€” restricted to columns that actually exist in
   // public.service_requests on the live DB. NOT NULL columns covered:
   // user_id, service_type, first_name, last_name, email, phone, description.
@@ -103,6 +118,10 @@ export async function createTicketAction(input: unknown) {
     school_change_reason_code: schoolChangeReasonCode ?? null,
     school_change_reason_note: schoolChangeReasonNote ?? null,
     delivery_method:           deliveryMethod,
+    // Garantie figée à la création — cf. computeWarrantyTier ci-dessus
+    warranty_tier:        warranty.tier,
+    sav_claim_number:     warranty.claimNumber,
+    warranty_expires_at:  warranty.expiresAt,
   }
 
   const { data: ticket, error: ticketError } = await supabase
