@@ -32,6 +32,7 @@ export {
   markWingReturnedAction,
 } from './lifecycle'
 export { generateSavShippingLabelAction } from './shipping'
+export { revertToStepAction } from './revert'
 export {
   adminCloseTicketAction,
   adminReassignSchoolAction,

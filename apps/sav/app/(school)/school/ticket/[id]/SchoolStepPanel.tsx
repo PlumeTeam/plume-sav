@@ -11,6 +11,7 @@ import {
 } from '@/features/tickets/actions'
 import { ScanGateModal } from '@/features/tickets/components/ScanGateModal'
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
+import { RevertStepLink } from '@/features/tickets/components/RevertStepLink'
 import { formatDateTime } from '@/features/tickets/utils'
 import type { DeliveryMethod, RequestStatus, SchoolResolution } from '@/features/tickets/types'
 import { SchoolResolutionPanel } from './SchoolResolutionPanel'
@@ -131,6 +132,10 @@ interface StepDef {
   requiresScan: boolean
   scanTitle?:    string
   scanSubtitle?: string
+  /** Statut auquel revenir si l'utilisateur clique "Modifier" sous l'étape
+   *  validée. Null = pas de revert (étape sans cible safe ou aux effets de
+   *  bord trop complexes — ex. décision / renvoi côté école). */
+  revertTarget?: RequestStatus | null
 }
 
 const STEPS: StepDef[] = [
@@ -143,6 +148,7 @@ const STEPS: StepDef[] = [
     isActive:   (c) => c.status === 'pending',
     isDone:     (c) => c.status !== 'pending',
     requiresScan: false,
+    revertTarget: 'school_acknowledged',
   },
   // ── 2. Aile reçue (scan flashcode) ──────────────────────────────────────
   {
@@ -155,6 +161,7 @@ const STEPS: StepDef[] = [
     requiresScan: true,
     scanTitle:    "Réception de l'aile",
     scanSubtitle: "Scannez le QR cousu sur l'aile (ou sur le sac) pour confirmer la réception.",
+    revertTarget: 'wing_received_school',
   },
   // ── 3. Check de l'aile (scan flashcode + briefing + wizard) ─────────────
   //
@@ -176,6 +183,9 @@ const STEPS: StepDef[] = [
     requiresScan: true,
     scanTitle:    "Avant le check",
     scanSubtitle: "Scannez l'aile pour ouvrir le wizard de diagnostic sur le bon ticket.",
+    // Le check terrain (school_checklist) reste préservé sur revert —
+    // school_checklist n'est PAS dans FIELDS_BY_STATUS_ENTRY.
+    revertTarget: 'school_checking',
   },
   // ── 4. Prendre la décision (qui s'occupe de l'aile) ─────────────────────
   {
@@ -473,6 +483,13 @@ export function SchoolStepPanel({
                     <p className="mt-1 text-[11px] text-emerald-700">
                       ✓ Validé le {formatDateTime(at)}
                     </p>
+                  )}
+                  {isDone && step.revertTarget && (
+                    <RevertStepLink
+                      ticketId={ticketId}
+                      targetStatus={step.revertTarget}
+                      stepLabel={step.label}
+                    />
                   )}
                 </div>
 

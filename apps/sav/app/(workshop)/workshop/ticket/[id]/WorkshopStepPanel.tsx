@@ -11,6 +11,7 @@ import {
   startWorkshopRepairAction,
 } from '@/features/tickets/actions'
 import { ScanGateModal } from '@/features/tickets/components/ScanGateModal'
+import { RevertStepLink } from '@/features/tickets/components/RevertStepLink'
 import { formatDateTime, statusGte } from '@/features/tickets/utils'
 import type { RequestStatus, WarrantyStatus, WorkshopDecision } from '@/features/tickets/types'
 import { WorkshopDecisionStep } from './WorkshopDecisionStep'
@@ -478,6 +479,11 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
                   ✓ Validé le {formatDateTime(workshopDiagnosisAt)}
                 </p>
               )}
+              <RevertStepLink
+                ticketId={ticketId}
+                targetStatus="workshop_diagnosing"
+                stepLabel="Diagnostic démarré"
+              />
             </div>
           </div>
         )}
@@ -637,6 +643,13 @@ function SequentialStep({
             <p className="mt-1 text-[11px] text-emerald-700">
               ✓ Validé le {formatDateTime(at)}
             </p>
+          )}
+          {isDone && (
+            <RevertStepLink
+              ticketId={props.ticketId}
+              targetStatus={step.doneFrom}
+              stepLabel={step.label}
+            />
           )}
         </div>
 

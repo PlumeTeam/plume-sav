@@ -495,17 +495,8 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                   {schoolCheckPayload ? (
                     <section className="card p-5">
                       <h2 className="section-title mb-3">Check de l&apos;école</h2>
-                      {schoolCheckInspector && (
-                        <div className="mb-3 flex items-center gap-2 rounded-xl bg-brand-cream/60 px-3 py-2 text-sm text-brand-ink">
-                          <span aria-hidden>👤</span>
-                          <span>
-                            Check effectué par <strong>{schoolCheckInspector}</strong>
-                            {school?.name && (
-                              <> de l&apos;école <strong>{school.name}</strong></>
-                            )}
-                          </span>
-                        </div>
-                      )}
+                      {/* SchoolCheckSummary rend déjà la méta inspecteur+école+date
+                          en interne — pas de bandeau header redondant ici. */}
                       <SchoolCheckSummary
                         raw={ticket.school_checklist}
                         schoolName={school?.name ?? null}
