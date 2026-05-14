@@ -77,7 +77,10 @@ const STEPS: StepDef[] = [
     label:      'Aile reçue',
     helpText:   "À cliquer dès que le colis / l'aile arrive à l'atelier.",
     emoji:      '🏭',
-    activeWhen: ['escalated_to_workshop'],
+    // 'pending_workshop' = routage direct client → atelier (repair/inspection),
+    // 'escalated_to_workshop' = escalade depuis l'école. Les deux convergent
+    // sur cette étape.
+    activeWhen: ['pending_workshop', 'escalated_to_workshop'],
     doneFrom:   'wing_received_workshop',
     tsKey:      'wingReceivedWorkshopAt',
     requiresScan: true,
@@ -286,8 +289,10 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
 
   const activeScanMeta = scanGateFor ? SCAN_META[scanGateFor] : null
 
-  // Ticket pas encore escaladé → on affiche un placeholder explicatif.
-  if (!statusGte(status, 'escalated_to_workshop')) {
+  // Ticket pas encore dans le pipeline atelier → placeholder explicatif.
+  // `pending_workshop` (routage direct client) et `escalated_to_workshop`
+  // (escalade école) sont les deux portes d'entrée valides.
+  if (!statusGte(status, 'pending_workshop')) {
     return (
       <div className="rounded-card border border-brand-stone bg-brand-cream p-4 text-sm text-slate-600">
         L&apos;école n&apos;a pas encore escaladé ce ticket vers l&apos;atelier.

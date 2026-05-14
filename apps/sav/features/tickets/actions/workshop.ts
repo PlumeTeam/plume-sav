@@ -156,9 +156,12 @@ export async function saveWorkshopFullChecklistAction(formData: FormData) {
 export async function markWingReceivedWorkshopAction(formData: FormData) {
   const ticketId = String(formData.get('ticketId') ?? '')
   if (!ticketId) return { error: { _form: ['Identifiant manquant'] } }
+  // 'pending_workshop' = entrée directe client → atelier (repair/inspection),
+  // 'escalated_to_workshop' = escalade depuis l'école. Les deux convergent
+  // sur cette transition quand l'aile arrive physiquement à l'atelier.
   return advanceTicketStep({
     ticketId,
-    from:            ['escalated_to_workshop'],
+    from:            ['pending_workshop', 'escalated_to_workshop'],
     to:              'wing_received_workshop',
     timestampColumn: 'wing_received_workshop_at',
     emailStep:       'wing_received_workshop',

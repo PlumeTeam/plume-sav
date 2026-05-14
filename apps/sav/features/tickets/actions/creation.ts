@@ -123,7 +123,10 @@ export async function createTicketAction(input: unknown) {
     email:          identity.email,
     phone:          identity.phone,
     service_type:   serviceType,
-    status:         'pending',
+    // 'pending_workshop' pour routage direct client → atelier (repair /
+    // inspection / defect hors garantie) — sinon la RLS atelier filtre le
+    // ticket dehors. Flow école classique : 'pending'.
+    status:         routesToWorkshop ? 'pending_workshop' : 'pending',
     product_brand:  wingBrand,
     product_model:  wingModel,
     serial_number:  wingSerial,

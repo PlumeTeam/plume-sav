@@ -226,6 +226,10 @@ const STATUS_ORDER: RequestStatus[] = [
   'processing',
   'approved',
   'school_resolved',
+  // 'pending_workshop' = entrée directe atelier (repair/inspection sans école).
+  // Positionné au même niveau que 'escalated_to_workshop' : entrée du pipeline
+  // atelier, aile pas encore reçue.
+  'pending_workshop',
   'escalated_to_workshop',
   'wing_received_workshop',
   'workshop_pre_checking',
@@ -250,6 +254,8 @@ export const TIMELINE_STEPS: Array<{ status: RequestStatus; label: string }> = [
 
 const TIMELINE_INDEX_BY_STATUS: Partial<Record<RequestStatus, number>> = {
   pending:                 0,
+  // Routage direct atelier — saute les étapes école, démarre à "Vers atelier".
+  pending_workshop:        4,
   school_acknowledged:     1,
   wing_received_school:    2,
   school_checking:         3,

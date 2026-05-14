@@ -25,8 +25,12 @@ type StatusBucket = 'all' | 'incoming' | 'in_progress' | 'done'
 
 const INCOMING_STATUSES: RequestStatus[] = [
   'processing',
+  // 'pending_workshop' = routage direct client → atelier (repair / inspection),
+  // l'aile n'est pas encore arrivée mais le ticket attend l'atelier.
+  'pending_workshop',
   'escalated_to_workshop',
   'wing_received_workshop',
+  'workshop_pre_checking',
   'workshop_diagnosing',
 ]
 

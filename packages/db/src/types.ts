@@ -16,6 +16,10 @@ export type RequestStatus =
   | 'school_checking'
   | 'school_resolved'
   | 'escalated_to_workshop'
+  // Routage direct client → atelier (repair / inspection) : statut initial
+  // dédié, distinct de 'pending' (réservé au flow école). Voir migration
+  // 20260515120000_sav_pending_workshop_status.sql.
+  | 'pending_workshop'
   | 'wing_received_workshop'
   | 'workshop_pre_checking'
   | 'workshop_diagnosing'

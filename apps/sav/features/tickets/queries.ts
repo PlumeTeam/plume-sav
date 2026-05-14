@@ -657,7 +657,9 @@ export async function getWorkshopTickets(): Promise<TicketWithContacts[]> {
   if (!user) return []
 
   // Workshop sees:
-  //  - tickets dans le pipeline atelier (escalated → wing_returned)
+  //  - tickets dans le pipeline atelier (pending_workshop → wing_returned)
+  //    'pending_workshop' = routage direct client → atelier (repair/inspection),
+  //    aile pas encore reçue mais le ticket est déjà visible côté atelier.
   //  - les tickets historiques (processing/approved/completed) — rétrocompat
   //  - school_resolution = 'workshop_advice_requested' → avis distance, pas de transfert
   // OR PostgREST permettant de couvrir les anciennes ET nouvelles entrées.
@@ -665,7 +667,7 @@ export async function getWorkshopTickets(): Promise<TicketWithContacts[]> {
     .from('service_requests')
     .select('*')
     .or(
-      'status.in.(processing,approved,completed,escalated_to_workshop,wing_received_workshop,workshop_diagnosing,workshop_repairing,workshop_done,wing_returned),' +
+      'status.in.(processing,approved,completed,pending_workshop,escalated_to_workshop,wing_received_workshop,workshop_pre_checking,workshop_diagnosing,workshop_repairing,workshop_done,wing_returned),' +
       'school_resolution.eq.workshop_advice_requested'
     )
     .order('urgency_level', { ascending: false })

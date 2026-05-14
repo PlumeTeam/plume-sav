@@ -279,6 +279,7 @@ export const REQUEST_TYPE_CONFIG: Record<RequestType, {
 export const STATUS_CONFIG: Partial<Record<RequestStatus, { label: string; color: string; bg: string }>> = {
   pending:                 { label: 'À traiter',         color: 'text-amber-800',   bg: 'bg-amber-100' },
   PENDING:                 { label: 'À traiter',         color: 'text-amber-800',   bg: 'bg-amber-100' },
+  pending_workshop:        { label: 'À traiter atelier', color: 'text-amber-800',   bg: 'bg-amber-100' },
   school_acknowledged:     { label: 'Vue par l\'école',  color: 'text-amber-800',   bg: 'bg-amber-100' },
   wing_received_school:    { label: 'Aile reçue',        color: 'text-sky-800',     bg: 'bg-sky-100' },
   school_checking:         { label: 'Diagnostic école',  color: 'text-sky-800',     bg: 'bg-sky-100' },

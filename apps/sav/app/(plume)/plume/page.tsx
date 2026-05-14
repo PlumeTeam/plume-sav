@@ -54,22 +54,36 @@ function buildAlertGroups(tickets: TicketWithContacts[]): AdminAlertGroup[] {
     .sort((a, b) => ageMs(b.created_at, now) - ageMs(a.created_at, now))
     .map((ticket) => ({ ticket, refDate: ticket.created_at }))
 
-  // En attente atelier : status escalated_to_workshop sans réception de l'aile
-  // (wing_received_workshop_at IS NULL) depuis > 48h. On prend escalated_to_workshop_at
-  // comme point de départ, avec fallback sur updated_at.
+  // En attente atelier : aile pas encore réceptionnée depuis > 48h. Deux
+  // portes d'entrée :
+  //  - 'escalated_to_workshop' = escalade école
+  //  - 'pending_workshop'      = routage direct client (repair/inspection)
+  // Pour pending_workshop, on n'a pas de horodatage d'escalade dédié → on
+  // mesure depuis created_at.
   const pendingWorkshop = tickets
     .filter((t) => {
-      if (t.status !== 'escalated_to_workshop') return false
+      if (t.status !== 'escalated_to_workshop' && t.status !== 'pending_workshop') return false
       if (t.wing_received_workshop_at !== null) return false
-      const start = t.escalated_to_workshop_at ?? t.updated_at
+      const start = t.status === 'pending_workshop'
+        ? t.created_at
+        : (t.escalated_to_workshop_at ?? t.updated_at)
       return ageMs(start, now) > HOUR_MS * 48
     })
     .sort((a, b) => {
-      const aStart = a.escalated_to_workshop_at ?? a.updated_at
-      const bStart = b.escalated_to_workshop_at ?? b.updated_at
+      const aStart = a.status === 'pending_workshop'
+        ? a.created_at
+        : (a.escalated_to_workshop_at ?? a.updated_at)
+      const bStart = b.status === 'pending_workshop'
+        ? b.created_at
+        : (b.escalated_to_workshop_at ?? b.updated_at)
       return ageMs(bStart, now) - ageMs(aStart, now)
     })
-    .map((ticket) => ({ ticket, refDate: ticket.escalated_to_workshop_at ?? ticket.updated_at }))
+    .map((ticket) => ({
+      ticket,
+      refDate: ticket.status === 'pending_workshop'
+        ? ticket.created_at
+        : (ticket.escalated_to_workshop_at ?? ticket.updated_at),
+    }))
 
   return [
     {
@@ -125,8 +139,12 @@ const KPI_GROUPS: Array<{ key: string; label: string; statuses: RequestStatus[];
     key:   'workshop',
     label: "Chez l'atelier",
     statuses: [
+      // Routage direct client → atelier (repair / inspection) avant arrivée
+      // physique de l'aile.
+      'pending_workshop',
       'escalated_to_workshop',
       'wing_received_workshop',
+      'workshop_pre_checking',
       'workshop_diagnosing',
       'workshop_repairing',
       'workshop_done',
