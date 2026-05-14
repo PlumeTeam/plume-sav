@@ -38,9 +38,13 @@ function buildAlertGroups(tickets: TicketWithContacts[]): AdminAlertGroup[] {
   const now = Date.now()
   const threeDays = 3 * DAY_MS
 
+  // Important : les groupes sont sérialisés vers AdminAlerts (Client Component).
+  // On ne peut PAS passer une fonction `dateOf` à travers la frontière RSC →
+  // on pré-calcule la date de référence ici et on l'attache à chaque entrée.
   const noActivity = tickets
     .filter((t) => !isClosedTicket(t) && ageMs(t.updated_at, now) > threeDays)
     .sort((a, b) => ageMs(b.updated_at, now) - ageMs(a.updated_at, now))
+    .map((ticket) => ({ ticket, refDate: ticket.updated_at }))
 
   // En attente école : l'école n'a pas encore accusé réception (status === 'pending')
   // depuis > 24h. On mesure l'ancienneté depuis created_at (school_acknowledged_at
@@ -48,6 +52,7 @@ function buildAlertGroups(tickets: TicketWithContacts[]): AdminAlertGroup[] {
   const pendingSchool = tickets
     .filter((t) => t.status === 'pending' && ageMs(t.created_at, now) > HOUR_MS * 24)
     .sort((a, b) => ageMs(b.created_at, now) - ageMs(a.created_at, now))
+    .map((ticket) => ({ ticket, refDate: ticket.created_at }))
 
   // En attente atelier : status escalated_to_workshop sans réception de l'aile
   // (wing_received_workshop_at IS NULL) depuis > 48h. On prend escalated_to_workshop_at
@@ -64,6 +69,7 @@ function buildAlertGroups(tickets: TicketWithContacts[]): AdminAlertGroup[] {
       const bStart = b.escalated_to_workshop_at ?? b.updated_at
       return ageMs(bStart, now) - ageMs(aStart, now)
     })
+    .map((ticket) => ({ ticket, refDate: ticket.escalated_to_workshop_at ?? ticket.updated_at }))
 
   return [
     {
@@ -73,8 +79,7 @@ function buildAlertGroups(tickets: TicketWithContacts[]): AdminAlertGroup[] {
       title:      'Tickets sans activité > 3 jours',
       hint:       'Aucune mise à jour récente',
       tone:       'red',
-      dateOf:     (t) => t.updated_at,
-      tickets:    noActivity,
+      entries:    noActivity,
       linkPrefix: '/school/ticket',
     },
     {
@@ -84,8 +89,7 @@ function buildAlertGroups(tickets: TicketWithContacts[]): AdminAlertGroup[] {
       title:      'En attente école > 24h',
       hint:       "L'école n'a pas accusé réception",
       tone:       'orange',
-      dateOf:     (t) => t.created_at,
-      tickets:    pendingSchool,
+      entries:    pendingSchool,
       linkPrefix: '/school/ticket',
     },
     {
@@ -95,8 +99,7 @@ function buildAlertGroups(tickets: TicketWithContacts[]): AdminAlertGroup[] {
       title:      'En attente atelier > 48h',
       hint:       "L'aile n'est pas arrivée à l'atelier",
       tone:       'yellow',
-      dateOf:     (t) => t.escalated_to_workshop_at ?? t.updated_at,
-      tickets:    pendingWorkshop,
+      entries:    pendingWorkshop,
       linkPrefix: '/workshop/ticket',
     },
   ]

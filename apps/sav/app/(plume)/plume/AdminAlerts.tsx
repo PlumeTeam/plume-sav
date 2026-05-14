@@ -5,6 +5,15 @@ import Link from 'next/link'
 import type { TicketWithContacts } from '@/features/tickets/contacts'
 import { formatDate } from '@/features/tickets/utils'
 
+/** Une entrée d'alerte = un ticket + sa date de référence pré-calculée
+ *  côté serveur. On ne peut pas passer une fonction `dateOf` depuis un
+ *  Server Component vers ce Client Component (Next.js refuse de
+ *  sérialiser les fonctions à travers la frontière RSC). */
+export interface AdminAlertEntry {
+  ticket:  TicketWithContacts
+  refDate: string | null
+}
+
 export interface AdminAlertGroup {
   /** Identifiant interne (clé React + ouverture par défaut). */
   key:      'no_activity' | 'pending_school' | 'pending_workshop'
@@ -18,10 +27,8 @@ export interface AdminAlertGroup {
   hint:     string
   /** Tone palette (bordure + fond + accents). */
   tone:     'red' | 'orange' | 'yellow'
-  /** Champ date utilisé pour ordonner et afficher l'ancienneté. */
-  dateOf:   (t: TicketWithContacts) => string | null
-  /** Tickets concernés, déjà filtrés côté serveur. */
-  tickets:  TicketWithContacts[]
+  /** Tickets concernés, déjà filtrés + dates pré-calculées côté serveur. */
+  entries:  AdminAlertEntry[]
   /** Préfixe de route pour le lien — pas de page `/plume/ticket/[id]`, on
    *  redirige vers la vue école ou atelier selon la catégorie. */
   linkPrefix: '/school/ticket' | '/workshop/ticket'
@@ -84,10 +91,10 @@ function formatAge(iso: string | null): string {
 }
 
 export function AdminAlerts({ groups }: AdminAlertsProps) {
-  const totalAlerts = groups.reduce((sum, g) => sum + g.tickets.length, 0)
+  const totalAlerts = groups.reduce((sum, g) => sum + g.entries.length, 0)
 
   // Ouvrir par défaut uniquement la 1ère catégorie qui contient des alertes.
-  const firstWithAlerts = groups.find((g) => g.tickets.length > 0)?.key ?? null
+  const firstWithAlerts = groups.find((g) => g.entries.length > 0)?.key ?? null
   const [openKeys, setOpenKeys] = useState<Set<AdminAlertGroup['key']>>(
     () => new Set(firstWithAlerts ? [firstWithAlerts] : []),
   )
@@ -147,7 +154,7 @@ export function AdminAlerts({ groups }: AdminAlertsProps) {
         {groups.map((g) => {
           const tone = TONE_STYLES[g.tone]
           const isOpen = openKeys.has(g.key)
-          const count = g.tickets.length
+          const count = g.entries.length
 
           return (
             <div
@@ -205,14 +212,13 @@ export function AdminAlerts({ groups }: AdminAlertsProps) {
                     </p>
                   ) : (
                     <ul className="space-y-1">
-                      {g.tickets.slice(0, 12).map((t) => {
+                      {g.entries.slice(0, 12).map(({ ticket: t, refDate }) => {
                         const ref = t.ticket_number ?? `#${t.id.slice(0, 8).toUpperCase()}`
                         const wing = [t.product_brand, t.product_model]
                           .filter(Boolean)
                           .join(' ')
                           .trim() || 'Aile inconnue'
                         const clientName = t.contacts?.client?.name ?? 'Client inconnu'
-                        const refDate = g.dateOf(t)
                         return (
                           <li key={t.id}>
                             <Link
