@@ -116,7 +116,9 @@ export const PARTNER_WORKSHOPS: PartnerWorkshop[] = [
     lat:        44.5633,
     lng:        6.4957,
     affiliated: true,
-    email:      'sav@plumeparagliders.com',
+    // Mode démo (mai 2026) — compte de test atelier. Repasser à
+    // sav@plumeparagliders.com avant la mise en prod publique.
+    email:      'jbchandelier+atelier@gmail.com',
     phone:      '+33 4 92 00 00 00',
   },
   {
