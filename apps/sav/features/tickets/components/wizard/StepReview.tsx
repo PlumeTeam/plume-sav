@@ -249,11 +249,9 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
           {wingInfo.flightHours && <Row label="Heures de vol" value={`${wingInfo.flightHours} h`} />}
         </Section>
 
-        {requestType !== 'repair' && (
-          <Section title="Historique de l'aile">
-            <WingHistoryRecap history={wingHistory} />
-          </Section>
-        )}
+        <Section title="Historique de l'aile">
+          <WingHistoryRecap history={wingHistory} />
+        </Section>
 
         {requestType !== 'inspection' && (
           <Section title={requestType === 'repair' ? 'Dommage' : 'Défaut suspecté'}>

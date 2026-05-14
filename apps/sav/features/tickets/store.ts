@@ -79,9 +79,11 @@ interface BuildFlowOptions {
 }
 
 // buildWizardFlow décide la séquence d'étapes selon le type de demande
-// (+ la garantie pour 'manufacturing_defect').
+// (+ la garantie pour 'manufacturing_defect'). L'étape 'wing-history'
+// (heures de vol, conditions subies) est demandée pour les 3 types :
+// l'atelier en a besoin même pour une réparation ponctuelle.
 //
-// - repair               : aile → description+photos → atelier → livraison → message → récap
+// - repair               : aile → historique → description+photos → atelier → livraison → message → récap
 // - inspection           : aile → historique → atelier → livraison → message → récap
 // - manufacturing_defect : aile → description+photos → comportements → historique
 //                           → (école si sous garantie standard/étendue) OU (atelier sinon)
@@ -90,7 +92,7 @@ export function buildWizardFlow(opts: BuildFlowOptions): StepId[] {
   const { requestType, purchaseDate } = opts
 
   if (requestType === 'repair') {
-    return ['wing', 'description', 'photos', 'workshop', 'delivery', 'message', 'review']
+    return ['wing', 'wing-history', 'description', 'photos', 'workshop', 'delivery', 'message', 'review']
   }
 
   if (requestType === 'inspection') {
