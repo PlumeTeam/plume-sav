@@ -15,8 +15,7 @@ export async function markTicketReadBySchoolAction(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'unauthorized' }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any).rpc('mark_ticket_read_by_school', {
+  const { error } = await supabase.rpc('mark_ticket_read_by_school', {
     p_ticket_id: ticketId,
   })
 

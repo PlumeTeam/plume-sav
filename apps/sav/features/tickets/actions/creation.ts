@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import type { Database } from '@plume/db'
 import { createClient } from '@/lib/supabase/server'
 import { PARTNER_WORKSHOPS } from '../constants'
 import { countPreviousSavClaims, getPartnerSchoolById, getPlumeSettings } from '../queries'
@@ -11,6 +12,8 @@ import type {
   ServiceType,
 } from '../types'
 import { attachTicketPhotosSchema, createTicketSchema } from '../schemas'
+
+type ServiceRequestInsert = Database['public']['Tables']['service_requests']['Insert']
 import { resolveClientIdentity } from '@/features/auth/identity'
 import {
   sendClientConfirmationEmail,
@@ -112,7 +115,7 @@ export async function createTicketAction(input: unknown) {
   })
 
   // Insert payload — colonnes du live DB.
-  const insertPayload = {
+  const insertPayload: ServiceRequestInsert = {
     user_id:        user.id,
     client_id:      user.id,
     first_name:     identity.firstName,
@@ -120,7 +123,7 @@ export async function createTicketAction(input: unknown) {
     email:          identity.email,
     phone:          identity.phone,
     service_type:   serviceType,
-    status:         'pending' as RequestStatus,
+    status:         'pending',
     product_brand:  wingBrand,
     product_model:  wingModel,
     serial_number:  wingSerial,
@@ -147,8 +150,7 @@ export async function createTicketAction(input: unknown) {
 
   const { data: ticket, error: ticketError } = await supabase
     .from('service_requests')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .insert(insertPayload as any)
+    .insert(insertPayload)
     .select('id')
     .single<{ id: string }>()
 

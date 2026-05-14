@@ -131,8 +131,10 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
             })
 
           if (uploadError) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const e = uploadError as any
+            const e = uploadError as Error & {
+              statusCode?: string | number
+              status?:     string | number
+            }
             console.error('[upload] error:', {
               message:    uploadError.message,
               statusCode: e.statusCode ?? e.status ?? '?',

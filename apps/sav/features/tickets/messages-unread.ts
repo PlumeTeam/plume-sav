@@ -176,9 +176,9 @@ export async function getClientInboxThreads(supabase: SupabaseClient): Promise<I
   ))
   const schoolNameById = new Map<string, string>()
   if (schoolIds.length > 0) {
-    // partner_schools is a shared-platform table not in SAV DB types — cast.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: schools } = await (supabase as any)
+    // partner_schools is a shared-platform table not in SAV DB types.
+    const db = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
+    const { data: schools } = await db
       .from('partner_schools')
       .select('id, name')
       .in('id', schoolIds)

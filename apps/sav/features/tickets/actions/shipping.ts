@@ -1,6 +1,7 @@
 ﻿'use server'
 
 import { revalidatePath } from 'next/cache'
+import type { Json } from '@plume/db'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUserRoles } from '@/features/auth/queries'
 import { PARTNER_WORKSHOPS } from '../constants'
@@ -263,8 +264,8 @@ export async function generateSavShippingLabelAction(formData: FormData): Promis
         .from('service_requests')
         .update({
           auto_approved_shipping:   false,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          client_shipping_address:  finalAddress as any,
+          // ClientShippingAddress has no index signature → cast via unknown to Json.
+          client_shipping_address:  finalAddress as unknown as Json,
         })
         .eq('id', ticketId)
       if (flagError) {
@@ -333,8 +334,7 @@ export async function generateSavShippingLabelAction(formData: FormData): Promis
     update.client_school_label_url = labelUrl
     update.client_school_carrier   = 'GLS'
     if (addressToPersist) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(update as any).client_shipping_address = addressToPersist
+      update.client_shipping_address = addressToPersist as unknown as Json
     }
   } else if (leg === 'school_to_workshop') {
     update.school_workshop_tracking  = trackingNumber

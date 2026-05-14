@@ -27,8 +27,9 @@ async function loadReadMap(
   ticketIds: string[],
 ): Promise<Map<string, number>> {
   if (ticketIds.length === 0) return new Map()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: reads } = await (supabase as any)
+  // plume_admin_ticket_reads is a shared-platform table not in SAV DB types.
+  const db = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
+  const { data: reads } = await db
     .from('plume_admin_ticket_reads')
     .select('ticket_id, read_at')
     .eq('user_id', userId)

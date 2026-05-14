@@ -7,8 +7,8 @@ import L from 'leaflet'
 import type { PartnerWorkshop } from '../constants'
 
 // Leaflet's default marker URLs 404 when not bundled — rebind to unpkg.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-delete (L.Icon.Default.prototype as any)._getIconUrl
+// _getIconUrl exists at runtime but isn't in the typings.
+delete (L.Icon.Default.prototype as L.Icon.Default & { _getIconUrl?: unknown })._getIconUrl
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
   iconUrl:       'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',

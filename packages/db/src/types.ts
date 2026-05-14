@@ -1,3 +1,4 @@
+// TODO: Replace manual types with auto-generated ones by running: SUPABASE_ACCESS_TOKEN=xxx pnpm db:gen-types
 // Placeholder — remplacer via `pnpm db:gen-types` (MCP Supabase, project gxighesxbavnzzyngjaz)
 // Structure exacte requise par @supabase/postgrest-js GenericTable (Relationships obligatoire)
 
@@ -601,7 +602,24 @@ export interface Database {
       }
     }
     Views: Record<string, never>
-    Functions: Record<string, never>
+    Functions: {
+      mark_ticket_read_by_client: {
+        Args: { p_ticket_id: string }
+        Returns: void
+      }
+      mark_ticket_read_by_school: {
+        Args: { p_ticket_id: string }
+        Returns: void
+      }
+      mark_ticket_read_by_workshop: {
+        Args: { p_ticket_id: string }
+        Returns: void
+      }
+      mark_ticket_read_by_plume: {
+        Args: { p_ticket_id: string }
+        Returns: void
+      }
+    }
     Enums: {
       ticket_status: TicketStatus
       problem_category: ProblemCategory
