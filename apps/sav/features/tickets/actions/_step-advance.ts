@@ -29,6 +29,7 @@ type TimestampColumn =
   | 'workshop_diagnosis_at'
   | 'workshop_repair_done_at'
   | 'wing_returned_at'
+  | 'pre_check_started_at'
 
 export interface AdvanceArgs {
   ticketId:        string
