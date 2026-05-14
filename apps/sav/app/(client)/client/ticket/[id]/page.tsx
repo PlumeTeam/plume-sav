@@ -62,6 +62,12 @@ export default async function TicketDetailPage({ params }: PageProps) {
     )
   const initialClientAddress = readClientShippingAddress(ticket.client_shipping_address)
 
+  // Pour les ailes hors garantie on enrichit le tab Messages d'une mention
+  // explicite : c'est l'atelier qui transmet devis & factures par chat
+  // (canal "all"), le paiement étant entre le client et l'atelier.
+  const warrantyTier = resolveWarrantyTierForDisplay(ticket.warranty_tier, ticket.purchase_date)
+  const wingAge      = formatAge(ticket.purchase_date)
+
   // ── Tab content ────────────────────────────────────────────────────────────
 
   // Inline shipping label generator, attached to the "Envoi de l'aile" step
@@ -150,6 +156,15 @@ export default async function TicketDetailPage({ params }: PageProps) {
       <h2 className="section-title mb-4">
         Échanges{school?.name ? ` avec ${school.name}` : " avec votre école"}
       </h2>
+      {warrantyTier === 'out_of_warranty' && (
+        <div className="mb-4 rounded-2xl border border-brand-stone bg-brand-cream px-4 py-3">
+          <p className="text-sm font-semibold text-brand-ink">Canal direct avec l&apos;atelier</p>
+          <p className="mt-1 text-xs leading-relaxed text-brand-ink/80">
+            L&apos;atelier peut vous transmettre un devis et une facture en pièce
+            jointe (photo du document) directement dans cette messagerie.
+          </p>
+        </div>
+      )}
       <div className="mb-4">
         <CommentThread
           messages={publicMessages}
@@ -196,9 +211,6 @@ export default async function TicketDetailPage({ params }: PageProps) {
       Aucune école associée à cette demande.
     </section>
   )
-
-  const warrantyTier = resolveWarrantyTierForDisplay(ticket.warranty_tier, ticket.purchase_date)
-  const wingAge      = formatAge(ticket.purchase_date)
 
   const infosNode = (
     <>

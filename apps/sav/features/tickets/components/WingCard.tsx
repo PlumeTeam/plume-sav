@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useWizardStore } from '../store'
 import { WarrantyTierBadge } from './WarrantyTierBadge'
@@ -73,13 +74,21 @@ export function WingCard({ wing }: WingCardProps) {
         {age && <span className="text-slate-400"> — {age}</span>}
       </p>
 
-      <button
-        type="button"
-        onClick={handleCreateTicket}
-        className="mt-4 w-full rounded-2xl border border-brand-stone bg-brand-cream py-2.5 text-sm font-semibold text-brand-ink transition-colors hover:bg-brand-gold/10 hover:border-brand-gold/40"
-      >
-        Envoyer une demande SAV
-      </button>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <Link
+          href={`/client/wings/${encodeURIComponent(wing.serial_number)}`}
+          className="rounded-2xl border border-brand-stone bg-white py-2.5 text-center text-sm font-semibold text-brand-ink transition-colors hover:bg-brand-cream hover:border-brand-gold/40"
+        >
+          Carnet d&apos;entretien
+        </Link>
+        <button
+          type="button"
+          onClick={handleCreateTicket}
+          className="rounded-2xl border border-brand-stone bg-brand-cream py-2.5 text-sm font-semibold text-brand-ink transition-colors hover:bg-brand-gold/10 hover:border-brand-gold/40"
+        >
+          Demande SAV
+        </button>
+      </div>
     </div>
   )
 }

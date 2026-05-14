@@ -7,6 +7,7 @@ import { attachTicketPhotosAction, createTicketAction } from '../../actions'
 import { PROBLEM_CATEGORIES, type WizardWingHistory } from '../../types'
 import { createClient } from '@/lib/supabase/client'
 import type { PartnerSchool } from '../../queries'
+import { resolveWarrantyTierForDisplay } from '../../utils'
 import { StepLayout } from './StepLayout'
 
 interface StepReviewProps {
@@ -28,6 +29,9 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
   const problemLabel  = PROBLEM_CATEGORIES.find((c) => c.value === problem.problemCategory)
   const isBehavior    = (problem.wingBehaviors?.length ?? 0) > 0
   const selectedSchool = schools.find((s) => s.id === problem.partnerSchoolId)
+  // On affiche un encart hors-garantie si la date d'achat est saisie ET donne
+  // out_of_warranty (le calcul est fait sur la base des défauts plume_settings).
+  const warrantyTier  = resolveWarrantyTierForDisplay(null, wingInfo.purchaseDate || null)
 
   async function handleSubmit() {
     if (submitLockRef.current) return
@@ -223,6 +227,20 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
       }
     >
       <div className="space-y-3">
+        {warrantyTier === 'out_of_warranty' && wingInfo.purchaseDate && (
+          <div className="rounded-card border border-brand-stone bg-brand-cream p-4">
+            <p className="text-sm font-semibold text-brand-ink">
+              Votre aile n&apos;est plus sous garantie
+            </p>
+            <p className="mt-1.5 text-sm leading-relaxed text-brand-ink/80">
+              Vous pouvez utiliser notre plateforme SAV gratuitement. Chaque
+              intervention est enregistrée dans le carnet d&apos;entretien
+              numérique de votre aile — un historique précieux pour vous et
+              pour la revente.
+            </p>
+          </div>
+        )}
+
         <Section title="Votre aile">
           <Row label="Marque / Modèle" value={`${wingInfo.wingBrand} ${wingInfo.wingModel} ${wingInfo.wingSize}`.trim()} />
           <Row label="Couleur" value={wingInfo.wingColor} />

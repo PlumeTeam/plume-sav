@@ -510,6 +510,66 @@ export async function getClientWings(): Promise<ClientWing[]> {
   return rows ?? []
 }
 
+/**
+ * Renvoie l'aile correspondante au n° de série, restreinte au propriétaire courant.
+ * Utilisé par la page "Carnet d'entretien" — RLS garantit qu'un client ne lit que
+ * ses propres ailes mais on filtre quand même côté requête pour clarté.
+ */
+export async function getClientWingBySerial(serial: string): Promise<ClientWing | null> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const db = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
+
+  // Optimistic select with partner_school_id; fallback to the smaller projection
+  // when the column is missing (mirrors getClientWings).
+  try {
+    const r = await db
+      .from('customer_wings')
+      .select('id, serial_number, product_model, product_label, size, color_name, registered_at, partner_school_id')
+      .eq('owner_user_id', user.id)
+      .eq('serial_number', serial)
+      .maybeSingle()
+    if (!r.error && r.data) return r.data as ClientWing
+  } catch { /* fall through */ }
+
+  const r = await db
+    .from('customer_wings')
+    .select('id, serial_number, product_model, product_label, size, color_name, registered_at')
+    .eq('owner_user_id', user.id)
+    .eq('serial_number', serial)
+    .maybeSingle()
+  if (r.error || !r.data) return null
+  return { ...(r.data as Omit<ClientWing, 'partner_school_id'>), partner_school_id: null }
+}
+
+/**
+ * Tous les tickets SAV ouverts par le client courant pour une aile donnée.
+ * Sert de "carnet d'entretien" — historique chronologique inverse, RLS scope par user.
+ */
+export async function getTicketsForWingSerial(serial: string): Promise<TicketWithPhotos[]> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  // RLS contraint déjà la lecture aux tickets du client. Le filtre serial_number
+  // OR wing_serial_number couvre les anciennes/nouvelles colonnes (table partagée
+  // entre apps Plume — la SAV remplit `serial_number`, mais des écritures plus
+  // anciennes alimentaient `wing_serial_number`).
+  const { data, error } = await supabase
+    .from('service_requests')
+    .select('*')
+    .or(`serial_number.eq.${serial},wing_serial_number.eq.${serial}`)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('getTicketsForWingSerial error:', error.message)
+    return []
+  }
+  return attachPhotosToList(supabase, (data ?? []) as Array<Record<string, unknown>>)
+}
+
 export async function getClientTickets(): Promise<Array<TicketWithContacts & { unread_count: number }>> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
