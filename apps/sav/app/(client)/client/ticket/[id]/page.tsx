@@ -12,6 +12,7 @@ import { ClientDeclarationView } from '@/features/tickets/components/ClientDecla
 import { WingLocationCard } from '@/features/tickets/components/WingLocationCard'
 import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
 import { WarrantyTierBadge } from '@/features/tickets/components/WarrantyTierBadge'
+import { RequestTypeBadge } from '@/features/tickets/components/RequestTypeBadge'
 import { RevisionReportView } from '@/features/tickets/components/RevisionReportView'
 import { formatAge, formatDate, resolveWarrantyTierForDisplay } from '@/features/tickets/utils'
 import { filterMessagesForRole } from '@/features/tickets/channels'
@@ -232,7 +233,10 @@ export default async function TicketDetailPage({ params }: PageProps) {
         </div>
       </section>
       <section className="card p-5">
-        <h2 className="section-title mb-4">Demande</h2>
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h2 className="section-title">Demande</h2>
+          <RequestTypeBadge type={ticket.request_type} size="sm" />
+        </div>
         <ClientDeclarationView description={ticket.description} urgencyLevel={ticket.urgency_level} />
       </section>
       {/* Rapport de révision — visible uniquement quand l'atelier l'a uploadé.
@@ -259,21 +263,29 @@ export default async function TicketDetailPage({ params }: PageProps) {
   return (
     <div className="min-h-screen">
       <header className="bg-brand-cream">
-        <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 pt-4 pb-3">
-          <Link
-            href="/client"
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-brand-ink hover:bg-white"
-            aria-label="Retour"
-          >
-            ←
-          </Link>
-          <div className="flex-1 min-w-0">
-            <p className="font-mono text-xs text-slate-500">{ticketRef}</p>
-            <p className="truncate text-sm font-semibold text-brand-ink">
-              {ticket.product_brand} {ticket.product_model}
-            </p>
+        <div className="mx-auto max-w-2xl px-4 pt-4 pb-3">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/client"
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-brand-ink hover:bg-white"
+              aria-label="Retour"
+            >
+              ←
+            </Link>
+            <div className="flex-1 min-w-0">
+              <p className="font-mono text-xs text-slate-500">{ticketRef}</p>
+              <p className="truncate text-sm font-semibold text-brand-ink">
+                {ticket.product_brand} {ticket.product_model}
+              </p>
+            </div>
+            <StatusBadge status={ticket.status} size="sm" />
           </div>
-          <StatusBadge status={ticket.status} size="sm" />
+          {(ticket.request_type || warrantyTier) && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 pl-[52px]">
+              <RequestTypeBadge type={ticket.request_type} size="sm" />
+              <WarrantyTierBadge tier={warrantyTier} size="sm" compact />
+            </div>
+          )}
         </div>
       </header>
 
