@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useWizardStore, buildWizardFlow, type StepId } from '../../store'
+import { REQUEST_TYPE_CONFIG } from '../../types'
+import type { RequestType } from '../../types'
 import { WizardProgress } from './WizardProgress'
 import { StepWingInfo } from './StepWingInfo'
 import { StepWingHistory } from './StepWingHistory'
@@ -12,11 +14,14 @@ import { StepDescription } from './StepDescription'
 import { StepUrgency } from './StepUrgency'
 import { StepPhotos } from './StepPhotos'
 import { StepSchool } from './StepSchool'
+import { StepWorkshop } from './StepWorkshop'
 import { StepDelivery } from './StepDelivery'
 import { StepMessage } from './StepMessage'
 import { StepReview } from './StepReview'
 import { PlumeLogo } from '@/app/_components/PlumeLogo'
 import type { ClientWing, PartnerSchool, PlumeSettings } from '../../queries'
+
+const VALID_REQUEST_TYPES: RequestType[] = ['repair', 'inspection', 'manufacturing_defect']
 
 interface TicketWizardProps {
   wings?:   ClientWing[]
@@ -27,21 +32,43 @@ interface TicketWizardProps {
 }
 
 export function TicketWizard({ wings = [], schools = [], policy }: TicketWizardProps) {
-  const router = useRouter()
-  const { currentStepId, setStepId, problem } = useWizardStore()
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+  const urlType      = searchParams.get('type')
 
-  // Compute the dynamic flow based on current answers
+  const {
+    requestType, setRequestType,
+    currentStepId, setStepId,
+    problem, wingInfo,
+  } = useWizardStore()
+
+  // Synchronise le type de demande avec l'URL. Quand le client arrive depuis
+  // la WingCard (?type=repair par ex), on rebascule sur ce type. Si l'URL ne
+  // précise rien, on garde la valeur déjà en store (utile pour les retours
+  // arrière du navigateur).
+  useEffect(() => {
+    if (urlType && VALID_REQUEST_TYPES.includes(urlType as RequestType)) {
+      if (urlType !== requestType) {
+        setRequestType(urlType as RequestType)
+        // Repartir au début quand le type change — les étapes diffèrent.
+        setStepId('wing')
+      }
+    }
+  }, [urlType, requestType, setRequestType, setStepId])
+
+  // Compute the dynamic flow based on the current request type, the answers,
+  // and the wing's purchase date for warranty routing.
   const flow = useMemo<StepId[]>(
-    () => buildWizardFlow(problem.problemCategory),
-    [problem.problemCategory]
+    () => buildWizardFlow({
+      requestType,
+      problemCategory: problem.problemCategory || undefined,
+      purchaseDate:    wingInfo.purchaseDate || null,
+    }),
+    [requestType, problem.problemCategory, wingInfo.purchaseDate]
   )
 
-  // If the current step disappeared from the flow (e.g. user changed
-  // problem-category from 'other' to something visual after picking
-  // behaviors), rewind to the last valid step.
   useEffect(() => {
     if (!flow.includes(currentStepId)) {
-      // Walk back up the flow to find a still-valid step.
       const fallback = flow[flow.length - 1] ?? 'wing'
       setStepId(fallback)
       return
@@ -69,6 +96,7 @@ export function TicketWizard({ wings = [], schools = [], policy }: TicketWizardP
   }
 
   const isFirstStep = flow.indexOf(currentStepId) === 0
+  const typeCfg     = REQUEST_TYPE_CONFIG[requestType]
 
   return (
     <div className="flex min-h-screen flex-col bg-white">
@@ -93,9 +121,15 @@ export function TicketWizard({ wings = [], schools = [], policy }: TicketWizardP
               ×
             </button>
           )}
-          <h1 className="flex-1 text-center text-xs font-medium uppercase tracking-[0.12em] text-white/80">
-            Nouvelle demande SAV
-          </h1>
+          <div className="flex-1 text-center">
+            <h1 className="text-xs font-medium uppercase tracking-[0.12em] text-white/80">
+              Nouvelle demande SAV
+            </h1>
+            <p className="mt-0.5 text-xs font-semibold text-white">
+              <span aria-hidden className="mr-1">{typeCfg.emoji}</span>
+              {typeCfg.label}
+            </p>
+          </div>
           <span aria-hidden className="flex h-10 w-10 items-center justify-center">
             <PlumeLogo size="sm" variant="light" />
           </span>
@@ -104,7 +138,6 @@ export function TicketWizard({ wings = [], schools = [], policy }: TicketWizardP
       </header>
 
       <main className="mx-auto w-full max-w-2xl flex-1 py-4">
-        {/* `key` re-mounts each step so the slide-up animation triggers on every nav */}
         <div key={currentStepId}>
           {currentStepId === 'wing'             && <StepWingInfo wings={wings} onNext={next} />}
           {currentStepId === 'wing-history'     && <StepWingHistory onNext={next} onBack={back} />}
@@ -114,6 +147,7 @@ export function TicketWizard({ wings = [], schools = [], policy }: TicketWizardP
           {currentStepId === 'urgency'          && <StepUrgency onNext={next} onBack={back} />}
           {currentStepId === 'photos'           && <StepPhotos onNext={next} onBack={back} />}
           {currentStepId === 'school'           && <StepSchool schools={schools} policy={policy} onNext={next} onBack={back} />}
+          {currentStepId === 'workshop'         && <StepWorkshop onNext={next} onBack={back} />}
           {currentStepId === 'delivery'         && <StepDelivery schools={schools} onNext={next} onBack={back} />}
           {currentStepId === 'message'          && <StepMessage onNext={next} onBack={back} />}
           {currentStepId === 'review'           && <StepReview schools={schools} onBack={back} />}

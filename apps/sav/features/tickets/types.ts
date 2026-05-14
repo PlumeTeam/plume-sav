@@ -1,4 +1,4 @@
-import type { Database, TicketStatus, RequestStatus, ServiceType, ProblemCategory, UrgencyLevel, PhotoType, MessageSenderRole, MessageChannel, SchoolResolution, ClosureOutcome, WarrantyTier } from '@plume/db'
+import type { Database, TicketStatus, RequestStatus, ServiceType, RequestType, ProblemCategory, UrgencyLevel, PhotoType, MessageSenderRole, MessageChannel, SchoolResolution, ClosureOutcome, WarrantyTier } from '@plume/db'
 
 export type Ticket = Database['public']['Tables']['service_requests']['Row']
 export type TicketInsert = Database['public']['Tables']['service_requests']['Insert']
@@ -7,7 +7,7 @@ export type TicketPhoto = Database['public']['Tables']['ticket_photos']['Row']
 export type TicketMessage = Database['public']['Tables']['ticket_messages']['Row']
 export type TicketStatusHistory = Database['public']['Tables']['ticket_status_history']['Row']
 
-export type { TicketStatus, RequestStatus, ServiceType, ProblemCategory, UrgencyLevel, PhotoType, MessageSenderRole, MessageChannel, SchoolResolution, ClosureOutcome, WarrantyTier }
+export type { TicketStatus, RequestStatus, ServiceType, RequestType, ProblemCategory, UrgencyLevel, PhotoType, MessageSenderRole, MessageChannel, SchoolResolution, ClosureOutcome, WarrantyTier }
 
 // Rôle SAV autorisé à clôturer un ticket (T7). Le client est exclu — c'est
 // volontaire : seul un acteur du réseau (école / atelier / Plume HQ) peut
@@ -176,6 +176,7 @@ export interface WizardProblem {
   urgency: UrgencyLevel
   wingBehaviors?: string[]                       // IDs from WING_BEHAVIOR_TYPES, used when problemCategory is 'other'
   partnerSchoolId?: string                       // School the wizard sends the ticket to
+  partnerWorkshopId?: string                     // Workshop selected when the flow routes directly to an atelier
   referentSchoolId?: string | null               // School linked to the wing's purchase (default destination)
   schoolChangeReasonCode?: SchoolChangeReasonCode // Set only when partnerSchoolId !== referentSchoolId
   schoolChangeReasonNote?: string                // Free text, required when reason code is 'other'
@@ -231,6 +232,49 @@ export const WING_BEHAVIOR_TYPES = [
   { id: 'speed_issue',      label: 'Vitesse anormale (trop lente ou trop rapide)' },
   { id: 'other_behavior',   label: 'Autre comportement inhabituel' },
 ] as const
+
+// Configuration d'affichage des 3 types de demande SAV.
+//  - repair               : dommage signalé → atelier direct (bleu)
+//  - inspection           : contrôle / révision → atelier (vert)
+//  - manufacturing_defect : suspicion défaut origine → école si sous garantie,
+//                           atelier sinon (orange)
+export const REQUEST_TYPE_CONFIG: Record<RequestType, {
+  label:       string
+  shortLabel:  string
+  description: string
+  emoji:       string
+  bg:          string
+  color:       string
+  ring:        string
+}> = {
+  repair: {
+    label:       'Réparation',
+    shortLabel:  'Réparation',
+    description: 'Mon aile a un dommage',
+    emoji:       '🔧',
+    bg:          'bg-sky-100',
+    color:       'text-sky-800',
+    ring:        'ring-sky-200',
+  },
+  inspection: {
+    label:       'Contrôle',
+    shortLabel:  'Contrôle',
+    description: 'Faire vérifier mon aile',
+    emoji:       '🔍',
+    bg:          'bg-emerald-100',
+    color:       'text-emerald-800',
+    ring:        'ring-emerald-200',
+  },
+  manufacturing_defect: {
+    label:       'Défaut de fabrication',
+    shortLabel:  'Défaut fab.',
+    description: 'Je suspecte un défaut de production',
+    emoji:       '⚠️',
+    bg:          'bg-orange-100',
+    color:       'text-orange-800',
+    ring:        'ring-orange-200',
+  },
+}
 
 export const STATUS_CONFIG: Partial<Record<RequestStatus, { label: string; color: string; bg: string }>> = {
   pending:                 { label: 'À traiter',         color: 'text-amber-800',   bg: 'bg-amber-100' },

@@ -29,6 +29,14 @@ export type TicketStatus =
 
 export type ServiceType = 'sav' | 'revision' | 'repair' | 'information'
 
+// Type de demande SAV — 3 entrées possibles pour le client (migration request_type)
+//  - repair                : dommage constaté sur l'aile, réparation directe atelier
+//  - inspection            : contrôle / révision périodique, atelier
+//  - manufacturing_defect  : suspicion de défaut d'origine → école si sous garantie,
+//                            atelier sinon. Valeur par défaut historique (couvre
+//                            les tickets créés avant l'ajout de la colonne).
+export type RequestType = 'repair' | 'inspection' | 'manufacturing_defect'
+
 export type ProblemCategory =
   | 'tear' | 'line_issue' | 'riser_issue' | 'buckle_issue' | 'porosity' | 'other'
 
@@ -194,6 +202,8 @@ export interface Database {
           warranty_override_by:  string | null
           warranty_override_at:  string | null
           warranty_override_note: string | null
+          // Type de demande SAV — colonne ajoutée par la migration request_type
+          request_type: RequestType
           created_at: string
           updated_at: string
         }
@@ -292,6 +302,7 @@ export interface Database {
           warranty_override_by?:  string | null
           warranty_override_at?:  string | null
           warranty_override_note?: string | null
+          request_type?: RequestType
           created_at?: string
           updated_at?: string
         }
@@ -390,6 +401,7 @@ export interface Database {
           warranty_override_by?:  string | null
           warranty_override_at?:  string | null
           warranty_override_note?: string | null
+          request_type?: RequestType
           created_at?: string
           updated_at?: string
         }

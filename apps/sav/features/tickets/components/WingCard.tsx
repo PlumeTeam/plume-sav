@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useWizardStore } from '../store'
 import { WarrantyTierBadge } from './WarrantyTierBadge'
+import { REQUEST_TYPE_CONFIG } from '../types'
+import type { RequestType } from '../types'
 import { formatAge, formatDate, resolveWarrantyTierForDisplay } from '../utils'
 import type { ClientWing } from '../queries'
 
@@ -11,17 +13,22 @@ interface WingCardProps {
   wing: ClientWing
 }
 
+const REQUEST_BUTTONS: Array<{ type: RequestType }> = [
+  { type: 'repair' },
+  { type: 'inspection' },
+  { type: 'manufacturing_defect' },
+]
+
 export function WingCard({ wing }: WingCardProps) {
   const router = useRouter()
   const { reset, setWingInfo, setProblem } = useWizardStore()
 
-  function handleCreateTicket() {
+  function handleCreateTicket(requestType: RequestType) {
     const modelName = (wing.product_model || '')
       .split('-')
       .filter(Boolean)
       .map(w => w.charAt(0).toUpperCase() + w.slice(1))
       .join(' ')
-    // Prefill purchase date from registration date (best-effort; client can edit)
     const purchaseDate = wing.registered_at
       ? new Date(wing.registered_at).toISOString().split('T')[0]!
       : ''
@@ -35,18 +42,13 @@ export function WingCard({ wing }: WingCardProps) {
       purchaseDate,
       flightHours:  '',
     })
-    // Seed the referent school from the wing so StepSchool can default to
-    // "Envoi à votre école" instead of dropping the user on the map.
-    // StepWingInfo doesn't re-fire its own selectWing() when the wing is
-    // already auto-selected via wingInfo.wingSerial, so this is the only
-    // place this gets set on the WingCard → wizard path.
     setProblem({
       referentSchoolId:       wing.partner_school_id ?? null,
       partnerSchoolId:        undefined,
       schoolChangeReasonCode: undefined,
       schoolChangeReasonNote: undefined,
     })
-    router.push('/client/new-ticket')
+    router.push(`/client/new-ticket?type=${requestType}`)
   }
 
   const subtitle = [wing.size && `Taille ${wing.size}`, wing.color_name].filter(Boolean).join(' · ')
@@ -74,20 +76,33 @@ export function WingCard({ wing }: WingCardProps) {
         {age && <span className="text-slate-400"> — {age}</span>}
       </p>
 
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <Link
-          href={`/client/wings/${encodeURIComponent(wing.serial_number)}`}
-          className="rounded-2xl border border-brand-stone bg-white py-2.5 text-center text-sm font-semibold text-brand-ink transition-colors hover:bg-brand-cream hover:border-brand-gold/40"
-        >
-          Carnet d&apos;entretien
-        </Link>
-        <button
-          type="button"
-          onClick={handleCreateTicket}
-          className="rounded-2xl border border-brand-stone bg-brand-cream py-2.5 text-sm font-semibold text-brand-ink transition-colors hover:bg-brand-gold/10 hover:border-brand-gold/40"
-        >
-          Demande SAV
-        </button>
+      <Link
+        href={`/client/wings/${encodeURIComponent(wing.serial_number)}`}
+        className="mt-4 block rounded-2xl border border-brand-stone bg-white py-2.5 text-center text-sm font-semibold text-brand-ink transition-colors hover:bg-brand-cream hover:border-brand-gold/40"
+      >
+        Carnet d&apos;entretien
+      </Link>
+
+      {/* 3 boutons SAV — un par type de demande */}
+      <div className="mt-2 grid grid-cols-1 gap-2">
+        {REQUEST_BUTTONS.map(({ type }) => {
+          const cfg = REQUEST_TYPE_CONFIG[type]
+          return (
+            <button
+              key={type}
+              type="button"
+              onClick={() => handleCreateTicket(type)}
+              className="flex items-center gap-3 rounded-2xl border border-brand-stone bg-white px-3 py-2.5 text-left transition-all hover:-translate-y-0.5 hover:border-brand-gold/40 hover:bg-brand-gold/5 active:scale-[0.99]"
+            >
+              <span aria-hidden className="text-xl leading-none">{cfg.emoji}</span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-brand-ink">{cfg.label}</p>
+                <p className="truncate text-xs text-slate-500">{cfg.description}</p>
+              </div>
+              <span aria-hidden className="text-slate-300">›</span>
+            </button>
+          )
+        })}
       </div>
     </div>
   )

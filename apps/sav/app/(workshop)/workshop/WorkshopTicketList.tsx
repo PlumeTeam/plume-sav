@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
+import { RequestTypeBadge } from '@/features/tickets/components/RequestTypeBadge'
 import { TicketContactsBlock } from '@/features/tickets/components/TicketContactsBlock'
 import { WarrantyTierBadge } from '@/features/tickets/components/WarrantyTierBadge'
 import { formatDate } from '@/features/tickets/utils'
@@ -258,6 +259,7 @@ function WorkshopTicketRow({ ticket }: { ticket: TicketWithContacts }) {
       {/* Ligne 1 — badges type + statut + urgence */}
       <div className="flex flex-wrap items-center gap-2">
         <TypeBadge kind={kind} />
+        <RequestTypeBadge type={ticket.request_type} size="xs" />
         <StatusBadge status={ticket.status} size="sm" />
         {ticket.warranty_tier && (
           <WarrantyTierBadge

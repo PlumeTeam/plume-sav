@@ -25,6 +25,9 @@ export const problemSchema = z.object({
 })
 
 export const createTicketSchema = z.object({
+  // Type de demande SAV — repair / inspection / manufacturing_defect.
+  // Détermine le flow du wizard, le destinataire (école vs atelier) et le routing.
+  requestType: z.enum(['repair', 'inspection', 'manufacturing_defect']),
   wingBrand: z.string().min(1),
   wingModel: z.string().min(1),
   wingSize: z.string().min(1),
@@ -32,12 +35,14 @@ export const createTicketSchema = z.object({
   wingColor: z.string().min(1),
   purchaseDate: z.string().min(1),
   flightHours: z.coerce.number().int().min(0).optional(),
-  problemCategory: z.enum(['tear', 'fabric_issue', 'line_issue', 'riser_issue', 'other']),
-  problemDescription: z.string().min(10).max(2000),
-  urgency: z.enum(['normal', 'urgent']),
+  // Optional pour repair (déchirure, etc. sans catégorie explicite) et inspection.
+  // Validation conditionnelle dans superRefine ci-dessous selon requestType.
+  problemCategory: z.enum(['tear', 'fabric_issue', 'line_issue', 'riser_issue', 'other']).optional(),
+  // Description optionnelle pour 'inspection' (contrôle de routine) — l'historique
+  // de l'aile remplace la description libre. Validation dans superRefine.
+  problemDescription: z.string().max(2000).optional().default(''),
+  urgency: z.enum(['normal', 'urgent']).optional().default('normal'),
   wingBehaviors: z.array(z.string()).optional(),
-  // Optional history block — every field can be missing ("le client peut ne
-  // pas savoir"). Folded into description by the action.
   wingHistory: z.object({
     flightHours:        z.string().optional(),
     flightCount:        z.string().optional(),
@@ -51,20 +56,16 @@ export const createTicketSchema = z.object({
     surfaceContactNote: z.string().max(200).optional(),
     generalCondition:   z.enum(['excellent', 'good', 'worn', 'bad']).nullable().optional(),
   }).optional(),
-  // Partner school the wizard sends the ticket to. Required for the new flow.
-  schoolId: z.string().min(1, 'Choisissez une école pour traiter votre demande'),
-  // Original referent school (linked to the wing's purchase). Captured so Plume HQ
-  // can correlate "school avoidance" patterns later.
+  // Destinataire — soit une école (manufacturing_defect sous garantie), soit
+  // un atelier (repair, inspection, defect hors garantie). Au moins un requis.
+  schoolId: z.string().optional(),
+  workshopId: z.string().optional(),
   referentSchoolId: z.string().nullable().optional(),
-  // Filled only when the client picks a school different from the referent one.
   schoolChangeReasonCode: z.enum(['school_closed', 'moved_region', 'relationship', 'other']).optional(),
   schoolChangeReasonNote: z.string().max(2000).optional(),
-  // How the client gets the wing to the school (in person vs. postal shipment)
   deliveryMethod: z.enum(['in_person', 'postal'], {
     errorMap: () => ({ message: 'Choisissez la méthode de remise de l\'aile' }),
   }),
-  // Optional personalised message — posted as the first chat message and
-  // included in the school notification email when non-empty.
   clientMessage: z.string().max(2000).optional(),
   photoPaths: z.array(z.object({
     storagePath: z.string().min(1),
@@ -72,24 +73,45 @@ export const createTicketSchema = z.object({
     caption: z.string().optional(),
   })),
 }).superRefine((data, ctx) => {
-  // Photos are always optional — the client can submit without any photo
-  // even for visual problems (sometimes there's nothing to show).
-
-  // If the client picked a different school than the referent, we need a reason.
-  const changedSchool = data.referentSchoolId && data.referentSchoolId !== data.schoolId
-  if (changedSchool && !data.schoolChangeReasonCode) {
+  // Au moins un destinataire (école ou atelier) doit être renseigné.
+  if (!data.schoolId && !data.workshopId) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      path: ['schoolChangeReasonCode'],
-      message: 'Indiquez pourquoi vous changez d\'école',
+      path: ['schoolId'],
+      message: 'Choisissez un destinataire pour traiter votre demande',
     })
   }
-  if (data.schoolChangeReasonCode === 'other' && !data.schoolChangeReasonNote?.trim()) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['schoolChangeReasonNote'],
-      message: 'Précisez la raison',
-    })
+
+  // Pour repair et manufacturing_defect, on attend une description libre.
+  // Pour inspection, c'est l'historique de l'aile qui sert de description.
+  if (data.requestType !== 'inspection') {
+    const desc = (data.problemDescription ?? '').trim()
+    if (desc.length < 10) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['problemDescription'],
+        message: 'Description trop courte (10 caractères minimum)',
+      })
+    }
+  }
+
+  // If the client picked a different school than the referent, we need a reason.
+  if (data.schoolId) {
+    const changedSchool = data.referentSchoolId && data.referentSchoolId !== data.schoolId
+    if (changedSchool && !data.schoolChangeReasonCode) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['schoolChangeReasonCode'],
+        message: 'Indiquez pourquoi vous changez d\'école',
+      })
+    }
+    if (data.schoolChangeReasonCode === 'other' && !data.schoolChangeReasonNote?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['schoolChangeReasonNote'],
+        message: 'Précisez la raison',
+      })
+    }
   }
 })
 

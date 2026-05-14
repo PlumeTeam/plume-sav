@@ -4,6 +4,7 @@ export type {
   TicketStatus,
   RequestStatus,
   ServiceType,
+  RequestType,
   ProblemCategory,
   UrgencyLevel,
   PhotoType,

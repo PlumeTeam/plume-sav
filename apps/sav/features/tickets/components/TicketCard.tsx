@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { StatusBadge } from './StatusBadge'
+import { RequestTypeBadge } from './RequestTypeBadge'
 import { TicketContactsBlock } from './TicketContactsBlock'
 import { WarrantyTierBadge } from './WarrantyTierBadge'
 import { formatDate, getSupabasePublicUrl, resolveWarrantyTierForDisplay } from '../utils'
@@ -56,14 +57,17 @@ export function TicketCard({ ticket, basePath = '/client', showUrgency = false, 
             <p className="truncate text-sm font-semibold text-brand-ink">{productLine}</p>
             <StatusBadge status={ticket.status} size="sm" />
           </div>
-          <p className="mt-0.5 truncate font-mono text-xs text-slate-500">
-            {ticketRef}
+          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+            <RequestTypeBadge type={ticket.request_type} size="xs" />
+            <p className="truncate font-mono text-xs text-slate-500">
+              {ticketRef}
+            </p>
             {showUrgency && ticket.urgency_level === 2 && (
-              <span className="ml-2 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-red-700">
+              <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-red-700">
                 Urgent
               </span>
             )}
-          </p>
+          </div>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <span className="text-xs text-slate-400">{formatDate(ticket.created_at)}</span>
             <WarrantyTierBadge

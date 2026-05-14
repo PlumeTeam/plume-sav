@@ -4,7 +4,8 @@ import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useWizardStore } from '../../store'
 import { attachTicketPhotosAction, createTicketAction } from '../../actions'
-import { PROBLEM_CATEGORIES, type WizardWingHistory } from '../../types'
+import { PROBLEM_CATEGORIES, REQUEST_TYPE_CONFIG, type WizardWingHistory } from '../../types'
+import { PARTNER_WORKSHOPS } from '../../constants'
 import { createClient } from '@/lib/supabase/client'
 import type { PartnerSchool } from '../../queries'
 import { resolveWarrantyTierForDisplay } from '../../utils'
@@ -17,26 +18,29 @@ interface StepReviewProps {
 
 export function StepReview({ schools, onBack }: StepReviewProps) {
   const router = useRouter()
-  const { wingInfo, wingHistory, problem, photos, _photoFiles, reset } = useWizardStore()
+  const { requestType, wingInfo, wingHistory, problem, photos, _photoFiles, reset } = useWizardStore()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError]   = useState<string | null>(null)
   const [progress, setProgress]         = useState<{ done: number; total: number } | null>(null)
-  // Synchronous re-entry guard. setIsSubmitting(true) ne devient visible qu'au
-  // prochain render, donc deux clics rapides peuvent passer le `disabled` du
-  // bouton avant que React ne réagisse. Ce ref bloque le 2ème appel tout de suite.
   const submitLockRef = useRef(false)
 
+  const typeCfg       = REQUEST_TYPE_CONFIG[requestType]
   const problemLabel  = PROBLEM_CATEGORIES.find((c) => c.value === problem.problemCategory)
   const isBehavior    = (problem.wingBehaviors?.length ?? 0) > 0
-  const selectedSchool = schools.find((s) => s.id === problem.partnerSchoolId)
-  // On affiche un encart hors-garantie si la date d'achat est saisie ET donne
-  // out_of_warranty (le calcul est fait sur la base des défauts plume_settings).
-  const warrantyTier  = resolveWarrantyTierForDisplay(null, wingInfo.purchaseDate || null)
+  const selectedSchool   = schools.find((s) => s.id === problem.partnerSchoolId)
+  const selectedWorkshop = PARTNER_WORKSHOPS.find((w) => w.id === problem.partnerWorkshopId)
+
+  // Le destinataire dépend du type : repair/inspection → atelier ; defect → école ou atelier selon garantie
+  const targetLabel  = selectedSchool?.name ?? selectedWorkshop?.label ?? null
+  const hasRecipient = !!selectedSchool || !!selectedWorkshop
+
+  // Encart hors-garantie : aile > 3 ans (cf. plume_settings)
+  const warrantyTier = resolveWarrantyTierForDisplay(null, wingInfo.purchaseDate || null)
 
   async function handleSubmit() {
     if (submitLockRef.current) return
-    if (!problem.partnerSchoolId) {
-      setSubmitError('École manquante. Revenez à l’étape précédente.')
+    if (!hasRecipient) {
+      setSubmitError('Destinataire manquant. Revenez à l’étape précédente.')
       return
     }
     submitLockRef.current = true
@@ -56,13 +60,9 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
       // Flow transactionnel (anti-orphelins) :
       //  1. Création du ticket SANS photos → on récupère ticketId
       //  2. Upload photos vers Storage avec ticket_id en préfixe de path
-      //     → si l'utilisateur ferme le navigateur ici, les fichiers
-      //     éventuels portent le ticket_id et sont rattachables / nettoyables
-      //  3. Insert ticket_photos en DB
-      // L'ancien flow uploadait AVANT de créer le ticket, ce qui produisait
-      // des fichiers orphelins (path `<userId>/<timestamp>`) sans aucun lien
-      // avec un ticket si le navigateur fermait au mauvais moment.
+      //  3. Insert ticket_photos en DB via attachTicketPhotosAction
       const createRes = await createTicketAction({
+        requestType,
         wingBrand:              wingInfo.wingBrand,
         wingModel:              wingInfo.wingModel,
         wingSize:               wingInfo.wingSize,
@@ -70,18 +70,19 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
         wingColor:              wingInfo.wingColor,
         purchaseDate:           wingInfo.purchaseDate,
         flightHours:            wingInfo.flightHours ? parseInt(wingInfo.flightHours, 10) : undefined,
-        problemCategory:        problem.problemCategory,
+        problemCategory:        problem.problemCategory || undefined,
         problemDescription:     problem.problemDescription,
         urgency:                problem.urgency,
         wingBehaviors:          problem.wingBehaviors,
         wingHistory,
         clientMessage:          problem.clientMessage,
         schoolId:               problem.partnerSchoolId,
+        workshopId:             problem.partnerWorkshopId,
         referentSchoolId:       problem.referentSchoolId,
         schoolChangeReasonCode: problem.schoolChangeReasonCode,
         schoolChangeReasonNote: problem.schoolChangeReasonNote,
         deliveryMethod:         problem.deliveryMethod,
-        photoPaths:             [],  // photos uploadées en 2 étapes post-création
+        photoPaths:             [],
       })
 
       if (createRes?.error) {
@@ -119,7 +120,6 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
 
           const rawExt = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
           const ext = /^[a-z0-9]+$/.test(rawExt) ? rawExt : 'jpg'
-          // Préfixe ticket_id — les orphelins éventuels sont rattachables.
           const storagePath = `${user.id}/${ticketId}/${i}-${Date.now()}.${ext}`
 
           const { error: uploadError } = await supabase.storage
@@ -149,9 +149,6 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
           setProgress({ done: i + 1, total: photos.length })
         }
 
-        // Étape 3 — attach DB. Best-effort : si attach échoue, le ticket
-        // existe sans photos (l'inverse — fichiers orphelins — était le
-        // problème qu'on fixe ici). On surface l'erreur en non-bloquant.
         if (uploadedPhotos.length > 0) {
           const attachRes = await attachTicketPhotosAction({
             ticketId,
@@ -160,21 +157,14 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
           if (attachRes?.error) {
             const flat = attachRes.error as Record<string, string[] | undefined>
             console.warn('[attachTicketPhotos] failed:', flat._form?.[0] ?? 'unknown')
-            // On continue malgré l'échec : le ticket est créé, l'utilisateur
-            // ira sur la page de confirmation et pourra ré-uploader plus tard.
           }
         }
 
-        // Si l'utilisateur a fourni des photos et qu'elles ont TOUTES échoué
-        // à l'upload, on l'avertit mais le ticket est créé — il peut revenir
-        // les ajouter via la page du ticket.
         if (photos.length > 0 && uploadedPhotos.length === 0 && lastUploadError) {
           console.warn(`[wizard] tous les uploads photos ont échoué : ${lastUploadError}`)
         }
       }
 
-      // Reset wizard state BEFORE navigating so que back ne ressuscite pas
-      // le draft tout juste soumis.
       reset()
       router.push(`/client/ticket-created/${ticketId}`)
     } catch (err) {
@@ -189,7 +179,7 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
   return (
     <StepLayout
       title="Tout est prêt ?"
-      subtitle="Un dernier coup d'œil avant l'envoi à votre école."
+      subtitle={`Récapitulatif de votre demande de ${typeCfg.label.toLowerCase()}.`}
       footer={
         <>
           <button type="button" onClick={onBack} disabled={isSubmitting} className="btn-secondary flex-1">
@@ -198,7 +188,7 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={isSubmitting || !problem.partnerSchoolId}
+            disabled={isSubmitting || !hasRecipient}
             className="btn-primary flex-[2]"
           >
             {isSubmitting ? (
@@ -219,8 +209,8 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
                 </svg>
                 <span>Envoi…</span>
               </span>
-            ) : selectedSchool
-              ? `Envoyer à ${selectedSchool.name}`
+            ) : targetLabel
+              ? `Envoyer à ${targetLabel}`
               : 'Envoyer la demande'}
           </button>
         </>
@@ -241,6 +231,16 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
           </div>
         )}
 
+        <Section title="Type de demande">
+          <div className="flex items-center gap-3">
+            <span aria-hidden className="text-2xl">{typeCfg.emoji}</span>
+            <div>
+              <p className="text-sm font-semibold text-brand-ink">{typeCfg.label}</p>
+              <p className="text-xs text-slate-500">{typeCfg.description}</p>
+            </div>
+          </div>
+        </Section>
+
         <Section title="Votre aile">
           <Row label="Marque / Modèle" value={`${wingInfo.wingBrand} ${wingInfo.wingModel} ${wingInfo.wingSize}`.trim()} />
           <Row label="Couleur" value={wingInfo.wingColor} />
@@ -249,34 +249,44 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
           {wingInfo.flightHours && <Row label="Heures de vol" value={`${wingInfo.flightHours} h`} />}
         </Section>
 
-        <Section title="Historique de l'aile">
-          <WingHistoryRecap history={wingHistory} />
-        </Section>
+        {requestType !== 'repair' && (
+          <Section title="Historique de l'aile">
+            <WingHistoryRecap history={wingHistory} />
+          </Section>
+        )}
 
-        <Section title="Problème">
-          <Row label="Catégorie" value={problemLabel ? `${problemLabel.emoji} ${problemLabel.label}` : (isBehavior ? '🪂 Comportement' : '—')} />
-          <div>
-            <p className="mb-1 text-xs text-slate-500">Description</p>
-            <p className="whitespace-pre-line text-sm text-brand-ink">{problem.problemDescription}</p>
-          </div>
-          <Row label="Urgence" value={problem.urgency === 'urgent' ? '🚨 Urgent' : '⏳ Normal'} />
-        </Section>
-
-        <Section title={`Photos (${photos.length})`}>
-          {photos.length === 0 ? (
-            <p className="text-sm text-slate-500">Aucune photo ajoutée — pas obligatoire.</p>
-          ) : (
-            <div className="grid grid-cols-3 gap-2">
-              {photos.map((p, i) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img key={i} src={p.dataUrl} alt={`Photo ${i + 1}`} className="aspect-square w-full rounded-2xl object-cover ring-1 ring-brand-stone" />
-              ))}
+        {requestType !== 'inspection' && (
+          <Section title={requestType === 'repair' ? 'Dommage' : 'Défaut suspecté'}>
+            {problemLabel && (
+              <Row label="Catégorie" value={`${problemLabel.emoji} ${problemLabel.label}`} />
+            )}
+            {!problemLabel && isBehavior && (
+              <Row label="Catégorie" value="🪂 Comportement" />
+            )}
+            <div>
+              <p className="mb-1 text-xs text-slate-500">Description</p>
+              <p className="whitespace-pre-line text-sm text-brand-ink">{problem.problemDescription}</p>
             </div>
-          )}
-        </Section>
+          </Section>
+        )}
+
+        {requestType !== 'inspection' && (
+          <Section title={`Photos (${photos.length})`}>
+            {photos.length === 0 ? (
+              <p className="text-sm text-slate-500">Aucune photo ajoutée — pas obligatoire.</p>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                {photos.map((p, i) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={i} src={p.dataUrl} alt={`Photo ${i + 1}`} className="aspect-square w-full rounded-2xl object-cover ring-1 ring-brand-stone" />
+                ))}
+              </div>
+            )}
+          </Section>
+        )}
 
         <Section title="Destinataire">
-          {selectedSchool ? (
+          {selectedSchool && (
             <div className="flex items-start gap-3">
               <span aria-hidden className="text-2xl">🏫</span>
               <div>
@@ -288,8 +298,22 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
                 )}
               </div>
             </div>
-          ) : (
-            <p className="text-sm text-amber-700">Aucune école sélectionnée — revenez en arrière.</p>
+          )}
+          {selectedWorkshop && (
+            <div className="flex items-start gap-3">
+              <span aria-hidden className="text-2xl">🔧</span>
+              <div>
+                <p className="text-sm font-semibold text-brand-ink">{selectedWorkshop.label}</p>
+                {(selectedWorkshop.city || selectedWorkshop.region) && (
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {[selectedWorkshop.city, selectedWorkshop.region].filter(Boolean).join(' · ')}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+          {!hasRecipient && (
+            <p className="text-sm text-amber-700">Aucun destinataire sélectionné — revenez en arrière.</p>
           )}
         </Section>
 
@@ -300,7 +324,7 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
               <div>
                 <p className="text-sm font-semibold text-brand-ink">Remise en main propre</p>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  Vous prendrez rendez-vous avec l&apos;école pour déposer votre aile.
+                  Vous prendrez rendez-vous avec le destinataire pour déposer votre aile.
                 </p>
               </div>
             </div>
@@ -321,7 +345,7 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
           )}
         </Section>
 
-        <Section title="Message à l'école">
+        <Section title="Message">
           {problem.clientMessage?.trim() ? (
             <div className="rounded-xl border-l-4 border-brand-gold bg-brand-cream/60 p-3">
               <p className="whitespace-pre-line text-sm italic leading-relaxed text-brand-ink">
@@ -374,9 +398,6 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
   )
 }
 
-// Display labels for the wing-history enums. Kept in sync with the
-// French strings used in StepWingHistory's option lists and with the
-// server-side serialisation in actions.ts (formatWingHistory).
 const WATER_LABELS:   Record<string, string> = { none: 'Non', fresh: 'Eau douce', salt: 'Eau salée' }
 const SURFACE_LABELS: Record<string, string> = { sand: 'Sable / dunes', snow: 'Neige', other: 'Autre' }
 const CONDITION_LABELS: Record<string, string> = {

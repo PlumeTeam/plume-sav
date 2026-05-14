@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
+import { RequestTypeBadge } from '@/features/tickets/components/RequestTypeBadge'
 import { WarrantyTierBadge } from '@/features/tickets/components/WarrantyTierBadge'
 import { formatDate, resolveWarrantyTierForDisplay } from '@/features/tickets/utils'
 import type { RequestStatus } from '@/features/tickets/types'
@@ -165,6 +166,7 @@ export function AdminTicketTable({ tickets, schools }: AdminTicketTableProps) {
               <thead className="bg-brand-cream/60">
                 <tr className="text-left">
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">N°</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Type</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Aile</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">École</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Atelier</th>
@@ -194,6 +196,9 @@ export function AdminTicketTable({ tickets, schools }: AdminTicketTableProps) {
                         <Link href={href} className="font-mono text-xs font-medium text-brand-ink hover:underline">
                           {ref}
                         </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        <RequestTypeBadge type={ticket.request_type} size="xs" />
                       </td>
                       <td className="px-4 py-3 text-slate-700">
                         <p className="text-sm">{ticket.product_brand} {ticket.product_model}</p>
