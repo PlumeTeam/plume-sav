@@ -200,6 +200,15 @@ export const finishWorkshopPreCheckSchema = z.object({
     .max(5000, 'Observations trop longues (5000 caractères max)'),
 })
 
+// Atelier : upload d'un rapport de révision (ticket request_type='inspection').
+// Le fichier est déjà uploadé dans le bucket 'tickets' côté client — on persiste
+// uniquement le storage_path et le nom de fichier original.
+export const revisionReportSchema = z.object({
+  ticketId:    z.string().uuid(),
+  storagePath: z.string().min(1).max(1000),
+  filename:    z.string().trim().min(1).max(255),
+})
+
 // École : assigne un atelier au ticket pour la communication, sans changer
 // le statut/résolution (pas d'escalade — juste "voilà à qui je parle").
 export const assignWorkshopSchema = z.object({

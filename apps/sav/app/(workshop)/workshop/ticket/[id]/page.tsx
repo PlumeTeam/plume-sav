@@ -18,6 +18,7 @@ import { WarrantyTierBadge } from '@/features/tickets/components/WarrantyTierBad
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
 import { CloseTicketButton } from '@/features/tickets/components/CloseTicketButton'
 import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
+import { RevisionReportUploader } from '@/features/tickets/components/RevisionReportUploader'
 import { WorkshopActionBar } from './WorkshopActionBar'
 import { WorkshopStepPanel } from './WorkshopStepPanel'
 import { WorkshopTicketTabs } from './WorkshopTicketTabs'
@@ -476,6 +477,26 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                       </div>
                     )}
                   </section>
+
+                  {/* Rapport de révision — uniquement pour les tickets dont le
+                      client a demandé un contrôle/révision (request_type='inspection').
+                      Le fichier est attaché au carnet d'entretien de l'aile via le ticket. */}
+                  {ticket.request_type === 'inspection' && (
+                    <section className="card p-5">
+                      <h2 className="section-title mb-3">Rapport de révision</h2>
+                      <p className="mb-4 text-sm text-slate-600">
+                        Uploadez ici le rapport de contrôle/révision (PDF, image ou document).
+                        Il sera attaché au carnet d&apos;entretien de l&apos;aile et visible
+                        du client comme de Plume HQ.
+                      </p>
+                      <RevisionReportUploader
+                        ticketId={ticket.id}
+                        initialPath={ticket.revision_report_path}
+                        initialFilename={ticket.revision_report_filename}
+                        initialUploadedAt={ticket.revision_report_uploaded_at}
+                      />
+                    </section>
+                  )}
 
                   {/* Pré-check : trace des observations + tarif figé (facturé à Plume) */}
                   {ticket.pre_check_observations && (

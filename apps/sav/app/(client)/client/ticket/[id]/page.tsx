@@ -12,6 +12,7 @@ import { ClientDeclarationView } from '@/features/tickets/components/ClientDecla
 import { WingLocationCard } from '@/features/tickets/components/WingLocationCard'
 import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
 import { WarrantyTierBadge } from '@/features/tickets/components/WarrantyTierBadge'
+import { RevisionReportView } from '@/features/tickets/components/RevisionReportView'
 import { formatAge, formatDate, resolveWarrantyTierForDisplay } from '@/features/tickets/utils'
 import { filterMessagesForRole } from '@/features/tickets/channels'
 import type { ClientShippingAddress, CloserRole, ClosureOutcome } from '@/features/tickets/types'
@@ -234,6 +235,18 @@ export default async function TicketDetailPage({ params }: PageProps) {
         <h2 className="section-title mb-4">Demande</h2>
         <ClientDeclarationView description={ticket.description} urgencyLevel={ticket.urgency_level} />
       </section>
+      {/* Rapport de révision — visible uniquement quand l'atelier l'a uploadé.
+          Tickets request_type='inspection' (contrôle/révision). */}
+      {ticket.request_type === 'inspection' && ticket.revision_report_path && (
+        <section className="card p-5">
+          <h2 className="section-title mb-3">Rapport de révision</h2>
+          <RevisionReportView
+            storagePath={ticket.revision_report_path}
+            filename={ticket.revision_report_filename}
+            uploadedAt={ticket.revision_report_uploaded_at}
+          />
+        </section>
+      )}
       {sortedPhotos.length > 0 && (
         <section className="card p-5">
           <h2 className="section-title mb-3">Photos ({sortedPhotos.length})</h2>

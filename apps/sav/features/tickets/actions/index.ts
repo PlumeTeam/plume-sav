@@ -18,6 +18,7 @@ export {
   finishWorkshopPreCheckAction,
   markWingReceivedWorkshopAction,
   markWorkshopDoneAction,
+  saveRevisionReportAction,
   saveWorkshopChecklistAction,
   saveWorkshopFullChecklistAction,
   startWorkshopDiagnosisAction,

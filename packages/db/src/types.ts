@@ -204,6 +204,12 @@ export interface Database {
           warranty_override_note: string | null
           // Type de demande SAV — colonne ajoutée par la migration request_type
           request_type: RequestType
+          // Revision report (migration 20260514000000) — uploaded by workshop
+          // for tickets with request_type='inspection' (contrôle/révision).
+          revision_report_path:        string | null
+          revision_report_filename:    string | null
+          revision_report_uploaded_at: string | null
+          revision_report_uploaded_by: string | null
           created_at: string
           updated_at: string
         }
@@ -303,6 +309,10 @@ export interface Database {
           warranty_override_at?:  string | null
           warranty_override_note?: string | null
           request_type?: RequestType
+          revision_report_path?:        string | null
+          revision_report_filename?:    string | null
+          revision_report_uploaded_at?: string | null
+          revision_report_uploaded_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -402,6 +412,10 @@ export interface Database {
           warranty_override_at?:  string | null
           warranty_override_note?: string | null
           request_type?: RequestType
+          revision_report_path?:        string | null
+          revision_report_filename?:    string | null
+          revision_report_uploaded_at?: string | null
+          revision_report_uploaded_by?: string | null
           created_at?: string
           updated_at?: string
         }
