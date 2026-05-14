@@ -3,8 +3,8 @@ import Image from 'next/image'
 import { StatusBadge } from './StatusBadge'
 import { TicketContactsBlock } from './TicketContactsBlock'
 import { WarrantyTierBadge } from './WarrantyTierBadge'
-import { formatDate, getSupabasePublicUrl } from '../utils'
-import type { TicketWithPhotos, WarrantyTier } from '../types'
+import { formatDate, getSupabasePublicUrl, resolveWarrantyTierForDisplay } from '../utils'
+import type { TicketWithPhotos } from '../types'
 import type { TicketContacts } from '../contacts'
 
 interface TicketCardProps {
@@ -66,13 +66,11 @@ export function TicketCard({ ticket, basePath = '/client', showUrgency = false, 
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <span className="text-xs text-slate-400">{formatDate(ticket.created_at)}</span>
-            {ticket.warranty_tier && (
-              <WarrantyTierBadge
-                tier={ticket.warranty_tier as WarrantyTier}
-                size="sm"
-                compact
-              />
-            )}
+            <WarrantyTierBadge
+              tier={resolveWarrantyTierForDisplay(ticket.warranty_tier, ticket.purchase_date)}
+              size="sm"
+              compact
+            />
           </div>
         </div>
 

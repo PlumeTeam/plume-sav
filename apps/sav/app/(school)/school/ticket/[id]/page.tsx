@@ -9,7 +9,7 @@ import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { TicketChannelSwitch, type TicketChannel } from '@/features/tickets/components/TicketChannelSwitch'
 import { filterMessagesForRole } from '@/features/tickets/channels'
 import { readSchoolCheckInspector } from '@/features/tickets/inspection/steps'
-import { formatDate, formatDateTime } from '@/features/tickets/utils'
+import { formatAge, formatDate, formatDateTime, resolveWarrantyTierForDisplay } from '@/features/tickets/utils'
 import { CloseTicketButton } from '@/features/tickets/components/CloseTicketButton'
 import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
 import { SchoolStepPanel } from './SchoolStepPanel'
@@ -31,6 +31,11 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
   if (!ticket) notFound()
 
   const ticketWarrantyTier = (ticket.warranty_tier as WarrantyTier | null) ?? null
+  // Pour la file de tickets historique, `warranty_tier` peut être null : on
+  // calcule alors un fallback à partir de purchase_date pour ne jamais
+  // afficher un ticket sans indicateur garantie.
+  const displayWarrantyTier = resolveWarrantyTierForDisplay(ticketWarrantyTier, ticket.purchase_date)
+  const wingAge = formatAge(ticket.purchase_date)
 
   // Best-effort: mark this ticket as read for the current school user. The RPC
   // checks ownership via current_user_partner_school_ids() server-side.
@@ -193,11 +198,19 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
 
       {/* Produit */}
       <section className="card p-5">
-        <h2 className="section-title mb-3">Produit</h2>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="section-title">Produit</h2>
+          <WarrantyTierBadge tier={displayWarrantyTier} size="sm" compact />
+        </div>
         <div className="space-y-2">
           <InfoRow label="Marque / Modèle" value={`${ticket.product_brand ?? '—'} ${ticket.product_model ?? '—'}`} />
           <InfoRow label="N° de série" value={ticket.serial_number ?? '—'} mono />
-          {ticket.purchase_date && <InfoRow label="Date d'achat" value={formatDate(ticket.purchase_date)} />}
+          {ticket.purchase_date && (
+            <InfoRow
+              label="Date d'achat"
+              value={`${formatDate(ticket.purchase_date)}${wingAge ? ` — ${wingAge}` : ''}`}
+            />
+          )}
         </div>
       </section>
 
@@ -338,9 +351,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
             </p>
           </div>
           <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
-            {ticketWarrantyTier && (
-              <WarrantyTierBadge tier={ticketWarrantyTier} size="sm" compact />
-            )}
+            <WarrantyTierBadge tier={displayWarrantyTier} size="sm" compact />
             <StatusBadge status={ticket.status} size="sm" />
           </div>
         </div>

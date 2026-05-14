@@ -11,7 +11,8 @@ import { CommentThread } from '@/features/tickets/components/CommentThread'
 import { ClientDeclarationView } from '@/features/tickets/components/ClientDeclarationView'
 import { WingLocationCard } from '@/features/tickets/components/WingLocationCard'
 import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
-import { formatDate } from '@/features/tickets/utils'
+import { WarrantyTierBadge } from '@/features/tickets/components/WarrantyTierBadge'
+import { formatAge, formatDate, resolveWarrantyTierForDisplay } from '@/features/tickets/utils'
 import { filterMessagesForRole } from '@/features/tickets/channels'
 import type { ClientShippingAddress, CloserRole, ClosureOutcome } from '@/features/tickets/types'
 import { MessageForm } from './MessageForm'
@@ -196,14 +197,25 @@ export default async function TicketDetailPage({ params }: PageProps) {
     </section>
   )
 
+  const warrantyTier = resolveWarrantyTierForDisplay(ticket.warranty_tier, ticket.purchase_date)
+  const wingAge      = formatAge(ticket.purchase_date)
+
   const infosNode = (
     <>
       <section className="card p-5">
-        <h2 className="section-title mb-3">Produit</h2>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="section-title">Produit</h2>
+          <WarrantyTierBadge tier={warrantyTier} size="sm" compact />
+        </div>
         <div className="space-y-2">
           <InfoRow label="Marque / Modèle" value={`${ticket.product_brand ?? '—'} ${ticket.product_model ?? '—'}`} />
           <InfoRow label="N° de série" value={ticket.serial_number ?? '—'} mono />
-          {ticket.purchase_date && <InfoRow label="Date d'achat" value={formatDate(ticket.purchase_date)} />}
+          {ticket.purchase_date && (
+            <InfoRow
+              label="Date d'achat"
+              value={`${formatDate(ticket.purchase_date)}${wingAge ? ` — ${wingAge}` : ''}`}
+            />
+          )}
         </div>
       </section>
       <section className="card p-5">

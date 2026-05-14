@@ -3,7 +3,8 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
-import { formatDate } from '@/features/tickets/utils'
+import { WarrantyTierBadge } from '@/features/tickets/components/WarrantyTierBadge'
+import { formatDate, resolveWarrantyTierForDisplay } from '@/features/tickets/utils'
 import type { RequestStatus } from '@/features/tickets/types'
 import type { PartnerSchool } from '@/features/tickets/queries'
 import type { TicketWithContacts } from '@/features/tickets/contacts'
@@ -168,7 +169,9 @@ export function AdminTicketTable({ tickets, schools }: AdminTicketTableProps) {
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">École</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Atelier</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Statut</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Garantie</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Urgence</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Achat</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Date</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500"><span className="sr-only">Actions</span></th>
                 </tr>
@@ -213,11 +216,21 @@ export function AdminTicketTable({ tickets, schools }: AdminTicketTableProps) {
                         <StatusBadge status={ticket.status} size="sm" />
                       </td>
                       <td className="px-4 py-3">
+                        <WarrantyTierBadge
+                          tier={resolveWarrantyTierForDisplay(ticket.warranty_tier, ticket.purchase_date)}
+                          size="sm"
+                          compact
+                        />
+                      </td>
+                      <td className="px-4 py-3">
                         {ticket.urgency_level === 2 && (
                           <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-red-700">
                             Urgent
                           </span>
                         )}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-500">
+                        {ticket.purchase_date ? formatDate(ticket.purchase_date) : '—'}
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-400">
                         {formatDate(ticket.created_at)}

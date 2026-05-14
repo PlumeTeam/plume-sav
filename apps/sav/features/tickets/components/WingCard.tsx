@@ -2,6 +2,8 @@
 
 import { useRouter } from 'next/navigation'
 import { useWizardStore } from '../store'
+import { WarrantyTierBadge } from './WarrantyTierBadge'
+import { formatAge, formatDate, resolveWarrantyTierForDisplay } from '../utils'
 import type { ClientWing } from '../queries'
 
 interface WingCardProps {
@@ -46,8 +48,12 @@ export function WingCard({ wing }: WingCardProps) {
     router.push('/client/new-ticket')
   }
 
-  const year = new Date(wing.registered_at).getFullYear()
   const subtitle = [wing.size && `Taille ${wing.size}`, wing.color_name].filter(Boolean).join(' · ')
+
+  // Pas de purchase_date dédié sur customer_wings — on prend la date
+  // d'enregistrement comme meilleur proxy (c'est ce qui prefill le wizard).
+  const warrantyTier = resolveWarrantyTierForDisplay(null, wing.registered_at)
+  const age = formatAge(wing.registered_at)
 
   return (
     <div className="card p-4">
@@ -59,10 +65,14 @@ export function WingCard({ wing }: WingCardProps) {
           )}
           <p className="mt-1 font-mono text-xs text-slate-400">{wing.serial_number}</p>
         </div>
-        <span className="shrink-0 rounded-full bg-brand-cream px-2.5 py-1 text-[11px] font-semibold text-brand-navy ring-1 ring-brand-stone">
-          {year}
-        </span>
+        <WarrantyTierBadge tier={warrantyTier} size="sm" compact />
       </div>
+
+      <p className="mt-3 text-xs text-slate-500">
+        Achetée le <span className="font-medium text-brand-ink">{formatDate(wing.registered_at)}</span>
+        {age && <span className="text-slate-400"> — {age}</span>}
+      </p>
+
       <button
         type="button"
         onClick={handleCreateTicket}

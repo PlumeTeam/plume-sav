@@ -112,6 +112,84 @@ export function computeWarrantyTier(
   return { tier: 'out_of_warranty', expiresAt: extendedEnd.toISOString().slice(0, 10), claimNumber, ageYears }
 }
 
+// ─── Display helpers (lecture, fallback ancien tickets) ─────────────────────
+//
+// `computeWarrantyTier` (ci-dessus) calcule le tier à la création d'un ticket
+// avec toute la politique HQ (quotas, plume_settings). Pour les vues de
+// lecture, on a besoin d'un fallback léger : si la colonne `warranty_tier`
+// est posée sur la ligne (ticket récent, ou override admin), on la respecte ;
+// sinon on calcule à la volée à partir de purchase_date + valeurs par défaut.
+
+const DEFAULT_WARRANTY_STANDARD_YEARS = 2
+const DEFAULT_WARRANTY_EXTENDED_YEARS = 3
+
+export function resolveWarrantyTierForDisplay(
+  warrantyTier: string | null | undefined,
+  purchaseDate: string | null | undefined,
+  options: { standardYears?: number; extendedYears?: number } = {},
+): WarrantyTier {
+  if (
+    warrantyTier === 'standard' ||
+    warrantyTier === 'extended' ||
+    warrantyTier === 'out_of_warranty' ||
+    warrantyTier === 'plume_override'
+  ) {
+    return warrantyTier
+  }
+  if (!purchaseDate) return 'out_of_warranty'
+  const purchase = new Date(purchaseDate)
+  if (Number.isNaN(purchase.getTime())) return 'out_of_warranty'
+
+  const standardYears = options.standardYears ?? DEFAULT_WARRANTY_STANDARD_YEARS
+  const standardEnd = addYears(purchase, standardYears)
+  const now = new Date()
+  if (now.getTime() <= standardEnd.getTime()) return 'standard'
+
+  // Pas de moyen de savoir si Plume Protect est actif côté display sans la
+  // colonne plume_settings dédiée — on bascule directement en out_of_warranty
+  // au-delà du standard. `extendedYears` est gardé en option pour le jour où
+  // un appelant voudra le passer (tests, dashboards spécifiques).
+  if (options.extendedYears && options.extendedYears > 0) {
+    const extEnd = addYears(purchase, options.extendedYears)
+    if (now.getTime() <= extEnd.getTime()) return 'extended'
+  }
+  return 'out_of_warranty'
+}
+
+// Référencé par les variantes d'affichage qui veulent les défauts canoniques.
+// Exporté pour réutilisation par les vues qui veulent personnaliser les seuils
+// (ex: politique HQ chargée côté serveur).
+export const WARRANTY_DEFAULTS = {
+  standardYears: DEFAULT_WARRANTY_STANDARD_YEARS,
+  extendedYears: DEFAULT_WARRANTY_EXTENDED_YEARS,
+}
+
+// "Achetée le 08/05/2026 — 6 jours" / "3 mois" / "2 ans 4 mois".
+// Mois/années calendaires (pas de moyenne 30j) pour ne pas dériver.
+export function formatAge(purchaseDate: string | null | undefined): string | null {
+  if (!purchaseDate) return null
+  const purchased = new Date(purchaseDate)
+  if (Number.isNaN(purchased.getTime())) return null
+
+  const now = new Date()
+  const diffMs = now.getTime() - purchased.getTime()
+  if (diffMs < 0) return 'À venir'
+
+  const oneDay = 86_400_000
+  const totalDays = Math.floor(diffMs / oneDay)
+  if (totalDays === 0) return "Aujourd'hui"
+  if (totalDays < 30) return `${totalDays} jour${totalDays > 1 ? 's' : ''}`
+
+  let years  = now.getFullYear() - purchased.getFullYear()
+  let months = now.getMonth() - purchased.getMonth()
+  if (now.getDate() < purchased.getDate()) months -= 1
+  if (months < 0) { years -= 1; months += 12 }
+
+  if (years < 1) return `${months} mois`
+  if (months === 0) return `${years} an${years > 1 ? 's' : ''}`
+  return `${years} an${years > 1 ? 's' : ''} ${months} mois`
+}
+
 // Décision auto en fonction du seuil. Pas de garde-fou métier ici — la
 // Server Action revalidera et figera la décision avec le seuil courant.
 export function computeRepairDecision(

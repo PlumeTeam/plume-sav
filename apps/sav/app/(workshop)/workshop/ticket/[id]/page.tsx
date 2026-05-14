@@ -13,7 +13,8 @@ import { readSchoolCheckInspector, readSchoolCheckPayload } from '@/features/tic
 import { SchoolCheckSummary } from '@/features/tickets/inspection/SchoolCheckSummary'
 import { WorkshopDiagnosticChecklist } from '@/features/tickets/components/WorkshopDiagnosticChecklist'
 import { readWorkshopChecklist } from '@/features/tickets/workshop-checklist'
-import { formatDate, formatDateTime } from '@/features/tickets/utils'
+import { formatAge, formatDate, formatDateTime, resolveWarrantyTierForDisplay } from '@/features/tickets/utils'
+import { WarrantyTierBadge } from '@/features/tickets/components/WarrantyTierBadge'
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
 import { CloseTicketButton } from '@/features/tickets/components/CloseTicketButton'
 import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
@@ -122,6 +123,10 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
   // Garantie aile = 2 ans à compter de purchase_date. Null si la date n'a pas
   // été remplie au moment de la demande.
   const warranty = computeWarranty(ticket.purchase_date)
+  // Tier 4-niveaux (cohérent avec le reste du SAV). Respecte warranty_tier
+  // figé sur le ticket, sinon retombe sur le calcul purchase_date.
+  const ticketWarrantyTier = resolveWarrantyTierForDisplay(ticket.warranty_tier, ticket.purchase_date)
+  const wingAge = formatAge(ticket.purchase_date)
 
   // Nom client formaté (prénom + nom) ou fallback.
   const clientName = [ticket.first_name, ticket.last_name].filter(Boolean).join(' ') || '—'
@@ -174,7 +179,10 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
               {ticket.product_brand} {ticket.product_model}
             </p>
           </div>
-          <StatusBadge status={ticket.status} size="sm" />
+          <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
+            <WarrantyTierBadge tier={ticketWarrantyTier} size="sm" compact />
+            <StatusBadge status={ticket.status} size="sm" />
+          </div>
         </div>
       </header>
 
@@ -320,11 +328,16 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                   S/N {ticket.serial_number}
                 </p>
               )}
-              {warranty && (
-                <div className="pt-0.5">
-                  <WarrantyBadge warranty={warranty} />
-                </div>
+              {ticket.purchase_date && (
+                <p className="text-[11px] text-slate-500">
+                  Achetée le {formatDate(ticket.purchase_date)}
+                  {wingAge && <span className="text-slate-400"> — {wingAge}</span>}
+                </p>
               )}
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <WarrantyTierBadge tier={ticketWarrantyTier} size="sm" compact />
+                {warranty && <WarrantyBadge warranty={warranty} />}
+              </div>
             </div>
           </div>
         </section>
@@ -592,7 +605,9 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                       <ClientField label="N° de série" value={ticket.serial_number} mono />
                       <ClientField
                         label="Date d'achat"
-                        value={ticket.purchase_date ? formatDate(ticket.purchase_date) : null}
+                        value={ticket.purchase_date
+                          ? `${formatDate(ticket.purchase_date)}${wingAge ? ` — ${wingAge}` : ''}`
+                          : null}
                       />
                       <ClientField
                         label="Heures de vol (estim.)"
