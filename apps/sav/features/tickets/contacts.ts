@@ -3,13 +3,12 @@
 //
 // - Client  : déjà sur le ticket (first_name/last_name/email/phone).
 // - École   : un seul SELECT batch sur partner_schools.
-// - Atelier : lookup en mémoire via PARTNER_WORKSHOPS (constants.ts).
+// - Atelier : un seul SELECT batch sur partner_workshops.
 //
 // On garde ce module séparé pour éviter de gonfler queries.ts au-delà de 500 l.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { TicketWithPhotos } from './types'
-import { PARTNER_WORKSHOPS } from './constants'
 
 export type ClientContact = {
   name:  string | null
@@ -50,15 +49,69 @@ function buildClientContact(ticket: TicketWithPhotos): ClientContact {
   }
 }
 
-function buildWorkshopContact(ticket: TicketWithPhotos): WorkshopContact | null {
+function buildWorkshopContact(
+  ticket: TicketWithPhotos,
+  workshopsById: Map<string, WorkshopContact>,
+): WorkshopContact | null {
   if (!ticket.assigned_workshop_id) return null
-  const known = PARTNER_WORKSHOPS.find((w) => w.id === ticket.assigned_workshop_id)
+  const known = workshopsById.get(ticket.assigned_workshop_id)
   return {
     id:    ticket.assigned_workshop_id,
     label: ticket.assigned_workshop_label ?? known?.label ?? ticket.assigned_workshop_id,
     email: known?.email ?? null,
     phone: known?.phone ?? null,
   }
+}
+
+/**
+ * Best-effort batch lookup of partner_workshops contact fields for a set of ids.
+ * Cascade similaire à fetchSchoolContacts pour tolérer les schémas DB qui
+ * n'auraient pas encore toutes les colonnes (test envs, RLS).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function fetchWorkshopContacts(supabase: any, ids: string[]): Promise<Map<string, WorkshopContact>> {
+  const out = new Map<string, WorkshopContact>()
+  if (ids.length === 0) return out
+
+  type Row = { id: unknown; name?: unknown; label?: unknown; email?: unknown; phone?: unknown }
+
+  const attempts: Array<{ label: string; select: string }> = [
+    { label: 'rich',    select: 'id, name, email, phone' },
+    { label: 'noemail', select: 'id, name, phone' },
+    { label: 'nophone', select: 'id, name, email' },
+    { label: 'minimal', select: 'id, name' },
+  ]
+
+  for (const { label, select } of attempts) {
+    try {
+      const r = await supabase
+        .from('partner_workshops')
+        .select(select)
+        .in('id', ids)
+      if (r.error) {
+        console.warn(`[fetchWorkshopContacts] "${label}" errored:`, r.error.message)
+        continue
+      }
+      const rows = (r.data ?? []) as Row[]
+      for (const row of rows) {
+        const id = typeof row.id === 'string' ? row.id : null
+        if (!id) continue
+        const labelStr = typeof row.label === 'string' ? row.label
+                       : typeof row.name  === 'string' ? row.name
+                       : id
+        out.set(id, {
+          id,
+          label: labelStr,
+          email: typeof row.email === 'string' ? row.email : null,
+          phone: typeof row.phone === 'string' ? row.phone : null,
+        })
+      }
+      return out
+    } catch (e) {
+      console.warn(`[fetchWorkshopContacts] "${label}" threw:`, e)
+    }
+  }
+  return out
 }
 
 /**
@@ -123,14 +176,20 @@ export async function attachContactsToList(
   const schoolIds = Array.from(
     new Set(tickets.map((t) => t.school_id).filter((id): id is string => !!id)),
   )
-  const schoolsById = await fetchSchoolContacts(supabase, schoolIds)
+  const workshopIds = Array.from(
+    new Set(tickets.map((t) => t.assigned_workshop_id).filter((id): id is string => !!id)),
+  )
+  const [schoolsById, workshopsById] = await Promise.all([
+    fetchSchoolContacts(supabase, schoolIds),
+    fetchWorkshopContacts(supabase, workshopIds),
+  ])
 
   return tickets.map((t) => ({
     ...t,
     contacts: {
       client:   buildClientContact(t),
       school:   t.school_id ? schoolsById.get(t.school_id) ?? null : null,
-      workshop: buildWorkshopContact(t),
+      workshop: buildWorkshopContact(t, workshopsById),
     },
   }))
 }

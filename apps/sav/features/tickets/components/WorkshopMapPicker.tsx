@@ -44,10 +44,13 @@ interface WorkshopMapPickerProps {
   onSelect:   (id: string) => void
 }
 
+type PlaceableWorkshop = Omit<PartnerWorkshop, 'lat' | 'lng'> & { lat: number; lng: number }
+
 export default function WorkshopMapPicker({ workshops, selectedId, onSelect }: WorkshopMapPickerProps) {
-  const placeable = useMemo(
-    () => workshops.filter((w) =>
-      typeof w.lat === 'number' && typeof w.lng === 'number'
+  const placeable = useMemo<PlaceableWorkshop[]>(
+    () => workshops.filter(
+      (w): w is PlaceableWorkshop =>
+        typeof w.lat === 'number' && typeof w.lng === 'number',
     ),
     [workshops]
   )

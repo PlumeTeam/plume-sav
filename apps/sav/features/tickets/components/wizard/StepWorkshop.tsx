@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useWizardStore } from '../../store'
-import { PARTNER_WORKSHOPS, type PartnerWorkshop } from '../../constants'
+import { type PartnerWorkshop } from '../../constants'
 import { StepLayout, StepNav } from './StepLayout'
 
 const WorkshopMapPicker = dynamic(
@@ -19,22 +19,23 @@ const WorkshopMapPicker = dynamic(
 )
 
 interface StepWorkshopProps {
+  workshops: PartnerWorkshop[]
   onNext: () => void
   onBack: () => void
 }
 
-export function StepWorkshop({ onNext, onBack }: StepWorkshopProps) {
+export function StepWorkshop({ workshops: workshopsProp, onNext, onBack }: StepWorkshopProps) {
   const { problem, setProblem } = useWizardStore()
 
   const workshops = useMemo<PartnerWorkshop[]>(() => {
     // On affiche d'abord les ateliers du réseau Plume, puis le reste pour
     // contexte. L'utilisateur peut quand même choisir un atelier non affilié.
-    return [...PARTNER_WORKSHOPS].sort((a, b) => {
+    return [...workshopsProp].sort((a, b) => {
       if (a.affiliated && !b.affiliated) return -1
       if (!a.affiliated && b.affiliated) return 1
       return a.label.localeCompare(b.label)
     })
-  }, [])
+  }, [workshopsProp])
 
   const [pickedId, setPickedId] = useState<string | null>(
     problem.partnerWorkshopId ?? null

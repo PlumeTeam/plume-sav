@@ -2,15 +2,16 @@
 
 import { useState, useMemo } from 'react'
 import { useWizardStore } from '../../store'
-import { PARTNER_WORKSHOPS } from '../../constants'
+import type { PartnerWorkshop } from '../../constants'
 import type { DeliveryMethod } from '../../types'
 import type { PartnerSchool } from '../../queries'
 import { StepLayout, StepNav } from './StepLayout'
 
 interface StepDeliveryProps {
-  schools: PartnerSchool[]
-  onNext:  () => void
-  onBack:  () => void
+  schools:   PartnerSchool[]
+  workshops: PartnerWorkshop[]
+  onNext:    () => void
+  onBack:    () => void
 }
 
 const OPTIONS: Array<{ value: DeliveryMethod; emoji: string; label: string; description: string }> = [
@@ -28,7 +29,7 @@ const OPTIONS: Array<{ value: DeliveryMethod; emoji: string; label: string; desc
   },
 ]
 
-export function StepDelivery({ schools, onNext, onBack }: StepDeliveryProps) {
+export function StepDelivery({ schools, workshops, onNext, onBack }: StepDeliveryProps) {
   const { problem, setProblem } = useWizardStore()
   const [selected, setSelected] = useState<DeliveryMethod | null>(problem.deliveryMethod ?? null)
 
@@ -37,8 +38,8 @@ export function StepDelivery({ schools, onNext, onBack }: StepDeliveryProps) {
     [schools, problem.partnerSchoolId]
   )
   const targetWorkshop = useMemo(
-    () => PARTNER_WORKSHOPS.find((w) => w.id === problem.partnerWorkshopId) ?? null,
-    [problem.partnerWorkshopId]
+    () => workshops.find((w) => w.id === problem.partnerWorkshopId) ?? null,
+    [workshops, problem.partnerWorkshopId]
   )
 
   const targetName = targetSchool?.name ?? targetWorkshop?.label ?? null

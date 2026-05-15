@@ -10,6 +10,7 @@ import {
 import { ScanGateModal } from '@/features/tickets/components/ScanGateModal'
 import { RevertStepLink } from '@/features/tickets/components/RevertStepLink'
 import { formatDateTime } from '@/features/tickets/utils'
+import type { PartnerWorkshop } from '@/features/tickets/constants'
 import type { DeliveryMethod, RequestStatus, SchoolResolution, WarrantyTier } from '@/features/tickets/types'
 import { SchoolResolutionModal } from './SchoolResolutionModal'
 import { SchoolReturnFlowModal } from './SchoolReturnFlowModal'
@@ -48,6 +49,8 @@ interface SchoolStepPanelProps {
   /** Toggle Plume HQ — la garantie étendue couvre-t-elle le transport
    *  école → atelier ? Lu depuis plume_settings. */
   extendedCoversSchoolWorkshopShipping:  boolean
+  /** Ateliers affiliés (chargés côté serveur, passés à la modal décision). */
+  workshops:                             PartnerWorkshop[]
 }
 
 type StepKey = 'ack' | 'wing' | 'check' | 'decision' | 'return'
@@ -192,6 +195,7 @@ export function SchoolStepPanel({
   shippingRefusalReason,
   warrantyTier,
   extendedCoversSchoolWorkshopShipping,
+  workshops,
 }: SchoolStepPanelProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -414,6 +418,7 @@ export function SchoolStepPanel({
         schoolResolution={schoolResolution}
         assignedWorkshopLabel={assignedWorkshopLabel}
         isPlumeUrgent={isPlumeUrgent}
+        workshops={workshops}
       />
 
       <SchoolReturnFlowModal

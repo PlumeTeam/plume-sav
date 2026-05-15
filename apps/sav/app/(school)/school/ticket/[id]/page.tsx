@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getSchoolTicketDetail, getPlumeSettings } from '@/features/tickets/queries'
+import { getPartnerWorkshops, getSchoolTicketDetail, getPlumeSettings } from '@/features/tickets/queries'
 import { markTicketReadBySchoolAction } from '@/features/tickets/messages-actions-school'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { WarrantyTierBadge } from '@/features/tickets/components/WarrantyTierBadge'
@@ -24,11 +24,18 @@ export const dynamic = 'force-dynamic'
 type ChecklistJson = { checkedIds?: string[]; notes?: string | null } | null
 
 export default async function SchoolTicketDetailPage({ params }: PageProps) {
-  const [ticket, policy] = await Promise.all([
+  const [ticket, policy, allWorkshops] = await Promise.all([
     getSchoolTicketDetail(params.id),
     getPlumeSettings(),
+    getPartnerWorkshops(),
   ])
   if (!ticket) notFound()
+
+  // Seuls les ateliers affiliés sont exposés à l'école (le réseau Plume).
+  // getPartnerWorkshops applique déjà ce filtre côté DB quand `is_affiliated`
+  // existe ; on re-filtre ici par sécurité (cascade DB peut tomber sur un
+  // tier "noaffiliated" qui ne filtre pas).
+  const workshops = allWorkshops.filter((w) => w.affiliated)
 
   const ticketWarrantyTier = (ticket.warranty_tier as WarrantyTier | null) ?? null
   // Pour la file de tickets historique, `warranty_tier` peut être null : on
@@ -142,6 +149,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           shippingRefusalReason={ticket.shipping_refusal_reason ?? null}
           warrantyTier={ticketWarrantyTier}
           extendedCoversSchoolWorkshopShipping={policy.extendedCoversSchoolWorkshopShipping}
+          workshops={workshops}
         />
       </section>
 
@@ -318,6 +326,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           })}
           assignedWorkshopId={ticket.assigned_workshop_id}
           assignedWorkshopLabel={ticket.assigned_workshop_label}
+          workshops={workshops}
         />
       ),
     },

@@ -1,5 +1,6 @@
 'use client'
 
+import type { PartnerWorkshop } from '@/features/tickets/constants'
 import type { SchoolResolution } from '@/features/tickets/types'
 import { SchoolResolutionPanel } from './SchoolResolutionPanel'
 
@@ -10,10 +11,11 @@ interface SchoolResolutionModalProps {
   schoolResolution:       SchoolResolution | null
   assignedWorkshopLabel:  string | null
   isPlumeUrgent:          boolean
+  workshops:              PartnerWorkshop[]
 }
 
 export function SchoolResolutionModal({
-  open, onClose, ticketId, schoolResolution, assignedWorkshopLabel, isPlumeUrgent,
+  open, onClose, ticketId, schoolResolution, assignedWorkshopLabel, isPlumeUrgent, workshops,
 }: SchoolResolutionModalProps) {
   if (!open) return null
   return (
@@ -54,6 +56,7 @@ export function SchoolResolutionModal({
             currentResolution={schoolResolution}
             assignedWorkshopLabel={assignedWorkshopLabel}
             isPlumeUrgent={isPlumeUrgent}
+            workshops={workshops}
           />
         </div>
       </div>

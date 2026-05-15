@@ -2,6 +2,11 @@ import { createClient } from '@/lib/supabase/server'
 import type { TicketWithPhotos, TicketDetail, TicketStatus, RequestStatus } from './types'
 import { attachUnreadCounts, type TicketWithUnread } from './messages-unread'
 import { attachContactsToList, type TicketWithContacts } from './contacts'
+import {
+  FALLBACK_PARTNER_WORKSHOPS,
+  PLUME_EMBRUN_WORKSHOP_ID,
+  type PartnerWorkshop,
+} from './constants'
 
 export type ClientWing = {
   id: string
@@ -363,6 +368,113 @@ export async function getPartnerSchoolById(id: string): Promise<PartnerSchoolDet
     } catch (e) {
       console.warn(`[getPartnerSchoolById] "${label}" threw:`, e)
     }
+  }
+  return null
+}
+
+// ── Partner workshops ────────────────────────────────────────────────────────
+//
+// Table partner_workshops (UUID id) — calquée sur partner_schools. Toutes les
+// lectures passent par ces helpers (jamais d'id hardcodé dans le code applicatif).
+// Cascade défensive identique à getPartnerSchools : on dégrade le SELECT si
+// un sous-ensemble de colonnes n'existe pas, et on retombe sur FALLBACK_PARTNER_WORKSHOPS
+// si la table est inaccessible — le wizard reste utilisable même DB down.
+
+function normaliseWorkshop(raw: Record<string, unknown>): PartnerWorkshop {
+  // Tolère deux formes possibles côté DB : `name` (calque de partner_schools)
+  // ou `label` (si une migration future renomme la colonne).
+  const label = typeof raw.label === 'string' ? raw.label
+              : typeof raw.name  === 'string' ? raw.name
+              : String(raw.id ?? '')
+  return {
+    id:         String(raw.id ?? ''),
+    label,
+    city:       typeof raw.city    === 'string' ? raw.city    : null,
+    region:     typeof raw.region  === 'string' ? raw.region  : null,
+    address:    typeof raw.address === 'string' ? raw.address : null,
+    lat:        toNumber(raw.lat),
+    lng:        toNumber(raw.lng),
+    affiliated: raw.is_affiliated === false ? false : true,
+    email:      typeof raw.email   === 'string' ? raw.email   : null,
+    phone:      typeof raw.phone   === 'string' ? raw.phone   : null,
+  }
+}
+
+export async function getPartnerWorkshops(): Promise<PartnerWorkshop[]> {
+  const supabase = await createClient()
+  // partner_workshops vient d'être ajoutée aux types mais on garde le cast
+  // unknown pour rester compatible avec une DB qui n'aurait pas encore la table.
+  const db = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
+
+  type Row = Record<string, unknown>
+  type AttemptResult = { data: Row[] | null; error: { message: string; code?: string } | null }
+
+  const attempts: Array<{ label: string; run: () => Promise<AttemptResult> }> = [
+    { label: 'rich+active+affiliated',  run: () => db.from('partner_workshops').select('id, name, city, region, address, email, phone, lat, lng, is_affiliated').eq('is_affiliated', true).eq('active', true).order('name', { ascending: true }) },
+    { label: 'rich+affiliated',         run: () => db.from('partner_workshops').select('id, name, city, region, address, email, phone, lat, lng, is_affiliated').eq('is_affiliated', true).order('name', { ascending: true }) },
+    { label: 'rich+active',             run: () => db.from('partner_workshops').select('id, name, city, region, address, email, phone, lat, lng, is_affiliated').eq('active', true).order('name', { ascending: true }) },
+    { label: 'rich',                    run: () => db.from('partner_workshops').select('id, name, city, region, address, email, phone, lat, lng, is_affiliated').order('name', { ascending: true }) },
+    { label: 'noaffiliated',            run: () => db.from('partner_workshops').select('id, name, city, region, address, email, phone, lat, lng').order('name', { ascending: true }) },
+    { label: 'noaddress',               run: () => db.from('partner_workshops').select('id, name, city, region, email, phone, lat, lng').order('name', { ascending: true }) },
+    { label: 'minimal',                 run: () => db.from('partner_workshops').select('id, name').order('name', { ascending: true }) },
+  ]
+
+  for (const { label, run } of attempts) {
+    let r: AttemptResult
+    try {
+      r = await run()
+    } catch (e) {
+      console.warn(`[getPartnerWorkshops] attempt "${label}" threw:`, e)
+      continue
+    }
+    if (r.error) {
+      console.warn(`[getPartnerWorkshops] attempt "${label}" errored:`, r.error.code ?? '?', r.error.message)
+      continue
+    }
+    const count = r.data?.length ?? 0
+    if (count > 0) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[getPartnerWorkshops] using DB rows (path="${label}", count=${count})`)
+      }
+      return (r.data as Row[]).map(normaliseWorkshop)
+    }
+  }
+
+  console.warn('[getPartnerWorkshops] all attempts failed or returned empty — using FALLBACK_PARTNER_WORKSHOPS')
+  return FALLBACK_PARTNER_WORKSHOPS
+}
+
+export type PartnerWorkshopDetail = PartnerWorkshop
+
+export async function getPartnerWorkshopById(id: string): Promise<PartnerWorkshopDetail | null> {
+  if (!id) return null
+  const supabase = await createClient()
+  const db = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
+
+  type Row = Record<string, unknown>
+  type AttemptResult = { data: Row | null; error: { message: string; code?: string } | null }
+
+  const attempts: Array<{ label: string; run: () => Promise<AttemptResult> }> = [
+    { label: 'rich',     run: () => db.from('partner_workshops').select('id, name, city, region, address, email, phone, lat, lng, is_affiliated').eq('id', id).maybeSingle() },
+    { label: 'noaffil',  run: () => db.from('partner_workshops').select('id, name, city, region, address, email, phone, lat, lng').eq('id', id).maybeSingle() },
+    { label: 'noaddr',   run: () => db.from('partner_workshops').select('id, name, city, region, email, phone, lat, lng').eq('id', id).maybeSingle() },
+    { label: 'minimal',  run: () => db.from('partner_workshops').select('id, name').eq('id', id).maybeSingle() },
+  ]
+
+  for (const { label, run } of attempts) {
+    try {
+      const r = await run()
+      if (!r.error && r.data) return normaliseWorkshop(r.data)
+      if (r.error) console.warn(`[getPartnerWorkshopById] "${label}" errored:`, r.error.code ?? '?', r.error.message)
+    } catch (e) {
+      console.warn(`[getPartnerWorkshopById] "${label}" threw:`, e)
+    }
+  }
+
+  // Dernier recours : si on cherche l'atelier Plume Embrun, on renvoie au moins
+  // ses coords/contact depuis le fallback.
+  if (id === PLUME_EMBRUN_WORKSHOP_ID) {
+    return FALLBACK_PARTNER_WORKSHOPS[0] ?? null
   }
   return null
 }

@@ -3,11 +3,8 @@
 import { useState, useTransition } from 'react'
 import dynamic from 'next/dynamic'
 import { applySchoolResolutionAction } from '@/features/tickets/actions'
-import { PARTNER_WORKSHOPS } from '@/features/tickets/constants'
+import type { PartnerWorkshop } from '@/features/tickets/constants'
 import type { SchoolResolution } from '@/features/tickets/types'
-
-// Only affiliated workshops are exposed in the school decision flow.
-const AFFILIATED_WORKSHOPS = PARTNER_WORKSHOPS.filter((w) => w.affiliated)
 
 const WorkshopMapPicker = dynamic(
   () => import('@/features/tickets/components/WorkshopMapPicker'),
@@ -26,6 +23,8 @@ interface SchoolResolutionPanelProps {
   currentResolution:     SchoolResolution | null
   assignedWorkshopLabel: string | null
   isPlumeUrgent?:        boolean
+  /** Ateliers affiliés (filtrés côté Server Component avant de descendre). */
+  workshops:             PartnerWorkshop[]
 }
 
 // Top-of-panel choice. The user picks ONE.
@@ -97,6 +96,7 @@ export function SchoolResolutionPanel({
   currentResolution,
   assignedWorkshopLabel,
   isPlumeUrgent = false,
+  workshops,
 }: SchoolResolutionPanelProps) {
   const [isPending, startTransition] = useTransition()
   const [choice, setChoice] = useState<ChoiceKey | null>(null)
@@ -152,7 +152,7 @@ export function SchoolResolutionPanel({
           : trimmedNote
       if (finalNote) fd.set('note', finalNote)
       if (payload.needsWorkshop) {
-        const ws = AFFILIATED_WORKSHOPS.find((w) => w.id === workshopId)
+        const ws = workshops.find((w) => w.id === workshopId)
         fd.set('workshopId',    workshopId)
         fd.set('workshopLabel', ws?.label ?? workshopId)
       }
@@ -242,14 +242,14 @@ export function SchoolResolutionPanel({
           </label>
 
           <WorkshopMapPicker
-            workshops={AFFILIATED_WORKSHOPS}
+            workshops={workshops}
             selectedId={workshopId || null}
             onSelect={setWorkshopId}
           />
 
           {/* Liste textuelle (fallback / clavier) */}
           <div className="space-y-2">
-            {AFFILIATED_WORKSHOPS.map((w) => {
+            {workshops.map((w) => {
               const isSelected = workshopId === w.id
               return (
                 <button

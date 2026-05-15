@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUserRoles } from '@/features/auth/queries'
-import { PARTNER_WORKSHOPS } from '../constants'
 import { getPartnerSchoolById, getPlumeSettings } from '../queries'
 import type {
   ClientShippingAddress,

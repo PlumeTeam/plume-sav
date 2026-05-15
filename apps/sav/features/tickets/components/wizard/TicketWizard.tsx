@@ -20,18 +20,25 @@ import { StepMessage } from './StepMessage'
 import { StepReview } from './StepReview'
 import { PlumeLogo } from '@/app/_components/PlumeLogo'
 import type { ClientWing, PartnerSchool, PlumeSettings } from '../../queries'
+import type { PartnerWorkshop } from '../../constants'
 
 const VALID_REQUEST_TYPES: RequestType[] = ['repair', 'inspection', 'manufacturing_defect']
 
 interface TicketWizardProps {
-  wings?:   ClientWing[]
-  schools?: PartnerSchool[]
+  wings?:     ClientWing[]
+  schools?:   PartnerSchool[]
+  workshops?: PartnerWorkshop[]
   /** Politique garantie courante — passée aux steps post-sélection wing
    *  pour afficher le tier preview (banner + branchements conditionnels). */
-  policy:   PlumeSettings
+  policy:     PlumeSettings
 }
 
-export function TicketWizard({ wings = [], schools = [], policy }: TicketWizardProps) {
+export function TicketWizard({
+  wings = [],
+  schools = [],
+  workshops = [],
+  policy,
+}: TicketWizardProps) {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const urlType      = searchParams.get('type')
@@ -147,10 +154,10 @@ export function TicketWizard({ wings = [], schools = [], policy }: TicketWizardP
           {currentStepId === 'urgency'          && <StepUrgency onNext={next} onBack={back} />}
           {currentStepId === 'photos'           && <StepPhotos onNext={next} onBack={back} />}
           {currentStepId === 'school'           && <StepSchool schools={schools} policy={policy} onNext={next} onBack={back} />}
-          {currentStepId === 'workshop'         && <StepWorkshop onNext={next} onBack={back} />}
-          {currentStepId === 'delivery'         && <StepDelivery schools={schools} onNext={next} onBack={back} />}
+          {currentStepId === 'workshop'         && <StepWorkshop workshops={workshops} onNext={next} onBack={back} />}
+          {currentStepId === 'delivery'         && <StepDelivery schools={schools} workshops={workshops} onNext={next} onBack={back} />}
           {currentStepId === 'message'          && <StepMessage onNext={next} onBack={back} />}
-          {currentStepId === 'review'           && <StepReview schools={schools} onBack={back} />}
+          {currentStepId === 'review'           && <StepReview schools={schools} workshops={workshops} onBack={back} />}
         </div>
       </main>
     </div>

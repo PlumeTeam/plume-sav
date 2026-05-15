@@ -5,18 +5,19 @@ import { useRouter } from 'next/navigation'
 import { useWizardStore } from '../../store'
 import { attachTicketPhotosAction, createTicketAction } from '../../actions'
 import { PROBLEM_CATEGORIES, REQUEST_TYPE_CONFIG, type WizardWingHistory } from '../../types'
-import { PARTNER_WORKSHOPS } from '../../constants'
+import type { PartnerWorkshop } from '../../constants'
 import { createClient } from '@/lib/supabase/client'
 import type { PartnerSchool } from '../../queries'
 import { resolveWarrantyTierForDisplay } from '../../utils'
 import { StepLayout } from './StepLayout'
 
 interface StepReviewProps {
-  schools: PartnerSchool[]
-  onBack:  () => void
+  schools:   PartnerSchool[]
+  workshops: PartnerWorkshop[]
+  onBack:    () => void
 }
 
-export function StepReview({ schools, onBack }: StepReviewProps) {
+export function StepReview({ schools, workshops, onBack }: StepReviewProps) {
   const router = useRouter()
   const { requestType, wingInfo, wingHistory, problem, photos, _photoFiles, reset } = useWizardStore()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -28,7 +29,7 @@ export function StepReview({ schools, onBack }: StepReviewProps) {
   const problemLabel  = PROBLEM_CATEGORIES.find((c) => c.value === problem.problemCategory)
   const isBehavior    = (problem.wingBehaviors?.length ?? 0) > 0
   const selectedSchool   = schools.find((s) => s.id === problem.partnerSchoolId)
-  const selectedWorkshop = PARTNER_WORKSHOPS.find((w) => w.id === problem.partnerWorkshopId)
+  const selectedWorkshop = workshops.find((w) => w.id === problem.partnerWorkshopId)
 
   // Le destinataire dépend du type : repair/inspection → atelier ; defect → école ou atelier selon garantie
   const targetLabel  = selectedSchool?.name ?? selectedWorkshop?.label ?? null

@@ -1,12 +1,19 @@
-import { getClientWings, getPartnerSchools, getPartnerSchoolById, getPlumeSettings } from '@/features/tickets/queries'
+import {
+  getClientWings,
+  getPartnerSchoolById,
+  getPartnerSchools,
+  getPartnerWorkshops,
+  getPlumeSettings,
+} from '@/features/tickets/queries'
 import { TicketWizard } from '@/features/tickets/components/wizard/TicketWizard'
 
 export const dynamic = 'force-dynamic'
 
 export default async function NewTicketPage() {
-  const [wings, baseSchools, policy] = await Promise.all([
+  const [wings, baseSchools, workshops, policy] = await Promise.all([
     getClientWings(),
     getPartnerSchools(),
+    getPartnerWorkshops(),
     getPlumeSettings(),
   ])
 
@@ -31,5 +38,5 @@ export default async function NewTicketPage() {
     : []
   const schools = [...baseSchools, ...extras]
 
-  return <TicketWizard wings={wings} schools={schools} policy={policy} />
+  return <TicketWizard wings={wings} schools={schools} workshops={workshops} policy={policy} />
 }

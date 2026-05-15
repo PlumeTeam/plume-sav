@@ -557,6 +557,63 @@ export interface Database {
         }
         Relationships: []
       }
+      partner_workshops: {
+        // Réseau d'ateliers partenaires Plume. Même structure que partner_schools.
+        // user_id pointe sur le compte authentifié de l'atelier (utilisé par la
+        // RLS pour scoper la lecture des tickets côté atelier).
+        Row: {
+          id: string
+          name: string
+          city: string | null
+          region: string | null
+          address: string | null
+          email: string | null
+          phone: string | null
+          lat: number | null
+          lng: number | null
+          is_affiliated: boolean | null
+          active: boolean | null
+          user_id: string | null
+          company_address: Json | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          city?: string | null
+          region?: string | null
+          address?: string | null
+          email?: string | null
+          phone?: string | null
+          lat?: number | null
+          lng?: number | null
+          is_affiliated?: boolean | null
+          active?: boolean | null
+          user_id?: string | null
+          company_address?: Json | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          city?: string | null
+          region?: string | null
+          address?: string | null
+          email?: string | null
+          phone?: string | null
+          lat?: number | null
+          lng?: number | null
+          is_affiliated?: boolean | null
+          active?: boolean | null
+          user_id?: string | null
+          company_address?: Json | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       ticket_messages: {
         Row: {
           id: string

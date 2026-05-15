@@ -1,6 +1,8 @@
 // Constants used across the SAV diagnostic workflow.
-// Hardcoded for now; partner_schools comes from the live DB,
-// partner_workshops can move to a table later when the network grows.
+// partner_schools et partner_workshops viennent maintenant de la DB
+// (cf. getPartnerSchools / getPartnerWorkshops). On garde ici uniquement
+// les checklists métier et un fallback minimal d'atelier pour ne pas
+// stranger le wizard si la DB est temporairement indisponible.
 
 // Default text shown in the wizard's "Message à l'école" textarea.
 // The client can keep it as-is, edit it, or wipe it entirely.
@@ -83,32 +85,44 @@ export const SCHOOL_RESOLUTIONS = [
 ] as const
 
 // ── Réseau d'ateliers partenaires ─────────────────────────────────────────
-// TODO: migrer vers une table partner_workshops quand le réseau grandit.
+// Les ateliers vivent maintenant dans la table partner_workshops (cf. queries.ts).
+// Ce type est partagé entre la DB et les composants UI ; les champs lat/lng
+// peuvent être null pour un atelier sans coords (l'UI filtre alors la carte).
 export type PartnerWorkshop = {
   id:         string
   label:      string
-  city:       string
-  region:     string
-  address:    string
+  city:       string | null
+  region:     string | null
+  address:    string | null
   /** Latitude WGS84 — used by WorkshopMapPicker to drop a marker. */
-  lat:        number
+  lat:        number | null
   /** Longitude WGS84. */
-  lng:        number
+  lng:        number | null
   /** True for ateliers in the Plume network. Renders coral on the map; non-
    *  affiliated workshops render gray and carry no Plume guarantee. */
   affiliated: boolean
-  /** Contact public — affiché sur les cartes ticket école/admin. Optionnel. */
-  email?:     string
-  /** Contact public — affiché sur les cartes ticket école/admin. Optionnel. */
-  phone?:     string
+  /** Contact public — affiché sur les cartes ticket école/admin. */
+  email?:     string | null
+  /** Contact public — affiché sur les cartes ticket école/admin. */
+  phone?:     string | null
 }
 
-// Real French paragliding repair shops + the Plume test atelier. Affiliated
-// workshops are part of the Plume network; non-affiliated ones are shown on
-// the map for context (and reachable if a school chooses) but visually muted.
-export const PARTNER_WORKSHOPS: PartnerWorkshop[] = [
+/**
+ * UUID Supabase de l'atelier test "Plume Embrun". Stocké en clair pour servir
+ * de fallback hors-DB et pour les tests RLS. Source de vérité = table
+ * partner_workshops (row id = ce même UUID).
+ */
+export const PLUME_EMBRUN_WORKSHOP_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
+
+/**
+ * Fallback minimal utilisé quand getPartnerWorkshops() échoue (DB down,
+ * RLS qui filtre tout, table absente sur un env de dev). Contient juste
+ * l'atelier Plume Embrun avec son vrai UUID — garantit que le wizard
+ * propose toujours au moins un destinataire.
+ */
+export const FALLBACK_PARTNER_WORKSHOPS: PartnerWorkshop[] = [
   {
-    id:         'plume-embrun',
+    id:         PLUME_EMBRUN_WORKSHOP_ID,
     label:      'Atelier Plume Embrun',
     city:       'Embrun',
     region:     'Hautes-Alpes',
@@ -120,45 +134,5 @@ export const PARTNER_WORKSHOPS: PartnerWorkshop[] = [
     // sav@plumeparagliders.com avant la mise en prod publique.
     email:      'jbchandelier+atelier@gmail.com',
     phone:      '+33 4 92 00 00 00',
-  },
-  {
-    id:         'ripair-talloires',
-    label:      "Rip'Air",
-    city:       'Talloires',
-    region:     'Haute-Savoie',
-    address:    '109 chemin de pré Monteux, 74290 Talloires',
-    lat:        45.8415,
-    lng:        6.2170,
-    affiliated: false,
-  },
-  {
-    id:         'rue-de-lair-vizille',
-    label:      "Rue de l'Air",
-    city:       'Vizille',
-    region:     'Isère',
-    address:    '33 Rue Général de Gaulle, 38220 Vizille',
-    lat:        45.0769,
-    lng:        5.7725,
-    affiliated: false,
-  },
-  {
-    id:         'cap360-contamine',
-    label:      'CAP360',
-    city:       'Contamine-sur-Arve',
-    region:     'Haute-Savoie',
-    address:    '337 Route des Granges, 74130 Contamine-sur-Arve',
-    lat:        46.1261,
-    lng:        6.3433,
-    affiliated: false,
-  },
-  {
-    id:         'freedom-parapente',
-    label:      'Freedom Parapente',
-    city:       'Lumbin',
-    region:     'Isère',
-    address:    'Lumbin, 38660',
-    lat:        45.2853,
-    lng:        5.9087,
-    affiliated: false,
   },
 ]

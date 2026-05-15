@@ -3,8 +3,12 @@
 import { revalidatePath } from 'next/cache'
 import type { Database } from '@plume/db'
 import { createClient } from '@/lib/supabase/server'
-import { PARTNER_WORKSHOPS } from '../constants'
-import { countPreviousSavClaims, getPartnerSchoolById, getPlumeSettings } from '../queries'
+import {
+  countPreviousSavClaims,
+  getPartnerSchoolById,
+  getPartnerWorkshopById,
+  getPlumeSettings,
+} from '../queries'
 import { computeWarrantyTier } from '../utils'
 import type {
   RequestStatus,
@@ -62,9 +66,15 @@ export async function createTicketAction(input: unknown) {
   // est routé directement vers un atelier. Le `school_id` reste null et
   // `assigned_workshop_id` est renseigné dès la création.
   const routesToWorkshop = !!workshopId && !schoolId
+  // Source de vérité = partner_workshops (DB). Si la table est down/RLS,
+  // getPartnerWorkshopById renvoie le fallback Plume Embrun pour son propre
+  // UUID. Pour tout autre id absent côté DB on refuse — pas de fake atelier.
   const workshop = workshopId
-    ? PARTNER_WORKSHOPS.find((w) => w.id === workshopId) ?? null
+    ? await getPartnerWorkshopById(workshopId)
     : null
+  if (workshopId && !workshop) {
+    return { error: { _form: ["Atelier inconnu — choisissez un atelier du réseau partenaire"] } }
+  }
 
   // Pour les routes 'école', on garde l'ancien comportement.
   const persistedSchoolId = schoolId
@@ -145,6 +155,8 @@ export async function createTicketAction(input: unknown) {
     sav_claim_number:     warranty.claimNumber,
     warranty_expires_at:  warranty.expiresAt,
     // Routing direct atelier (repair / inspection / defect hors garantie).
+    // workshop.id = UUID Supabase partner_workshops (assigned_workshop_id est text
+    // côté DB partagée mais on n'y stocke plus que des UUID valides).
     assigned_workshop_id:    workshop?.id    ?? null,
     assigned_workshop_label: workshop?.label ?? null,
     workshop_assigned_at:    workshop ? new Date().toISOString() : null,
