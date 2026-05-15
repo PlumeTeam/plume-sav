@@ -9,9 +9,10 @@ import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { TicketChannelSwitch, type TicketChannel } from '@/features/tickets/components/TicketChannelSwitch'
 import { filterMessagesForRole } from '@/features/tickets/channels'
 import { readSchoolCheckInspector } from '@/features/tickets/inspection/steps'
-import { formatAge, formatDate, formatDateTime, resolveWarrantyTierForDisplay } from '@/features/tickets/utils'
+import { formatDateTime, resolveWarrantyTierForDisplay } from '@/features/tickets/utils'
 import { CloseTicketButton } from '@/features/tickets/components/CloseTicketButton'
 import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
+import { SchoolDeclarationPanel } from './SchoolDeclarationPanel'
 import { SchoolStepPanel } from './SchoolStepPanel'
 import { SchoolTicketTabs } from './SchoolTicketTabs'
 import { SchoolWorkshopChannel } from './SchoolWorkshopChannel'
@@ -42,7 +43,6 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
   // calcule alors un fallback à partir de purchase_date pour ne jamais
   // afficher un ticket sans indicateur garantie.
   const displayWarrantyTier = resolveWarrantyTierForDisplay(ticketWarrantyTier, ticket.purchase_date)
-  const wingAge = formatAge(ticket.purchase_date)
 
   // Best-effort: mark this ticket as read for the current school user. The RPC
   // checks ownership via current_user_partner_school_ids() server-side.
@@ -181,58 +181,10 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
   )
 
   // ── Tab 2: Déclaration ──────────────────────────────────────────────────
-  const declarationTab = (
-    <>
-      {/* Flag urgent — banner en tête, visible immédiatement */}
-      {ticket.urgency_level === 2 && (
-        <section className="flex items-center gap-3 rounded-card border-2 border-red-300 bg-red-50 px-4 py-3 shadow-sm">
-          <span aria-hidden className="text-2xl">🚨</span>
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-red-700">Signalé comme urgent</p>
-            <p className="text-xs text-red-700/80">Le client a marqué cette demande comme prioritaire.</p>
-          </div>
-        </section>
-      )}
+  // Panel délégué — calque la vue "Client" du DiagnosticViewSwitcher atelier
+  // (bandeau verdict + historique + problème + aile + photos + coordonnées).
+  const declarationTab = <SchoolDeclarationPanel ticket={ticket} />
 
-      {/* Client */}
-      <section className="card p-5">
-        <h2 className="section-title mb-3">Client</h2>
-        <div className="space-y-2">
-          <InfoRow label="Nom" value={[ticket.first_name, ticket.last_name].filter(Boolean).join(' ') || '—'} />
-          <InfoRow label="Email" value={ticket.email ?? '—'} />
-          {ticket.phone && <InfoRow label="Téléphone" value={ticket.phone} />}
-        </div>
-      </section>
-
-      {/* Produit */}
-      <section className="card p-5">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="section-title">Produit</h2>
-          <WarrantyTierBadge tier={displayWarrantyTier} size="sm" compact />
-        </div>
-        <div className="space-y-2">
-          <InfoRow label="Marque / Modèle" value={`${ticket.product_brand ?? '—'} ${ticket.product_model ?? '—'}`} />
-          <InfoRow label="N° de série" value={ticket.serial_number ?? '—'} mono />
-          {ticket.purchase_date && (
-            <InfoRow
-              label="Date d'achat"
-              value={`${formatDate(ticket.purchase_date)}${wingAge ? ` — ${wingAge}` : ''}`}
-            />
-          )}
-        </div>
-      </section>
-
-      {/* Demande SAV */}
-      <section className="card p-5">
-        <h2 className="section-title mb-3">Demande de SAV</h2>
-        {ticket.description ? (
-          <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">{ticket.description}</p>
-        ) : (
-          <p className="text-sm italic text-slate-500">Aucune description fournie.</p>
-        )}
-      </section>
-    </>
-  )
 
   // ── Tab 3: Messages — 2 canaux : Client / Atelier ───────────────────────
   // Spotlight (message du client à la création) + photos restent dans le
@@ -374,15 +326,6 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           messagesCount={visibleMessages.length}
         />
       </main>
-    </div>
-  )
-}
-
-function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <p className="flex-shrink-0 text-xs text-slate-500">{label}</p>
-      <p className={`text-right text-sm text-brand-ink ${mono ? 'font-mono' : ''}`}>{value.trim() || '—'}</p>
     </div>
   )
 }
