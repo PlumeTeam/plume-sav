@@ -121,7 +121,13 @@ export function StepReview({ schools, workshops, onBack }: StepReviewProps) {
 
           const rawExt = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
           const ext = /^[a-z0-9]+$/.test(rawExt) ? rawExt : 'jpg'
-          const storagePath = `${user.id}/${ticketId}/${i}-${Date.now()}.${ext}`
+          // Le path DOIT commencer par le ticketId : la RLS Storage du bucket
+          // 'tickets' fait `user_can_access_ticket((storage.foldername(name))[1]::uuid)`,
+          // donc le premier segment est traité comme un UUID de ticket. Si on
+          // mettait `${user.id}/...` en tête, la policy chercherait un ticket
+          // dont l'id == user_id → no match → INSERT rejeté en silence. Trace
+          // du uploader : la colonne `uploaded_by` sur ticket_photos.
+          const storagePath = `${ticketId}/${user.id}/${i}-${Date.now()}.${ext}`
 
           const { error: uploadError } = await supabase.storage
             .from('tickets')

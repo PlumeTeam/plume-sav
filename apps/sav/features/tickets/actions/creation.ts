@@ -175,7 +175,9 @@ export async function createTicketAction(input: unknown) {
     return { error: { _form: [`Erreur lors de l'envoi de la demande${detail}`] } }
   }
 
-  // Photos (best-effort)
+  // Photos (best-effort).
+  // `uploaded_by` est OBLIGATOIRE : la RLS sec_client_insert_own_ticket
+  // exige `uploaded_by = auth.uid()` (sinon insert rejeté en silence).
   if (photoPaths.length > 0) {
     const photoRows = photoPaths.map((p, idx) => ({
       ticket_id:    ticket.id,
@@ -183,6 +185,7 @@ export async function createTicketAction(input: unknown) {
       photo_type:   p.photoType,
       caption:      p.caption ?? null,
       sort_order:   idx,
+      uploaded_by:  user.id,
     }))
     const { error: photoError } = await supabase.from('ticket_photos').insert(photoRows)
     if (photoError) console.warn('Photo insert failed:', photoError.message)
@@ -313,12 +316,16 @@ export async function attachTicketPhotosAction(input: unknown) {
     return { error: { _form: ['Vous ne pouvez pas modifier ce ticket'] } }
   }
 
+  // `uploaded_by` est OBLIGATOIRE : la RLS sec_client_insert_own_ticket
+  // exige `uploaded_by = auth.uid()` — sans cette colonne, l'insert est
+  // rejeté en silence par la RLS.
   const photoRows = photos.map((p, idx) => ({
     ticket_id:    ticketId,
     storage_path: p.storagePath,
     photo_type:   p.photoType,
     caption:      p.caption ?? null,
     sort_order:   idx,
+    uploaded_by:  user.id,
   }))
   const { error: insertError } = await supabase.from('ticket_photos').insert(photoRows)
   if (insertError) {

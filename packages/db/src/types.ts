@@ -434,6 +434,7 @@ export interface Database {
           photo_type: PhotoType
           caption: string | null
           sort_order: number
+          uploaded_by: string | null
           created_at: string
         }
         Insert: {
@@ -443,6 +444,7 @@ export interface Database {
           photo_type?: PhotoType
           caption?: string | null
           sort_order?: number
+          uploaded_by?: string | null
           created_at?: string
         }
         Update: {
@@ -452,6 +454,7 @@ export interface Database {
           photo_type?: PhotoType
           caption?: string | null
           sort_order?: number
+          uploaded_by?: string | null
           created_at?: string
         }
         Relationships: [
