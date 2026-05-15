@@ -140,6 +140,52 @@ export async function notifyClientOnShippingRefused(
   })
 }
 
+// Validation Plume HQ — déclenchée quand le client a dépassé le seuil annuel
+// de SAV (auto_approved_shipping = FALSE). Sémantiquement proche des deux
+// helpers école ci-dessus, mais le message indique clairement que c'est
+// Plume HQ qui a tranché, pas l'école.
+export async function notifyClientOnPlumeShippingApproved(
+  supabase: SupabaseClient,
+  ticketId: string,
+): Promise<void> {
+  const ticket = await loadTicketContext(supabase, ticketId)
+  if (!ticket) return
+  const clientId = clientUserIdOf(ticket)
+  if (!clientId) return
+
+  await notifyUser(supabase, {
+    targetUserId: clientId,
+    ticketId,
+    eventType:    'shipping_approved',
+    title:        'Bon de transport validé par Plume',
+    message:      `Plume a validé votre demande d'envoi postal pour ${productLineOf(ticket)}. Vous pouvez générer votre étiquette.`,
+    actionUrl:    `/client/ticket/${ticketId}`,
+    severity:     'success',
+  })
+}
+
+export async function notifyClientOnPlumeShippingRefused(
+  supabase:      SupabaseClient,
+  ticketId:      string,
+  refusalReason: string | null,
+): Promise<void> {
+  const ticket = await loadTicketContext(supabase, ticketId)
+  if (!ticket) return
+  const clientId = clientUserIdOf(ticket)
+  if (!clientId) return
+
+  const reason = refusalReason?.trim() || "Voir le ticket pour plus de détails."
+  await notifyUser(supabase, {
+    targetUserId: clientId,
+    ticketId,
+    eventType:    'shipping_refused',
+    title:        'Envoi postal refusé par Plume',
+    message:      `Plume a refusé l'envoi postal de ${productLineOf(ticket)}. ${reason}`,
+    actionUrl:    `/client/ticket/${ticketId}`,
+    severity:     'warning',
+  })
+}
+
 // ─── Pipeline statuts (client-visible) ───────────────────────────────────
 
 export async function notifyClientOnWingReceivedSchool(

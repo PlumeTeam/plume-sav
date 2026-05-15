@@ -37,8 +37,10 @@ export {
 export { generateSavShippingLabelAction } from './shipping'
 export { revertToStepAction } from './revert'
 export {
+  adminApproveClientShippingAction,
   adminCloseTicketAction,
   adminReassignSchoolAction,
+  adminRefuseClientShippingAction,
   adminRemindSchoolAction,
   applyPlumeOverrideAction,
   assignWorkshopForCommunicationAction,

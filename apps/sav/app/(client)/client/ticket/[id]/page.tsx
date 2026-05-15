@@ -96,6 +96,14 @@ export default async function TicketDetailPage({ params }: PageProps) {
   const hasExistingShippingLabel = !!ticket.client_school_label_url
   const shippingApproval         = ticket.shipping_approved ?? null
 
+  // Plume HQ gating (anti-abus seuil annuel). Si le ticket est flaggé pour
+  // validation manuelle ET Plume a refusé, on affiche le panneau dédié avec
+  // la raison. Le cas "en attente Plume" reste géré par ShippingLabelButton
+  // via son prop `autoApproved` (le bouton bascule sur sa propre vue "⏳").
+  const plumeFlagged          = ticket.auto_approved_shipping === false
+  const plumeRefused          = plumeFlagged && ticket.plume_shipping_approved === false
+  const plumeRefusalReason    = ticket.plume_shipping_refusal_reason
+
   const shippingAction = !shouldOfferClientShipping
     ? null
     : !hasExistingShippingLabel && shippingApproval === null
@@ -127,6 +135,23 @@ export default async function TicketDetailPage({ params }: PageProps) {
           )}
         </div>
       )
+    : !hasExistingShippingLabel && plumeRefused
+    ? (
+        <div className="rounded-2xl border-2 border-red-200 bg-red-50 px-4 py-3 text-sm">
+          <p className="font-semibold text-red-900">
+            ✕ Envoi refusé par Plume
+          </p>
+          {plumeRefusalReason ? (
+            <p className="mt-1 whitespace-pre-line text-xs text-red-900/90">
+              {plumeRefusalReason}
+            </p>
+          ) : (
+            <p className="mt-1 text-xs text-red-900/90">
+              Contactez l&apos;équipe Plume pour plus de détails.
+            </p>
+          )}
+        </div>
+      )
     : (
         <ShippingLabelButton
           ticketId={ticket.id}
@@ -134,7 +159,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
           initialTracking={ticket.client_school_tracking}
           initialLabelUrl={ticket.client_school_label_url}
           initialAddress={initialClientAddress}
-          autoApproved={ticket.auto_approved_shipping !== false}
+          autoApproved={ticket.auto_approved_shipping !== false || ticket.plume_shipping_approved === true}
           requireScan
           wingSerial={ticket.serial_number ?? null}
         />

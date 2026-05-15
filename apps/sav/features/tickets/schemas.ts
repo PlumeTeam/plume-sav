@@ -430,13 +430,16 @@ export const refuseShippingSchema = z.object({
   reason:   z.string().trim().min(10, 'Expliquez la raison du refus (10 caractères min.)').max(2000),
 })
 
-// École : raccourci "Confirmer la réception par scan QR" — bypass du flow
-// shipping (utile quand le client dépose son aile en main propre, quand aucun
-// bon d'envoi n'a été généré, ou en mode démo/test). Le scannedSerial est
-// re-vérifié côté serveur contre serial_number du ticket.
-export const confirmReceptionByScanSchema = z.object({
-  ticketId:      z.string().uuid(),
-  scannedSerial: z.string().trim().min(1, 'N° de série scanné manquant'),
+// Plume HQ : validation de l'envoi postal pour les clients ayant dépassé le
+// seuil annuel (auto_approved_shipping = FALSE). Mêmes contraintes que la
+// version école — raison obligatoire pour un refus.
+export const adminApproveClientShippingSchema = z.object({
+  ticketId: z.string().uuid(),
+})
+
+export const adminRefuseClientShippingSchema = z.object({
+  ticketId: z.string().uuid(),
+  reason:   z.string().trim().min(10, 'Expliquez la raison du refus (10 caractères min.)').max(2000),
 })
 
 export type WingInfoInput = z.infer<typeof wingInfoSchema>
@@ -459,3 +462,10 @@ export type GenerateShippingLabelInput   = z.infer<typeof generateShippingLabelS
 
 // Re-export for convenience
 export { WING_BRANDS }
+
+
+// --- School bypass: confirm reception by QR scan ---
+export const schoolConfirmReceptionByScanSchema = z.object({
+  ticketId: z.string().uuid(),
+  scannedSerial: z.string().min(1, 'Numéro de série requis'),
+});

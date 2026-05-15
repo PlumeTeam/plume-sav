@@ -238,10 +238,37 @@ export async function generateSavShippingLabelAction(formData: FormData): Promis
 
     // 5b. Anti-abus : si dÃ©jÃ  flaggÃ© par un prÃ©cÃ©dent appel, ou si le compteur
     //     annuel passe le seuil â†’ bloquer et notifier admin.
+    // Decision Plume HQ : TRUE => proceed (skip annual recount). FALSE => error.
+    // NULL => still pending.
+    let plumeOverride = false
     if (ticket.auto_approved_shipping === false) {
-      return { pendingAdminApproval: true }
+      if (ticket.plume_shipping_approved === true) {
+        plumeOverride = true
+      } else if (ticket.plume_shipping_approved === false) {
+        const reason = ticket.plume_shipping_refusal_reason?.trim()
+        return {
+          error: {
+            _form: [
+              reason
+                ? `Envoi refuse par Plume HQ : ${reason}`
+                : "Envoi refuse par Plume HQ - contactez l'equipe pour plus de details.",
+            ],
+          },
+        }
+      } else {
+        return { pendingAdminApproval: true }
+      }
     }
 
+    // Si Plume HQ a deja override (plume_shipping_approved=TRUE), on ne re-compte
+    // pas : la decision admin prime sur le seuil annuel pour ce ticket.
+    if (plumeOverride) {
+      if (!schoolAddress) {
+        return { error: { _form: ['Ecole destinataire introuvable - impossible de generer le bon de transport'] } }
+      }
+      from = resolveClientAddress(clientName, finalAddress)
+      to   = schoolAddress
+    } else {
     const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString()
     // Restreindre aux types crÃ©Ã©s par le wizard SAV ('sav' pour comportements,
     // 'repair' pour tear/line/riser â€” voir deriveServiceType). Les autres
@@ -280,6 +307,7 @@ export async function generateSavShippingLabelAction(formData: FormData): Promis
     }
     from = resolveClientAddress(clientName, finalAddress)
     to   = schoolAddress
+    }
   }
 
   if (leg === 'school_to_workshop') {

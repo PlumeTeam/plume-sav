@@ -18,13 +18,19 @@ import type {
   WizardProblemCategory,
 } from '../types'
 import {
+  adminApproveClientShippingSchema,
   adminCloseTicketSchema,
   adminReassignSchoolSchema,
+  adminRefuseClientShippingSchema,
   adminRemindSchoolSchema,
   assignWorkshopSchema,
 } from '../schemas'
 import { sendClientStepUpdateEmail, type ClientStepEmail, type TicketEmailContext } from '../email'
 import { requestStatusToSavStatus } from './_helpers'
+import {
+  notifyClientOnPlumeShippingApproved,
+  notifyClientOnPlumeShippingRefused,
+} from '@/features/notifications/sav-events'
 
 export async function assignWorkshopForCommunicationAction(formData: FormData) {
   const parsed = assignWorkshopSchema.safeParse({
@@ -365,5 +371,132 @@ export async function applyPlumeOverrideAction(formData: FormData) {
   revalidatePath(`/client/ticket/${ticketId}`)
   revalidatePath('/plume')
   return { success: true }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Validation Plume HQ de l'envoi postal client (anti-abus seuil annuel)
+// ────────────────────────────────────────────────────────────────────────────
+//
+// Quand le client a déjà créé ≥ 2 SAV cette année, `generateSavShippingLabelAction`
+// flag `auto_approved_shipping = FALSE` et renvoie `pendingAdminApproval`. Le
+// ticket apparaît alors dans la queue Plume HQ (cf. `/plume`). Cette section
+// expose les deux décisions possibles :
+//   - approve → plume_shipping_approved = TRUE → le client peut re-cliquer
+//     "Générer mon bon de transport" et l'action procède normalement.
+//   - refuse  → plume_shipping_approved = FALSE + raison → l'action renverra
+//     une erreur explicative au client.
+//
+// Idempotence : on accepte de re-décider tant qu'aucun label n'a été émis. Si
+// `client_school_label_url` est déjà posé, on bloque (pas de revert d'un envoi
+// déjà initié — il faudrait passer par un ticket-level admin override).
+
+async function applyPlumeShippingDecision(params: {
+  ticketId:      string
+  approved:      boolean
+  refusalReason: string | null
+}) {
+  const auth = await ensurePlumeAdmin()
+  if (!auth.ok) return { error: auth.error }
+
+  const supabase = await createClient()
+
+  // Lookup le ticket pour vérifier qu'il est effectivement en attente Plume
+  // (auto_approved_shipping = FALSE, pas encore décidé, pas de label émis).
+  const { data: ticket, error: fetchError } = await supabase
+    .from('service_requests')
+    .select('id, auto_approved_shipping, plume_shipping_approved, client_school_label_url')
+    .eq('id', params.ticketId)
+    .maybeSingle()
+
+  if (fetchError || !ticket) {
+    return { error: { _form: ['Demande introuvable'] } }
+  }
+  if (ticket.auto_approved_shipping !== false) {
+    return {
+      error: {
+        _form: [
+          "Cette demande n'est pas en attente de validation Plume — aucune décision à prendre.",
+        ],
+      },
+    }
+  }
+  if (ticket.client_school_label_url) {
+    return {
+      error: {
+        _form: [
+          "Un bon de transport a déjà été émis pour ce ticket — décision Plume verrouillée.",
+        ],
+      },
+    }
+  }
+
+  const { error: updateError } = await supabase
+    .from('service_requests')
+    .update({
+      plume_shipping_approved:       params.approved,
+      plume_shipping_refusal_reason: params.approved ? null : params.refusalReason,
+      plume_shipping_decided_at:     new Date().toISOString(),
+      plume_shipping_decided_by:     auth.userId,
+    })
+    .eq('id', params.ticketId)
+
+  if (updateError) {
+    return { error: { _form: [`Erreur lors de l'enregistrement (${updateError.message})`] } }
+  }
+
+  // Trace audit interne — `plume_only` pour ne pas polluer le fil client/école.
+  await supabase.from('ticket_messages').insert({
+    ticket_id:        params.ticketId,
+    sender_id:        auth.userId,
+    sender_role:      'plume_admin' as MessageSenderRole,
+    content:          params.approved
+      ? "[Validation Plume HQ] Envoi postal autorisé — le client peut générer son bon de transport."
+      : `[Refus Plume HQ] Envoi postal refusé.\nMotif : ${params.refusalReason ?? '—'}`,
+    is_internal:      true,
+    visibility_level: 'plume_only',
+  })
+
+  // Notif client — best-effort, ne bloque pas la réponse de l'action.
+  try {
+    if (params.approved) {
+      await notifyClientOnPlumeShippingApproved(supabase, params.ticketId)
+    } else {
+      await notifyClientOnPlumeShippingRefused(supabase, params.ticketId, params.refusalReason)
+    }
+  } catch (e) {
+    console.warn('[applyPlumeShippingDecision] notif threw:', e)
+  }
+
+  revalidatePath('/plume')
+  revalidatePath(`/client/ticket/${params.ticketId}`)
+  revalidatePath(`/school/ticket/${params.ticketId}`)
+  // Layout — bump le badge notif côté client.
+  revalidatePath('/client', 'layout')
+  return { success: true as const }
+}
+
+export async function adminApproveClientShippingAction(formData: FormData) {
+  const parsed = adminApproveClientShippingSchema.safeParse({
+    ticketId: formData.get('ticketId'),
+  })
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors }
+  return applyPlumeShippingDecision({
+    ticketId:      parsed.data.ticketId,
+    approved:      true,
+    refusalReason: null,
+  })
+}
+
+export async function adminRefuseClientShippingAction(formData: FormData) {
+  const parsed = adminRefuseClientShippingSchema.safeParse({
+    ticketId: formData.get('ticketId'),
+    reason:   formData.get('reason'),
+  })
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors }
+  return applyPlumeShippingDecision({
+    ticketId:      parsed.data.ticketId,
+    approved:      false,
+    refusalReason: parsed.data.reason,
+  })
 }
 
