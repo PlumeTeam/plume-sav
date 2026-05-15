@@ -7,8 +7,13 @@
 // balancer le texte brut.
 
 export interface ParsedClientDescription {
-  /** Comportements de l'aile signalés au wizard (libellés en clair, joints). */
+  /** Comportements de l'aile signalés au wizard (libellés en clair, joints).
+   *  Conservé pour rétrocompat — préférer `behaviorList` pour un rendu carte
+   *  par carte avec sévérité par comportement. */
   behaviors:      string | null
+  /** Liste des comportements signalés (un libellé court par item, sans le
+   *  joining par virgule). Vide si aucun comportement signalé. */
+  behaviorList:   string[]
   /** Lignes "label : valeur" de la section [Historique aile]. Conservées
    *  dans leur ordre de saisie pour cohérence avec le wizard. */
   history:        Array<{ label: string; value: string }>
@@ -24,7 +29,7 @@ const HISTORY_LINE_RE = /^\s*•\s*([^:]+?)\s*:\s*(.+?)\s*$/
 
 export function parseClientDescription(description: string | null): ParsedClientDescription {
   if (!description) {
-    return { behaviors: null, history: [], freeText: '' }
+    return { behaviors: null, behaviorList: [], history: [], freeText: '' }
   }
 
   // Coupe le bloc structuré du texte libre. Si aucun séparateur n'est trouvé,
@@ -35,6 +40,7 @@ export function parseClientDescription(description: string | null): ParsedClient
   const freeText      = sepIdx >= 0 ? description.slice(sepIdx + SEPARATOR.length).trim() : description.trim()
 
   let behaviors: string | null = null
+  let behaviorList: string[] = []
   const history: Array<{ label: string; value: string }> = []
 
   if (metadataBlock) {
@@ -44,7 +50,11 @@ export function parseClientDescription(description: string | null): ParsedClient
       const line = raw.trimEnd()
 
       if (line.startsWith('[Comportements]')) {
-        behaviors = line.replace('[Comportements]', '').trim() || null
+        const joined = line.replace('[Comportements]', '').trim()
+        behaviors = joined || null
+        behaviorList = joined
+          ? joined.split(/,\s*/).map((s) => s.trim()).filter(Boolean)
+          : []
         inHistory = false
         continue
       }
@@ -71,5 +81,5 @@ export function parseClientDescription(description: string | null): ParsedClient
     }
   }
 
-  return { behaviors, history, freeText }
+  return { behaviors, behaviorList, history, freeText }
 }

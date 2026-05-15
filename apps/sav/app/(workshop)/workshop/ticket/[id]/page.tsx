@@ -546,7 +546,7 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                 </>
               }
               client={
-                <ClientDeclarationPanel ticket={ticket} showWing showPhotos />
+                <ClientDeclarationPanel ticket={ticket} showWing showPhotos showClientContact />
               }
             />
           }
