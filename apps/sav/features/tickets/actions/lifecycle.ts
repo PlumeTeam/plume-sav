@@ -23,6 +23,7 @@ import { closeTicketSchema } from '../schemas'
 import { sendClientStepUpdateEmail, type ClientStepEmail, type TicketEmailContext } from '../email'
 import { requestStatusToSavStatus } from './_helpers'
 import { advanceTicketStep } from './_step-advance'
+import { notifyClientOnTicketClosed } from '@/features/notifications/sav-events'
 
 export async function acknowledgeTicketAction(formData: FormData) {
   const ticketId = String(formData.get('ticketId') ?? '')
@@ -225,6 +226,13 @@ export async function closeTicketAction(formData: FormData) {
     }
   }
 
+  // Notif in-app client : ticket clôturé.
+  try {
+    await notifyClientOnTicketClosed(supabase, ticketId)
+  } catch (e) {
+    console.warn('[closeTicketAction] in-app notif threw:', e)
+  }
+
   revalidatePath(`/client/ticket/${ticketId}`)
   revalidatePath(`/school/ticket/${ticketId}`)
   revalidatePath(`/workshop/ticket/${ticketId}`)
@@ -232,6 +240,7 @@ export async function closeTicketAction(formData: FormData) {
   revalidatePath('/school')
   revalidatePath('/workshop')
   revalidatePath('/plume')
+  revalidatePath('/client', 'layout')
 
   return {
     success:      true as const,

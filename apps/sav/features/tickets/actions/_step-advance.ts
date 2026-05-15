@@ -4,6 +4,26 @@ import { sendClientStepUpdateEmail, type ClientStepEmail, type TicketEmailContex
 import type { RequestStatus, TicketStatus, TicketUpdate } from '../types'
 import { getPartnerSchoolById } from '../queries'
 import { requestStatusToSavStatus } from './_helpers'
+import {
+  notifyClientOnEscalatedToWorkshop,
+  notifyClientOnWingReceivedSchool,
+  notifyClientOnWingReturned,
+} from '@/features/notifications/sav-events'
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+// Mapping emailStep → helper de notif in-app. Seules les transitions
+// "intéressantes pour le client" déclenchent une notif. Les étapes purement
+// internes (school_acknowledged…) restent silencieuses pour ne pas spammer.
+const NOTIFY_CLIENT_BY_STEP: Partial<Record<
+  ClientStepEmail,
+  (supabase: SupabaseClient, ticketId: string) => Promise<void>
+>> = {
+  wing_received_school:   notifyClientOnWingReceivedSchool,
+  escalated_to_workshop:  notifyClientOnEscalatedToWorkshop,
+  wing_returned:          notifyClientOnWingReturned,
+  // Les autres étapes (school_checking, school_resolved, workshop_diagnosing…)
+  // restent silencieuses faute de helper dédié. À étendre quand nécessaire.
+}
 
 // ============================================================
 // Pipeline d'Ã©tapes SAV (migration 20260509000000)
@@ -134,6 +154,19 @@ export async function advanceTicketStep(args: AdvanceArgs) {
     }
   }
 
+  // Notification in-app pour le client (best-effort, parallèle à l'email).
+  // Mapping emailStep → helper ; les étapes sans helper restent silencieuses.
+  if (emailStep) {
+    const notifier = NOTIFY_CLIENT_BY_STEP[emailStep]
+    if (notifier) {
+      try {
+        await notifier(supabase, ticketId)
+      } catch (e) {
+        console.warn(`[advanceTicketStep] in-app notif "${emailStep}" threw:`, e)
+      }
+    }
+  }
+
   // Revalidation des pages susceptibles d'afficher ce ticket.
   revalidatePath(`/client/ticket/${ticketId}`)
   revalidatePath(`/school/ticket/${ticketId}`)
@@ -142,6 +175,9 @@ export async function advanceTicketStep(args: AdvanceArgs) {
   revalidatePath('/school')
   revalidatePath('/workshop')
   revalidatePath('/plume')
+  // Layout-level : badge NotificationsNavButton doit recompter après la
+  // transition (+1 unread côté client si une notif a été créée).
+  revalidatePath('/client', 'layout')
 
   return { success: true as const, previousStatus: current.status }
 }

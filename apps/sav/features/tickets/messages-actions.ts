@@ -4,6 +4,7 @@
 // Lives outside actions.ts to keep that file under control — actions.ts
 // already exceeds the 300-line house rule.
 
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 
 /**
@@ -32,5 +33,10 @@ export async function markTicketReadByClientAction(
     console.warn('markTicketReadByClientAction failed:', error.message)
     return { error: error.message }
   }
+
+  // Invalide le RSC cache du layout pour que le NotificationsNavButton
+  // recompte le badge. Sans ça, le point rouge restait affiché tant que
+  // l'utilisateur ne forçait pas un refresh (bug signalé par JB).
+  revalidatePath('/client', 'layout')
   return { ok: true }
 }

@@ -33,6 +33,7 @@ import { computeRepairDecision, computeWarrantyStatus } from '../utils'
 import { getPreCheckFeeEur } from '@/features/settings/queries'
 import { requestStatusToSavStatus } from './_helpers'
 import { advanceTicketStep } from './_step-advance'
+import { notifyClientOnWorkshopDecision } from '@/features/notifications/sav-events'
 
 /**
  * Persiste un rapport de révision uploadé par l'atelier sur un ticket
@@ -633,10 +634,18 @@ export async function submitWorkshopDecisionAction(formData: FormData) {
     }
   }
 
+  // Notif in-app client : diagnostic posé par l'atelier.
+  try {
+    await notifyClientOnWorkshopDecision(supabase, ticketId, decision)
+  } catch (e) {
+    console.warn('[submitWorkshopDecisionAction] in-app notif threw:', e)
+  }
+
   revalidatePath(`/workshop/ticket/${ticketId}`)
   revalidatePath(`/school/ticket/${ticketId}`)
   revalidatePath(`/client/ticket/${ticketId}`)
   revalidatePath('/plume')
+  revalidatePath('/client', 'layout')
 
   return { success: true, decision, threshold: effectiveThreshold }
 }

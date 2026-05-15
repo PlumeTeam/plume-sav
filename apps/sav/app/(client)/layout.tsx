@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { logoutAction } from '@/features/auth/actions'
 import { PlumeLogo } from '@/app/_components/PlumeLogo'
 import { getCurrentUser, getCurrentUserRoles } from '@/features/auth/queries'
-import { MessagesNavButton } from './_components/MessagesNavButton'
+import { NotificationsNavButton } from './_components/NotificationsNavButton'
 
 export default async function ClientLayout({ children }: { children: React.ReactNode }) {
   const [user, roles] = await Promise.all([getCurrentUser(), getCurrentUserRoles()])
@@ -25,7 +25,7 @@ export default async function ClientLayout({ children }: { children: React.React
             <PlumeLogo size="sm" variant="light" withWordmark />
           </Link>
           <nav className="ml-auto flex items-center gap-1">
-            <MessagesNavButton />
+            <NotificationsNavButton />
             {multiRole && (
               <Link
                 href="/select-dashboard"

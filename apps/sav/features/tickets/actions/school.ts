@@ -28,6 +28,11 @@ import {
   requestStatusToSavStatus,
   resolutionToRequestStatus,
 } from './_helpers'
+import {
+  notifyClientOnEscalatedToWorkshop,
+  notifyClientOnShippingApproved,
+  notifyClientOnShippingRefused,
+} from '@/features/notifications/sav-events'
 import { advanceTicketStep } from './_step-advance'
 
 export async function saveDiagnosisAction(formData: FormData) {
@@ -239,12 +244,24 @@ export async function applySchoolResolutionAction(formData: FormData) {
     }
   }
 
+  // Notification in-app client si escalade vers atelier (l'email school_resolved
+  // étant déjà couvert plus haut, on garde la cohérence : in-app pour les
+  // étapes "visibles client" — escalade = grand changement, ça mérite une notif).
+  if (resolution === 'escalated_to_workshop') {
+    try {
+      await notifyClientOnEscalatedToWorkshop(supabase, ticketId)
+    } catch (e) {
+      console.warn('[applySchoolResolutionAction] in-app notif threw:', e)
+    }
+  }
+
   revalidatePath(`/school/ticket/${ticketId}`)
   revalidatePath(`/workshop/ticket/${ticketId}`)
   revalidatePath(`/client/ticket/${ticketId}`)
   revalidatePath('/school')
   revalidatePath('/workshop')
   revalidatePath('/plume')
+  revalidatePath('/client', 'layout')
   return { success: true }
 }
 
@@ -336,11 +353,21 @@ async function applyShippingDecision(params: {
     return { error: { _form: [`Erreur lors de l'enregistrement (${updateError.message})`] } }
   }
 
+  // Notif client : BAT validé → success ; BAT refusé → warning + reason.
+  // Best-effort, ne bloque pas le retour de l'action en cas d'erreur RLS.
+  if (params.approved) {
+    await notifyClientOnShippingApproved(supabase, params.ticketId)
+  } else {
+    await notifyClientOnShippingRefused(supabase, params.ticketId, params.refusalReason)
+  }
+
   revalidatePath(`/school/ticket/${params.ticketId}`)
   revalidatePath(`/client/ticket/${params.ticketId}`)
   revalidatePath('/school')
   revalidatePath('/client')
   revalidatePath('/plume')
+  // Layout : NotificationsNavButton côté client doit refléter +1 notif.
+  revalidatePath('/client', 'layout')
   return { success: true as const }
 }
 

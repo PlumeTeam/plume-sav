@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { getTicketDetail, getPartnerSchoolById } from '@/features/tickets/queries'
 import { markTicketReadByClientAction } from '@/features/tickets/messages-actions'
 import { markTicketReadByPlumeAction } from '@/features/tickets/messages-actions-plume'
+import { markTicketNotificationsReadAction } from '@/features/notifications/actions'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { ClientJourneyTimeline } from '@/features/tickets/components/ClientJourneyTimeline'
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
@@ -35,10 +36,14 @@ export default async function TicketDetailPage({ params }: PageProps) {
   const ticket = await getTicketDetail(params.id)
   if (!ticket) notFound()
 
-  // Best-effort mark-as-read for both client and (if applicable) plume admin.
+  // Best-effort mark-as-read sur les 3 sources :
+  //   - client_last_read_at (legacy messages)
+  //   - plume_last_read_at (idem admin)
+  //   - notifications.read (système unifié → vide le badge nav 🔔)
   await Promise.all([
     markTicketReadByClientAction(ticket.id),
     markTicketReadByPlumeAction(ticket.id),
+    markTicketNotificationsReadAction(ticket.id),
   ])
 
   const school = ticket.referent_school_id

@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { getTicketDetail, getPartnerSchoolById } from '@/features/tickets/queries'
 import { markTicketReadByClientAction } from '@/features/tickets/messages-actions'
 import { markTicketReadByPlumeAction } from '@/features/tickets/messages-actions-plume'
+import { markTicketNotificationsReadAction } from '@/features/notifications/actions'
 import { CommentThread } from '@/features/tickets/components/CommentThread'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { filterMessagesForRole } from '@/features/tickets/channels'
@@ -16,10 +17,15 @@ export default async function ClientConversationPage({ params }: PageProps) {
   const ticket = await getTicketDetail(params.id)
   if (!ticket) notFound()
 
-  // Same mark-as-read pattern as the full ticket page.
+  // Mark-as-read : on couvre les 3 sources de "non lu" pour ce ticket :
+  //   - client_last_read_at (legacy : compteur messages depuis ce timestamp)
+  //   - plume_last_read_at (idem pour admin)
+  //   - notifications.read (système unifié — vide le badge nav)
+  // Best-effort : un échec sur l'un n'empêche pas les autres ni le rendu.
   await Promise.all([
     markTicketReadByClientAction(ticket.id),
     markTicketReadByPlumeAction(ticket.id),
+    markTicketNotificationsReadAction(ticket.id),
   ])
 
   const school = ticket.referent_school_id

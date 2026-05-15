@@ -30,6 +30,7 @@ import {
 } from '../channels'
 import { sendClientStepUpdateEmail, type ClientStepEmail, type TicketEmailContext } from '../email'
 import { requestStatusToSavStatus } from './_helpers'
+import { notifyClientOnIncomingMessage } from '@/features/notifications/sav-events'
 
 export async function addMessageAction(formData: FormData) {
   const parsed = addMessageSchema.safeParse({
@@ -213,9 +214,21 @@ export async function addRoleMessageAction(formData: FormData) {
 
   if (error) return { error: { _form: [`Erreur lors de l'envoi (${error.message})`] } }
 
+  // Best-effort : notifie le client si le message lui est visible et qu'il
+  // n'en est pas l'auteur. Le helper skip silencieusement les cas no-op.
+  await notifyClientOnIncomingMessage(
+    supabase,
+    ticketId,
+    senderRole,
+    (channel ?? null) as MessageChannel | null,
+  )
+
   revalidatePath(`/school/ticket/${ticketId}`)
   revalidatePath(`/workshop/ticket/${ticketId}`)
   revalidatePath(`/client/ticket/${ticketId}`)
+  // Layout-level invalidation : le NotificationsNavButton du layout doit
+  // recompter le badge à la prochaine navigation côté destinataire.
+  revalidatePath('/client', 'layout')
   return { success: true }
 }
 
@@ -285,9 +298,14 @@ export async function addChannelMessageAction(formData: FormData) {
     return { error: { _form: [`Erreur lors de l'envoi (${error.message})`] } }
   }
 
+  // Notifie le client si le canal lui est visible et que ce n'est pas lui
+  // qui poste. Helper interne skip auto-message / canal interne staff.
+  await notifyClientOnIncomingMessage(supabase, ticketId, senderRole, channel as MessageChannel)
+
   revalidatePath(`/workshop/ticket/${ticketId}`)
   revalidatePath(`/school/ticket/${ticketId}`)
   revalidatePath(`/client/ticket/${ticketId}`)
   revalidatePath(`/plume/messages/${ticketId}`)
+  revalidatePath('/client', 'layout')
   return { success: true }
 }
