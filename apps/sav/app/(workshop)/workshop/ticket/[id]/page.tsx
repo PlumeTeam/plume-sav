@@ -13,17 +13,17 @@ import { readSchoolCheckInspector, readSchoolCheckPayload } from '@/features/tic
 import { SchoolCheckSummary } from '@/features/tickets/inspection/SchoolCheckSummary'
 import { WorkshopDiagnosticChecklist } from '@/features/tickets/components/WorkshopDiagnosticChecklist'
 import { readWorkshopChecklist } from '@/features/tickets/workshop-checklist'
-import { formatDate, formatDateTime } from '@/features/tickets/utils'
+import { formatAge, formatDate, formatDateTime, resolveWarrantyTierForDisplay } from '@/features/tickets/utils'
+import { WarrantyTierBadge } from '@/features/tickets/components/WarrantyTierBadge'
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
 import { CloseTicketButton } from '@/features/tickets/components/CloseTicketButton'
 import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
+import { RevisionReportUploader } from '@/features/tickets/components/RevisionReportUploader'
 import { WorkshopActionBar } from './WorkshopActionBar'
 import { WorkshopStepPanel } from './WorkshopStepPanel'
 import { WorkshopTicketTabs } from './WorkshopTicketTabs'
 import { DiagnosticViewSwitcher } from './DiagnosticViewSwitcher'
-import { parseClientDescription } from './parseClientDescription'
-import { ClientHistorySummary } from './ClientHistorySummary'
-import { PROBLEM_CATEGORIES } from '@/features/tickets/types'
+import { ClientDeclarationPanel } from '@/features/tickets/components/ClientDeclarationPanel'
 import type { CloserRole, ClosureOutcome, TicketMessage, WarrantyStatus, WarrantyTier, WorkshopDecision, WorkshopReturnDestination } from '@/features/tickets/types'
 
 // Garantie : 2 ans à compter de la date d'achat (politique Plume Paragliders).
@@ -109,19 +109,13 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
   // un payload structuré. Les anciens checks (notes en clair) tombent en null.
   const schoolCheckPayload = readSchoolCheckPayload(ticket.school_checklist)
 
-  // Déclaration client parsée — extrait l'historique aile (water, surface,
-  // tree, condition…) et le texte libre depuis la `description` riche
-  // construite par createTicketAction. Utilisé par la vue "Client" du
-  // DiagnosticViewSwitcher pour rendre des cartes structurées au lieu du
-  // texte brut avec balises `[Section]`.
-  const parsedClient = parseClientDescription(ticket.description)
-  const clientCategory = ticket.problem_category
-    ? PROBLEM_CATEGORIES.find((c) => c.value === ticket.problem_category)
-    : null
-
   // Garantie aile = 2 ans à compter de purchase_date. Null si la date n'a pas
   // été remplie au moment de la demande.
   const warranty = computeWarranty(ticket.purchase_date)
+  // Tier 4-niveaux (cohérent avec le reste du SAV). Respecte warranty_tier
+  // figé sur le ticket, sinon retombe sur le calcul purchase_date.
+  const ticketWarrantyTier = resolveWarrantyTierForDisplay(ticket.warranty_tier, ticket.purchase_date)
+  const wingAge = formatAge(ticket.purchase_date)
 
   // Nom client formaté (prénom + nom) ou fallback.
   const clientName = [ticket.first_name, ticket.last_name].filter(Boolean).join(' ') || '—'
@@ -174,7 +168,10 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
               {ticket.product_brand} {ticket.product_model}
             </p>
           </div>
-          <StatusBadge status={ticket.status} size="sm" />
+          <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
+            <WarrantyTierBadge tier={ticketWarrantyTier} size="sm" compact />
+            <StatusBadge status={ticket.status} size="sm" />
+          </div>
         </div>
       </header>
 
@@ -193,43 +190,43 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
         <section className="card grid grid-cols-1 gap-x-5 gap-y-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
           {/* ─── Expédition ─────────────────────────────────────────────── */}
           <div className="min-w-0">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
               Expédition
             </p>
             {ticket.school_workshop_tracking ? (
-              <div className="space-y-0.5 text-sm text-brand-ink">
+              <div className="space-y-1 text-sm text-brand-ink">
                 <p className="flex items-center gap-1.5">
                   <span aria-hidden>📦</span>
-                  <span>Transporteur GLS</span>
+                  <span className="font-medium">Transporteur GLS</span>
                 </p>
-                <p className="break-all font-mono text-[11px] text-slate-500">
+                <p className="break-all font-mono text-xs text-slate-500">
                   {ticket.school_workshop_tracking}
                 </p>
                 <a
                   href={buildGlsTrackingUrl(ticket.school_workshop_tracking)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-block text-xs font-medium text-brand-gold hover:underline"
+                  className="inline-block text-xs font-semibold text-brand-gold hover:underline"
                 >
                   Suivre →
                 </a>
                 {ticket.wing_received_workshop_at && (
-                  <p className="text-[11px] text-emerald-700">
+                  <p className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
                     ✓ Reçue le {formatDate(ticket.wing_received_workshop_at)}
                   </p>
                 )}
               </div>
             ) : ticket.escalated_to_workshop_at ? (
-              <div className="space-y-0.5 text-sm text-brand-ink">
+              <div className="space-y-1 text-sm text-brand-ink">
                 <p className="flex items-center gap-1.5">
                   <span aria-hidden>🤝</span>
-                  <span>Remise en main propre</span>
+                  <span className="font-medium">Remise en main propre</span>
                 </p>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-xs text-slate-500">
                   Escaladée le {formatDate(ticket.escalated_to_workshop_at)}
                 </p>
                 {ticket.wing_received_workshop_at && (
-                  <p className="text-[11px] text-emerald-700">
+                  <p className="inline-block rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
                     ✓ Reçue le {formatDate(ticket.wing_received_workshop_at)}
                   </p>
                 )}
@@ -241,31 +238,32 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
 
           {/* ─── École partenaire ───────────────────────────────────────── */}
           <div className="min-w-0">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
               École
             </p>
             {school ? (
-              <div className="space-y-0.5 text-sm text-brand-ink">
-                <p className="truncate font-medium">{school.name}</p>
+              <div className="space-y-1 text-sm text-brand-ink">
+                <p className="truncate font-semibold">{school.name}</p>
                 {(school.city || school.region) && (
-                  <p className="truncate text-[11px] text-slate-500">
+                  <p className="truncate text-xs text-slate-500">
                     {[school.city, school.region].filter(Boolean).join(' · ')}
                   </p>
                 )}
                 {school.email && (
                   <a
                     href={`mailto:${school.email}`}
-                    className="block truncate text-[11px] text-brand-gold hover:underline"
+                    className="block truncate text-xs text-brand-gold hover:underline"
+                    title={school.email}
                   >
-                    {school.email}
+                    ✉ {school.email}
                   </a>
                 )}
                 {school.phone && (
                   <a
                     href={`tel:${school.phone.replace(/\s+/g, '')}`}
-                    className="block truncate text-[11px] text-brand-gold hover:underline"
+                    className="block truncate text-xs text-brand-gold hover:underline"
                   >
-                    {school.phone}
+                    📞 {school.phone}
                   </a>
                 )}
               </div>
@@ -276,25 +274,26 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
 
           {/* ─── Client final ──────────────────────────────────────────── */}
           <div className="min-w-0">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
               Client
             </p>
-            <div className="space-y-0.5 text-sm text-brand-ink">
-              <p className="truncate font-medium">{clientName}</p>
+            <div className="space-y-1 text-sm text-brand-ink">
+              <p className="truncate font-semibold">{clientName}</p>
               {ticket.email && (
                 <a
                   href={`mailto:${ticket.email}`}
-                  className="block truncate text-[11px] text-brand-gold hover:underline"
+                  className="block truncate text-xs text-brand-gold hover:underline"
+                  title={ticket.email}
                 >
-                  {ticket.email}
+                  ✉ {ticket.email}
                 </a>
               )}
               {ticket.phone && (
                 <a
                   href={`tel:${ticket.phone.replace(/\s+/g, '')}`}
-                  className="block truncate text-[11px] text-brand-gold hover:underline"
+                  className="block truncate text-xs text-brand-gold hover:underline"
                 >
-                  {ticket.phone}
+                  📞 {ticket.phone}
                 </a>
               )}
             </div>
@@ -302,29 +301,34 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
 
           {/* ─── Aile ──────────────────────────────────────────────────── */}
           <div className="min-w-0">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
               Aile
             </p>
-            <div className="space-y-0.5 text-sm text-brand-ink">
-              <p className="truncate font-medium">
+            <div className="space-y-1 text-sm text-brand-ink">
+              <p className="truncate font-semibold">
                 {[ticket.product_brand, ticket.product_model].filter(Boolean).join(' ') || '—'}
               </p>
-              <p className="truncate text-[11px] text-slate-500">
+              <p className="truncate text-xs text-slate-500">
                 {[
                   ticket.wing_size && `Taille ${ticket.wing_size}`,
                   ticket.wing_color,
                 ].filter(Boolean).join(' · ') || '—'}
               </p>
               {ticket.serial_number && (
-                <p className="break-all font-mono text-[11px] text-slate-500">
+                <p className="break-all font-mono text-xs text-slate-500">
                   S/N {ticket.serial_number}
                 </p>
               )}
-              {warranty && (
-                <div className="pt-0.5">
-                  <WarrantyBadge warranty={warranty} />
-                </div>
+              {ticket.purchase_date && (
+                <p className="text-xs text-slate-500">
+                  Achetée le {formatDate(ticket.purchase_date)}
+                  {wingAge && <span className="text-slate-400"> — {wingAge}</span>}
+                </p>
               )}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <WarrantyTierBadge tier={ticketWarrantyTier} size="sm" compact />
+                {warranty && <WarrantyBadge warranty={warranty} />}
+              </div>
             </div>
           </div>
         </section>
@@ -464,6 +468,26 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                     )}
                   </section>
 
+                  {/* Rapport de révision — uniquement pour les tickets dont le
+                      client a demandé un contrôle/révision (request_type='inspection').
+                      Le fichier est attaché au carnet d'entretien de l'aile via le ticket. */}
+                  {ticket.request_type === 'inspection' && (
+                    <section className="card p-5">
+                      <h2 className="section-title mb-3">Rapport de révision</h2>
+                      <p className="mb-4 text-sm text-slate-600">
+                        Uploadez ici le rapport de contrôle/révision (PDF, image ou document).
+                        Il sera attaché au carnet d&apos;entretien de l&apos;aile et visible
+                        du client comme de Plume HQ.
+                      </p>
+                      <RevisionReportUploader
+                        ticketId={ticket.id}
+                        initialPath={ticket.revision_report_path}
+                        initialFilename={ticket.revision_report_filename}
+                        initialUploadedAt={ticket.revision_report_uploaded_at}
+                      />
+                    </section>
+                  )}
+
                   {/* Pré-check : trace des observations + tarif figé (facturé à Plume) */}
                   {ticket.pre_check_observations && (
                     <section className="card p-5">
@@ -522,101 +546,7 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                 </>
               }
               client={
-                <div className="space-y-4">
-                  {/* Bandeau verdict + Historique aile : pattern identique à
-                      SchoolCheckSummary (même atomes Severity / SummarySection
-                      / SummaryRow / VerdictBanner). */}
-                  {parsedClient.history.length > 0 ? (
-                    <ClientHistorySummary history={parsedClient.history} />
-                  ) : (
-                    <div className="rounded-2xl border border-dashed border-brand-stone bg-white p-4 text-center">
-                      <p className="text-sm text-slate-500">
-                        Le pilote n&apos;a pas renseigné d&apos;historique pour cette aile.
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Problème signalé — badges catégorie/urgence + texte libre +
-                      comportements. Carte au style école (rounded-2xl border
-                      brand-stone bg-white p-4). */}
-                  <section className="rounded-2xl border border-brand-stone bg-white p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-brand-navy/70">
-                      Problème signalé
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {clientCategory && (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
-                          <span aria-hidden>{clientCategory.emoji}</span>
-                          {clientCategory.label}
-                        </span>
-                      )}
-                      {ticket.urgency_level === 2 && (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700 ring-1 ring-red-200">
-                          🚨 Urgent
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-3">
-                      {parsedClient.freeText ? (
-                        <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">
-                          {parsedClient.freeText}
-                        </p>
-                      ) : (
-                        <p className="text-sm italic text-slate-500">
-                          Le pilote n&apos;a pas rédigé de description libre.
-                        </p>
-                      )}
-                    </div>
-                    {parsedClient.behaviors && (
-                      <div className="mt-3 rounded-xl bg-brand-cream/60 px-3 py-2">
-                        <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
-                          Comportements signalés
-                        </p>
-                        <p className="mt-1 text-sm text-brand-ink">{parsedClient.behaviors}</p>
-                      </div>
-                    )}
-                  </section>
-
-                  {/* Aile concernée — carte au style école, grille label/valeur. */}
-                  <section className="rounded-2xl border border-brand-stone bg-white p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-brand-navy/70">
-                      Aile concernée
-                    </p>
-                    <dl className="mt-3 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-                      <ClientField
-                        label="Marque / Modèle"
-                        value={[ticket.product_brand, ticket.product_model].filter(Boolean).join(' ') || null}
-                      />
-                      <ClientField label="Taille" value={ticket.wing_size} />
-                      <ClientField label="Couleur" value={ticket.wing_color} />
-                      <ClientField label="N° de série" value={ticket.serial_number} mono />
-                      <ClientField
-                        label="Date d'achat"
-                        value={ticket.purchase_date ? formatDate(ticket.purchase_date) : null}
-                      />
-                      <ClientField
-                        label="Heures de vol (estim.)"
-                        value={ticket.flight_hours_estimate != null ? `${ticket.flight_hours_estimate} h` : null}
-                      />
-                    </dl>
-                  </section>
-
-                  {/* Photos uploadées par le client à la création du ticket. */}
-                  {ticket.ticket_photos.length > 0 ? (
-                    <section className="rounded-2xl border border-brand-stone bg-white p-4">
-                      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-brand-navy/70">
-                        Photos du client ({ticket.ticket_photos.length})
-                      </p>
-                      <PhotoLightbox photos={ticket.ticket_photos} />
-                    </section>
-                  ) : (
-                    <div className="rounded-2xl border border-dashed border-brand-stone bg-white p-4 text-center">
-                      <p className="text-sm text-slate-500">
-                        Le client n&apos;a pas joint de photo à sa demande.
-                      </p>
-                    </div>
-                  )}
-                </div>
+                <ClientDeclarationPanel ticket={ticket} showWing showPhotos showClientContact />
               }
             />
           }
@@ -678,19 +608,6 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
           }
         />
       </main>
-    </div>
-  )
-}
-
-// Champ label/valeur dans la grille "Aile concernée" de la vue Client.
-// `null` collapse l'item entier — on n'affiche pas un dash pour les champs
-// non renseignés (le pilote peut légitimement ignorer la taille ou la couleur).
-function ClientField({ label, value, mono }: { label: string; value: string | null; mono?: boolean }) {
-  if (!value) return null
-  return (
-    <div>
-      <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</dt>
-      <dd className={`text-sm text-brand-ink ${mono ? 'font-mono' : ''}`}>{value}</dd>
     </div>
   )
 }

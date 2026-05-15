@@ -3,8 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUserRoles } from '@/features/auth/queries'
-import { PARTNER_WORKSHOPS } from '../constants'
-import { getPartnerSchoolById } from '../queries'
+import { getPartnerSchoolById, getPartnerWorkshopById } from '../queries'
 import type {
   ClientShippingAddress,
   MessageSenderRole,
@@ -41,9 +40,10 @@ export async function assignWorkshopForCommunicationAction(formData: FormData) {
 
   const { ticketId, workshopId, workshopLabel } = parsed.data
 
-  // Garde-fou : workshopId doit Ãªtre dans PARTNER_WORKSHOPS (anti-forge).
-  if (!PARTNER_WORKSHOPS.some((w) => w.id === workshopId)) {
-    return { error: { _form: ["Atelier inconnu â€” choisissez un atelier du rÃ©seau partenaire"] } }
+  // Garde-fou : workshopId doit correspondre à une row partner_workshops (anti-forge).
+  const ws = await getPartnerWorkshopById(workshopId)
+  if (!ws) {
+    return { error: { _form: ["Atelier inconnu — choisissez un atelier du réseau partenaire"] } }
   }
 
   const now = new Date().toISOString()

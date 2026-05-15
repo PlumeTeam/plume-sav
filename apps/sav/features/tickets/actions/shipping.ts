@@ -1,10 +1,10 @@
 ﻿'use server'
 
 import { revalidatePath } from 'next/cache'
+import type { Json } from '@plume/db'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUserRoles } from '@/features/auth/queries'
-import { PARTNER_WORKSHOPS } from '../constants'
-import { getPartnerSchoolById } from '../queries'
+import { getPartnerSchoolById, getPartnerWorkshopById } from '../queries'
 import type {
   ClientShippingAddress,
   MessageSenderRole,
@@ -117,9 +117,9 @@ function resolveSchoolAddress(detail: {
   }
 }
 
-function resolveWorkshopAddress(workshopId: string | null, label: string | null): ResolvedAddress | null {
+async function resolveWorkshopAddress(workshopId: string | null, label: string | null): Promise<ResolvedAddress | null> {
   if (!workshopId) return null
-  const w = PARTNER_WORKSHOPS.find((x) => x.id === workshopId)
+  const w = await getPartnerWorkshopById(workshopId)
   if (!w) {
     return label ? {
       name:    label,
@@ -136,7 +136,7 @@ function resolveWorkshopAddress(workshopId: string | null, label: string | null)
     postal:  null,
     city:    w.city,
     country: 'FR',
-    rawLine: `${w.label} â€” ${w.address}`,
+    rawLine: `${w.label}${w.address ? ` — ${w.address}` : ''}`,
   }
 }
 
@@ -263,8 +263,8 @@ export async function generateSavShippingLabelAction(formData: FormData): Promis
         .from('service_requests')
         .update({
           auto_approved_shipping:   false,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          client_shipping_address:  finalAddress as any,
+          // ClientShippingAddress has no index signature → cast via unknown to Json.
+          client_shipping_address:  finalAddress as unknown as Json,
         })
         .eq('id', ticketId)
       if (flagError) {
@@ -286,7 +286,7 @@ export async function generateSavShippingLabelAction(formData: FormData): Promis
     if (!schoolAddress) {
       return { error: { _form: ['Adresse de l\'Ã©cole introuvable'] } }
     }
-    const workshopAddr = resolveWorkshopAddress(ticket.assigned_workshop_id, ticket.assigned_workshop_label)
+    const workshopAddr = await resolveWorkshopAddress(ticket.assigned_workshop_id, ticket.assigned_workshop_label)
     if (!workshopAddr) {
       return { error: { _form: ["Aucun atelier assignÃ© Ã  ce ticket"] } }
     }
@@ -299,7 +299,7 @@ export async function generateSavShippingLabelAction(formData: FormData): Promis
     if (!dest) {
       return { error: { _form: ['PrÃ©cisez la destination du renvoi (Ã©cole ou client)'] } }
     }
-    const workshopAddr = resolveWorkshopAddress(ticket.assigned_workshop_id, ticket.assigned_workshop_label)
+    const workshopAddr = await resolveWorkshopAddress(ticket.assigned_workshop_id, ticket.assigned_workshop_label)
     if (!workshopAddr) {
       return { error: { _form: ["Atelier source introuvable pour ce ticket"] } }
     }
@@ -333,8 +333,7 @@ export async function generateSavShippingLabelAction(formData: FormData): Promis
     update.client_school_label_url = labelUrl
     update.client_school_carrier   = 'GLS'
     if (addressToPersist) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(update as any).client_shipping_address = addressToPersist
+      update.client_shipping_address = addressToPersist as unknown as Json
     }
   } else if (leg === 'school_to_workshop') {
     update.school_workshop_tracking  = trackingNumber

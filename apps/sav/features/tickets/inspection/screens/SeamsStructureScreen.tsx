@@ -2,13 +2,13 @@
 
 import { InspectionPhotoField, type LocalInspectionPhoto } from '../InspectionPhotoField'
 import {
-  LINES_CONDITION_LABELS,
-  RISERS_CONDITION_LABELS,
-  YESNOIDK_LABELS,
   type LinesCondition,
   type Phase1,
   type RisersCondition,
   type YesNoIdk,
+  LINES_CONDITION_LABELS,
+  RISERS_CONDITION_LABELS,
+  YESNOIDK_LABELS,
 } from '../steps'
 import {
   Field,
@@ -18,35 +18,50 @@ import {
   ScreenLayout,
   SegmentedChoice,
   YesNoSelector,
-} from '../_shell'
+} from './_shared'
 
-export interface SeamsStructurePhotos {
-  openSeams: LocalInspectionPhoto[]
-  lines:     LocalInspectionPhoto[]
-  maillons:  LocalInspectionPhoto[]
-  risers:    LocalInspectionPhoto[]
-}
-
-export interface SeamsStructureScreenProps {
-  phase1:      Phase1
-  setPhase1:   (p: Phase1) => void
-  photos:      SeamsStructurePhotos
-  addPhoto:    (slot: keyof SeamsStructurePhotos, p: LocalInspectionPhoto) => void
-  removePhoto: (slot: keyof SeamsStructurePhotos, id: string) => void
-  valid:       boolean
-  onBack:      () => void
-  onNext:      () => void
+interface SeamsStructureScreenProps {
+  phase1:    Phase1
+  setPhase1: (next: Phase1) => void
+  photos: {
+    openSeams: LocalInspectionPhoto[]
+    lines:     LocalInspectionPhoto[]
+    maillons:  LocalInspectionPhoto[]
+    risers:    LocalInspectionPhoto[]
+  }
+  onAddOpenSeamsPhoto:    (p: LocalInspectionPhoto) => void
+  onRemoveOpenSeamsPhoto: (id: string) => void
+  onAddLinesPhoto:        (p: LocalInspectionPhoto) => void
+  onRemoveLinesPhoto:     (id: string) => void
+  onAddMaillonsPhoto:     (p: LocalInspectionPhoto) => void
+  onRemoveMaillonsPhoto:  (id: string) => void
+  onAddRisersPhoto:       (p: LocalInspectionPhoto) => void
+  onRemoveRisersPhoto:    (id: string) => void
+  isValid: boolean
+  onBack:  () => void
+  onNext:  () => void
 }
 
 export function SeamsStructureScreen({
-  phase1, setPhase1, photos, addPhoto, removePhoto, valid, onBack, onNext,
+  phase1, setPhase1, photos,
+  onAddOpenSeamsPhoto, onRemoveOpenSeamsPhoto,
+  onAddLinesPhoto, onRemoveLinesPhoto,
+  onAddMaillonsPhoto, onRemoveMaillonsPhoto,
+  onAddRisersPhoto, onRemoveRisersPhoto,
+  isValid, onBack, onNext,
 }: SeamsStructureScreenProps) {
   return (
     <ScreenLayout
       phase="Phase 1 — Inspection visuelle"
       title="Coutures et structure"
       subtitle="Vérifiez les points porteurs : coutures, suspentes, maillons, élévateurs."
-      footer={<NavButtons onBack={onBack} onNext={onNext} nextDisabled={!valid} />}
+      footer={
+        <NavButtons
+          onBack={onBack}
+          onNext={onNext}
+          nextDisabled={!isValid}
+        />
+      }
     >
       <Field label="Coutures ouvertes ?">
         <YesNoSelector
@@ -60,8 +75,8 @@ export function SeamsStructureScreen({
           <Field label="Photos des coutures concernées">
             <InspectionPhotoField
               photos={photos.openSeams}
-              onAdd={(p) => addPhoto('openSeams', p)}
-              onRemove={(id) => removePhoto('openSeams', id)}
+              onAdd={onAddOpenSeamsPhoto}
+              onRemove={onRemoveOpenSeamsPhoto}
             />
           </Field>
           <Field label="Description (optionnel si photos)">
@@ -95,8 +110,8 @@ export function SeamsStructureScreen({
           <Field label="Photos des suspentes">
             <InspectionPhotoField
               photos={photos.lines}
-              onAdd={(p) => addPhoto('lines', p)}
-              onRemove={(id) => removePhoto('lines', id)}
+              onAdd={onAddLinesPhoto}
+              onRemove={onRemoveLinesPhoto}
             />
           </Field>
           <Field label="Description (optionnel si photos)">
@@ -105,7 +120,7 @@ export function SeamsStructureScreen({
               onChange={(e) => setPhase1({ ...phase1, linesNote: e.target.value })}
               rows={3}
               maxLength={2000}
-              placeholder="Quelles suspentes, où, niveau d'usure observé…"
+              placeholder="Quelles suspentes, où, niveau d&apos;usure observé…"
               className="field-input resize-y"
             />
           </Field>
@@ -130,8 +145,8 @@ export function SeamsStructureScreen({
           <Field label="Photos des maillons">
             <InspectionPhotoField
               photos={photos.maillons}
-              onAdd={(p) => addPhoto('maillons', p)}
-              onRemove={(id) => removePhoto('maillons', id)}
+              onAdd={onAddMaillonsPhoto}
+              onRemove={onRemoveMaillonsPhoto}
             />
           </Field>
           <Field label="Description (optionnel si photos)">
@@ -165,8 +180,8 @@ export function SeamsStructureScreen({
           <Field label="Photos des élévateurs">
             <InspectionPhotoField
               photos={photos.risers}
-              onAdd={(p) => addPhoto('risers', p)}
-              onRemove={(id) => removePhoto('risers', id)}
+              onAdd={onAddRisersPhoto}
+              onRemove={onRemoveRisersPhoto}
             />
           </Field>
           <Field label="Description (optionnel si photos)">
@@ -175,7 +190,7 @@ export function SeamsStructureScreen({
               onChange={(e) => setPhase1({ ...phase1, risersNote: e.target.value })}
               rows={3}
               maxLength={2000}
-              placeholder="Quel élévateur, zone abîmée, niveau d'usure…"
+              placeholder="Quel élévateur, zone abîmée, niveau d&apos;usure…"
               className="field-input resize-y"
             />
           </Field>

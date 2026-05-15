@@ -8,9 +8,9 @@ import type { PartnerSchool } from '../queries'
 
 // Default Leaflet markers point to /images/marker-icon.png which 404s when
 // not bundled. Inline-rebind the paths to the unpkg-hosted assets to avoid
-// touching the public/ directory.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-delete (L.Icon.Default.prototype as any)._getIconUrl
+// touching the public/ directory. _getIconUrl exists at runtime but isn't in
+// the typings — narrow the cast to just that optional property.
+delete (L.Icon.Default.prototype as L.Icon.Default & { _getIconUrl?: unknown })._getIconUrl
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
   iconUrl:       'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',

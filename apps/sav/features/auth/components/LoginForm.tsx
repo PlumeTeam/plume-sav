@@ -1,36 +1,35 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
-// TODO: Réactiver Turnstile avant mise en prod
-// import { useEffect, useRef, useState } from 'react'
-// import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { loginAction, type LoginFormState } from '../actions'
 
-// TODO: Réactiver Turnstile avant mise en prod
-// const TURNSTILE_SITE_KEY =
-//   process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '0x4AAAAAAB9Gpk5pYILNvYaj'
+// Fallback : clé de test Cloudflare "always passes" — utilisée si la vraie
+// clé n'est pas configurée côté Vercel pour ne pas bloquer le dev/preview.
+// https://developers.cloudflare.com/turnstile/troubleshooting/testing/
+const TURNSTILE_SITE_KEY =
+  process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '1x00000000000000000000AA'
 
 const initialState: LoginFormState = { error: null }
 
 export function LoginForm() {
   const [state, formAction] = useFormState(loginAction, initialState)
-  // TODO: Réactiver Turnstile avant mise en prod
-  // const [captchaToken, setCaptchaToken] = useState('')
-  // const [turnstileError, setTurnstileError] = useState(false)
-  // const turnstileRef = useRef<TurnstileInstance>(null)
-  //
-  // useEffect(() => {
-  //   if (state.error) {
-  //     turnstileRef.current?.reset()
-  //     setCaptchaToken('')
-  //     setTurnstileError(false)
-  //   }
-  // }, [state.error])
+  const [captchaToken, setCaptchaToken] = useState('')
+  const [turnstileError, setTurnstileError] = useState(false)
+  const turnstileRef = useRef<TurnstileInstance>(null)
+
+  useEffect(() => {
+    if (state.error) {
+      turnstileRef.current?.reset()
+      setCaptchaToken('')
+      setTurnstileError(false)
+    }
+  }, [state.error])
 
   return (
     <form action={formAction} className="space-y-4">
-      {/* TODO: Réactiver Turnstile avant mise en prod */}
-      {/* <input type="hidden" name="captchaToken" value={captchaToken} readOnly /> */}
+      <input type="hidden" name="captchaToken" value={captchaToken} readOnly />
 
       <div>
         <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-brand-ink">
@@ -69,15 +68,22 @@ export function LoginForm() {
         )}
       </div>
 
-      {/* TODO: Réactiver Turnstile avant mise en prod */}
-      {/*
       <div className="flex justify-center pt-1">
         <Turnstile
           ref={turnstileRef}
           siteKey={TURNSTILE_SITE_KEY}
-          onSuccess={(token) => { setCaptchaToken(token); setTurnstileError(false) }}
-          onError={() => { setCaptchaToken(''); setTurnstileError(true) }}
-          onExpire={() => { setCaptchaToken(''); setTurnstileError(false) }}
+          onSuccess={(token) => {
+            setCaptchaToken(token)
+            setTurnstileError(false)
+          }}
+          onError={() => {
+            setCaptchaToken('')
+            setTurnstileError(true)
+          }}
+          onExpire={() => {
+            setCaptchaToken('')
+            setTurnstileError(false)
+          }}
           options={{ theme: 'light', size: 'normal' }}
         />
       </div>
@@ -88,7 +94,6 @@ export function LoginForm() {
           l&apos;administrateur pour ajouter ce domaine à Cloudflare Turnstile.
         </p>
       )}
-      */}
 
       {state.error?._form?.[0] && (
         <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
@@ -96,8 +101,7 @@ export function LoginForm() {
         </p>
       )}
 
-      {/* TODO: Réactiver Turnstile avant mise en prod — remettre captchaReady={!!captchaToken} */}
-      <SubmitButton captchaReady={true} />
+      <SubmitButton captchaReady={!!captchaToken} />
 
       <p className="text-center text-xs text-slate-500">
         Pas encore de compte ? Contactez votre école partenaire ou{' '}

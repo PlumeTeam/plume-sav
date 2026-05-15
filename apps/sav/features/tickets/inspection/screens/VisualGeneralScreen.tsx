@@ -2,34 +2,34 @@
 
 import { InspectionPhotoField, type LocalInspectionPhoto } from '../InspectionPhotoField'
 import type { Phase1 } from '../steps'
-import {
-  Field,
-  NavButtons,
-  PhotoOrTextHint,
-  ScreenLayout,
-  YesNoSelector,
-} from '../_shell'
+import { Field, NavButtons, PhotoOrTextHint, ScreenLayout, YesNoSelector } from './_shared'
 
-export interface VisualGeneralScreenProps {
-  phase1:      Phase1
-  setPhase1:   (p: Phase1) => void
-  photos:      LocalInspectionPhoto[]
-  addPhoto:    (p: LocalInspectionPhoto) => void
-  removePhoto: (id: string) => void
-  valid:       boolean
-  onBack:      () => void
-  onNext:      () => void
+interface VisualGeneralScreenProps {
+  phase1:        Phase1
+  setPhase1:     (next: Phase1) => void
+  damagePhotos:  LocalInspectionPhoto[]
+  onAddPhoto:    (photo: LocalInspectionPhoto) => void
+  onRemovePhoto: (id: string) => void
+  isValid:       boolean
+  onBack:        () => void
+  onNext:        () => void
 }
 
 export function VisualGeneralScreen({
-  phase1, setPhase1, photos, addPhoto, removePhoto, valid, onBack, onNext,
+  phase1, setPhase1, damagePhotos, onAddPhoto, onRemovePhoto, isValid, onBack, onNext,
 }: VisualGeneralScreenProps) {
   return (
     <ScreenLayout
       phase="Phase 1 — Inspection visuelle"
       title="Inspection visuelle générale"
       subtitle="Sortez l'aile et examinez-la sur toute sa surface, des suspentes au tissu."
-      footer={<NavButtons onBack={onBack} onNext={onNext} nextDisabled={!valid} />}
+      footer={
+        <NavButtons
+          onBack={onBack}
+          onNext={onNext}
+          nextDisabled={!isValid}
+        />
+      }
     >
       <Field label="L'aile présente-t-elle des dommages visibles ?">
         <YesNoSelector
@@ -42,9 +42,9 @@ export function VisualGeneralScreen({
         <>
           <Field label="Photos du dommage">
             <InspectionPhotoField
-              photos={photos}
-              onAdd={addPhoto}
-              onRemove={removePhoto}
+              photos={damagePhotos}
+              onAdd={onAddPhoto}
+              onRemove={onRemovePhoto}
             />
           </Field>
 

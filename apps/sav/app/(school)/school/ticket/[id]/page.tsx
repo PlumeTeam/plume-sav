@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getSchoolTicketDetail, getPlumeSettings } from '@/features/tickets/queries'
+import { getPartnerWorkshops, getSchoolTicketDetail, getPlumeSettings } from '@/features/tickets/queries'
 import { markTicketReadBySchoolAction } from '@/features/tickets/messages-actions-school'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { WarrantyTierBadge } from '@/features/tickets/components/WarrantyTierBadge'
@@ -9,9 +9,10 @@ import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { TicketChannelSwitch, type TicketChannel } from '@/features/tickets/components/TicketChannelSwitch'
 import { filterMessagesForRole } from '@/features/tickets/channels'
 import { readSchoolCheckInspector } from '@/features/tickets/inspection/steps'
-import { formatDate, formatDateTime } from '@/features/tickets/utils'
+import { formatDateTime, resolveWarrantyTierForDisplay } from '@/features/tickets/utils'
 import { CloseTicketButton } from '@/features/tickets/components/CloseTicketButton'
 import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
+import { ClientDeclarationPanel } from '@/features/tickets/components/ClientDeclarationPanel'
 import { SchoolStepPanel } from './SchoolStepPanel'
 import { SchoolTicketTabs } from './SchoolTicketTabs'
 import { SchoolWorkshopChannel } from './SchoolWorkshopChannel'
@@ -24,13 +25,24 @@ export const dynamic = 'force-dynamic'
 type ChecklistJson = { checkedIds?: string[]; notes?: string | null } | null
 
 export default async function SchoolTicketDetailPage({ params }: PageProps) {
-  const [ticket, policy] = await Promise.all([
+  const [ticket, policy, allWorkshops] = await Promise.all([
     getSchoolTicketDetail(params.id),
     getPlumeSettings(),
+    getPartnerWorkshops(),
   ])
   if (!ticket) notFound()
 
+  // Seuls les ateliers affiliés sont exposés à l'école (le réseau Plume).
+  // getPartnerWorkshops applique déjà ce filtre côté DB quand `is_affiliated`
+  // existe ; on re-filtre ici par sécurité (cascade DB peut tomber sur un
+  // tier "noaffiliated" qui ne filtre pas).
+  const workshops = allWorkshops.filter((w) => w.affiliated)
+
   const ticketWarrantyTier = (ticket.warranty_tier as WarrantyTier | null) ?? null
+  // Pour la file de tickets historique, `warranty_tier` peut être null : on
+  // calcule alors un fallback à partir de purchase_date pour ne jamais
+  // afficher un ticket sans indicateur garantie.
+  const displayWarrantyTier = resolveWarrantyTierForDisplay(ticketWarrantyTier, ticket.purchase_date)
 
   // Best-effort: mark this ticket as read for the current school user. The RPC
   // checks ownership via current_user_partner_school_ids() server-side.
@@ -137,6 +149,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           shippingRefusalReason={ticket.shipping_refusal_reason ?? null}
           warrantyTier={ticketWarrantyTier}
           extendedCoversSchoolWorkshopShipping={policy.extendedCoversSchoolWorkshopShipping}
+          workshops={workshops}
         />
       </section>
 
@@ -168,49 +181,15 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
   )
 
   // ── Tab 2: Déclaration ──────────────────────────────────────────────────
+  // Panel délégué partagé avec client / atelier — bandeau verdict, historique
+  // color-codé, problème signalé, aile concernée + garantie, photos client,
+  // coordonnées client (utiles pour l'école qui rappelle directement).
   const declarationTab = (
-    <>
-      {/* Flag urgent — banner en tête, visible immédiatement */}
-      {ticket.urgency_level === 2 && (
-        <section className="flex items-center gap-3 rounded-card border-2 border-red-300 bg-red-50 px-4 py-3 shadow-sm">
-          <span aria-hidden className="text-2xl">🚨</span>
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-red-700">Signalé comme urgent</p>
-            <p className="text-xs text-red-700/80">Le client a marqué cette demande comme prioritaire.</p>
-          </div>
-        </section>
-      )}
-
-      {/* Client */}
-      <section className="card p-5">
-        <h2 className="section-title mb-3">Client</h2>
-        <div className="space-y-2">
-          <InfoRow label="Nom" value={[ticket.first_name, ticket.last_name].filter(Boolean).join(' ') || '—'} />
-          <InfoRow label="Email" value={ticket.email ?? '—'} />
-          {ticket.phone && <InfoRow label="Téléphone" value={ticket.phone} />}
-        </div>
-      </section>
-
-      {/* Produit */}
-      <section className="card p-5">
-        <h2 className="section-title mb-3">Produit</h2>
-        <div className="space-y-2">
-          <InfoRow label="Marque / Modèle" value={`${ticket.product_brand ?? '—'} ${ticket.product_model ?? '—'}`} />
-          <InfoRow label="N° de série" value={ticket.serial_number ?? '—'} mono />
-          {ticket.purchase_date && <InfoRow label="Date d'achat" value={formatDate(ticket.purchase_date)} />}
-        </div>
-      </section>
-
-      {/* Demande SAV */}
-      <section className="card p-5">
-        <h2 className="section-title mb-3">Demande de SAV</h2>
-        {ticket.description ? (
-          <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">{ticket.description}</p>
-        ) : (
-          <p className="text-sm italic text-slate-500">Aucune description fournie.</p>
-        )}
-      </section>
-    </>
+    <ClientDeclarationPanel
+      ticket={ticket}
+      showWing
+      showClientContact
+    />
   )
 
   // ── Tab 3: Messages — 2 canaux : Client / Atelier ───────────────────────
@@ -305,6 +284,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           })}
           assignedWorkshopId={ticket.assigned_workshop_id}
           assignedWorkshopLabel={ticket.assigned_workshop_label}
+          workshops={workshops}
         />
       ),
     },
@@ -338,9 +318,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
             </p>
           </div>
           <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
-            {ticketWarrantyTier && (
-              <WarrantyTierBadge tier={ticketWarrantyTier} size="sm" compact />
-            )}
+            <WarrantyTierBadge tier={displayWarrantyTier} size="sm" compact />
             <StatusBadge status={ticket.status} size="sm" />
           </div>
         </div>
@@ -354,15 +332,6 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           messagesCount={visibleMessages.length}
         />
       </main>
-    </div>
-  )
-}
-
-function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <p className="flex-shrink-0 text-xs text-slate-500">{label}</p>
-      <p className={`text-right text-sm text-brand-ink ${mono ? 'font-mono' : ''}`}>{value.trim() || '—'}</p>
     </div>
   )
 }

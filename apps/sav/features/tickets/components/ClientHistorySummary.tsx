@@ -1,26 +1,17 @@
 import {
   SummarySection,
   SummaryRow,
-  VerdictBanner,
   type Severity,
 } from '@/features/tickets/inspection/SeverityBlocks'
 
-// Vue "Client" du DiagnosticViewSwitcher — calque le pattern de
-// SchoolCheckSummary : bandeau verdict global en haut, puis section avec
-// rows label/badge coloré pour chaque item d'historique. Les severities
-// suivent les seuils définis dans la spec produit (cf. commit message).
+// Section "Historique de l'aile" — rows label/badge, homogène avec
+// SchoolCheckSummary. Le bandeau verdict global vit désormais dans
+// ClientDeclarationPanel (il agrège historique + comportements + urgence),
+// ce composant ne porte donc plus que les lignes structurées.
 
 interface HistoryItem {
   label: string
   value: string
-}
-
-interface AnalysedHistory {
-  /** Items typés avec leur sévérité — dans l'ordre du wizard. */
-  rows:    Array<{ label: string; value: string; severity: Severity }>
-  /** Verdict global = pire sévérité rencontrée. */
-  verdict: Severity
-  counts:  { red: number; amber: number; green: number }
 }
 
 // Seuils heures de vol / nombre de vols — définis avec le produit.
@@ -53,10 +44,10 @@ function severityForCount(value: string): Severity {
   return 'green'
 }
 
-// Routeur label → severity. Matche les libellés produits par
-// formatWingHistory (cf. actions/_helpers.ts). Si un label ne matche pas,
-// on tombe en 'neutral' — l'item s'affiche grisé plutôt que faussement OK.
-function severityForRow(label: string, value: string): Severity {
+// Routeur label → severity. Matche les libellés produits par formatWingHistory
+// (cf. actions/_helpers.ts). Si un label ne matche pas, on tombe en 'neutral'
+// — l'item s'affiche grisé plutôt que faussement OK.
+export function severityForHistoryRow(label: string, value: string): Severity {
   const lower = value.toLowerCase().trim()
 
   switch (label.trim()) {
@@ -65,20 +56,14 @@ function severityForRow(label: string, value: string): Severity {
     case 'Nombre de vols':
       return severityForCount(value)
     case 'Déjà réparée':
-      // value peut être "non" ou "oui" ou "oui — description"
       return lower.startsWith('non') ? 'green' : 'red'
     case "Contact avec l'eau":
-      // labels possibles : "Non", "Eau douce", "Eau salée"
       return lower === 'non' ? 'green' : 'red'
     case 'Arbrissage':
       return lower === 'non' ? 'green' : 'amber'
     case 'Sable/neige/dunes':
-      // Présent dans l'historique uniquement quand au moins une surface
-      // est cochée. Toujours amber : ce n'est pas un défaut mais un
-      // signal à inspecter (abrasion potentielle).
       return 'amber'
     case 'État général':
-      // labels possibles : "Excellent", "Bon", "Usé", "Mauvais"
       if (lower === 'excellent' || lower === 'bon') return 'green'
       if (lower === 'usé' || lower === 'use' || lower === 'mauvais') return 'red'
       return 'amber'
@@ -87,11 +72,17 @@ function severityForRow(label: string, value: string): Severity {
   }
 }
 
-function analyseClientHistory(history: HistoryItem[]): AnalysedHistory {
+export interface HistoryAnalysis {
+  rows:    Array<{ label: string; value: string; severity: Severity }>
+  verdict: Severity
+  counts:  { red: number; amber: number; green: number }
+}
+
+export function analyseClientHistory(history: HistoryItem[]): HistoryAnalysis {
   const rows = history.map(({ label, value }) => ({
     label,
     value,
-    severity: severityForRow(label, value),
+    severity: severityForHistoryRow(label, value),
   }))
   const counts = {
     red:   rows.filter((r) => r.severity === 'red').length,
@@ -105,36 +96,23 @@ function analyseClientHistory(history: HistoryItem[]): AnalysedHistory {
   return { rows, verdict, counts }
 }
 
-const VERDICT_LABEL: Record<Severity, string> = {
-  red:     'Signaux critiques détectés',
-  amber:   'Points de vigilance',
-  green:   'Historique normal',
-  neutral: 'Historique non renseigné',
-}
-
 interface ClientHistorySummaryProps {
   history: HistoryItem[]
 }
 
 /**
- * Bandeau verdict + section "Historique de l'aile" en lignes label/badge,
- * homogène avec SchoolCheckSummary. Renvoie null quand le pilote n'a rien
- * renseigné dans l'historique (le caller affichera son propre fallback).
+ * Section "Historique de l'aile" en lignes label/badge. Renvoie null quand
+ * le pilote n'a rien renseigné dans l'historique (le caller affichera son
+ * propre fallback).
  */
 export function ClientHistorySummary({ history }: ClientHistorySummaryProps) {
   if (history.length === 0) return null
-
-  const { rows, verdict, counts } = analyseClientHistory(history)
-
+  const { rows } = analyseClientHistory(history)
   return (
-    <div className="space-y-4">
-      <VerdictBanner verdict={verdict} label={VERDICT_LABEL[verdict]} counts={counts} />
-
-      <SummarySection title="Historique de l'aile">
-        {rows.map((row, i) => (
-          <SummaryRow key={`${row.label}-${i}`} {...row} />
-        ))}
-      </SummarySection>
-    </div>
+    <SummarySection title="Historique de l'aile">
+      {rows.map((row, i) => (
+        <SummaryRow key={`${row.label}-${i}`} {...row} />
+      ))}
+    </SummarySection>
   )
 }

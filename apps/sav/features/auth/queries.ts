@@ -28,15 +28,46 @@ export async function getCurrentUserRoles(): Promise<UserRole[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  const { data } = await supabase
+  const collected = new Set<UserRole>()
+
+  // Source 1 — user_roles : table multi-rôles utilisée par le SAV (et les RLS
+  // policies). Une ligne par rôle, `user_id` = auth.uid().
+  const { data: userRolesRows } = await supabase
     .from('user_roles')
     .select('role')
     .eq('user_id', user.id)
     .returns<UserRoleRow[]>()
+  for (const r of userRolesRows ?? []) {
+    const mapped = ROLE_MAP[r.role]
+    if (mapped) collected.add(mapped)
+  }
 
-  return (data ?? [])
-    .map(r => ROLE_MAP[r.role])
-    .filter((r): r is UserRole => r !== undefined)
+  // Source 2 — profiles.role : la plateforme Plume principale stocke le rôle
+  // métier (ecole, atelier, admin…) directement sur `profiles`. Certains
+  // comptes n'ont rien dans user_roles, le SAV doit donc lire cette colonne.
+  //
+  // Attention clé : sur la DB Plume, `profiles.id` ≠ `profiles.user_id`.
+  // - profiles.id      = UUID interne au profil
+  // - profiles.user_id = auth.users.id (ce que retourne supabase.auth.getUser)
+  // Il faut donc filtrer sur user_id, pas id. La table profiles n'étant pas
+  // dans les types DB du SAV, on passe par un cast best-effort.
+  const db = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
+  try {
+    const r = await db
+      .from('profiles')
+      .select('role')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (!r.error && r.data) {
+      const role = (r.data as { role?: string | null }).role
+      if (typeof role === 'string') {
+        const mapped = ROLE_MAP[role]
+        if (mapped) collected.add(mapped)
+      }
+    }
+  } catch { /* table ou colonne absente — on ignore et on reste sur user_roles */ }
+
+  return Array.from(collected)
 }
 
 export type CurrentSchool = {
@@ -74,7 +105,24 @@ export async function getCurrentUserSchool(): Promise<CurrentSchool | null> {
     }
   } catch { /* table or column missing — fall through */ }
 
-  if (!schoolId) return null
+  // Fallback : sur la plateforme Plume principale, le lien école↔user passe
+  // directement par partner_schools.user_id (c'est ce que font les RLS — cf.
+  // migration 20260510100000). Si user_roles est vide pour ce compte, on
+  // résout l'école par cette colonne. Un compte peut représenter plusieurs
+  // écoles ; on prend la première stable par created_at.
+  if (!schoolId) {
+    try {
+      const r = await db
+        .from('partner_schools')
+        .select('id, name, city, region')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+      if (!r.error && r.data) return r.data as CurrentSchool
+    } catch { /* table ou colonne absente — on retourne null */ }
+    return null
+  }
 
   try {
     const r = await db
@@ -97,18 +145,20 @@ export type CurrentWorkshop = {
 
 /**
  * Best-effort resolution of the workshop the current authenticated user
- * represents. Workshops aren't in DB yet — they live in the hardcoded
- * PARTNER_WORKSHOPS list in features/tickets/constants.ts. We try a few
- * matching strategies in order:
- *  1. user.user_metadata.workshop_id matches a PARTNER_WORKSHOPS entry
- *  2. user.user_metadata.full_name / .name matches a workshop label
- *     (case-insensitive)
- *  3. fallback: synthesize a record from user_metadata.full_name (or
- *     first_name + last_name) so the dashboard at least has a name.
- *
- * Imported lazily to avoid pulling tickets-feature constants at the top
- * of the auth module.
+ * represents. Source de vérité = partner_workshops (colonne user_id liée
+ * à auth.users). Stratégies, dans l'ordre :
+ *  1. SELECT partner_workshops WHERE user_id = current user
+ *  2. fallback metadata.workshop_id → SELECT partner_workshops WHERE id = …
+ *  3. fallback synth depuis user_metadata.full_name / first_name + last_name
  */
+export type CurrentWorkshopRow = {
+  id:      unknown
+  name?:   unknown
+  label?:  unknown
+  city?:   unknown
+  region?: unknown
+}
+
 export async function getCurrentUserWorkshop(): Promise<CurrentWorkshop | null> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -122,24 +172,47 @@ export async function getCurrentUserWorkshop(): Promise<CurrentWorkshop | null> 
   const first = typeof meta.first_name  === 'string' ? meta.first_name.trim() : null
   const last  = typeof meta.last_name   === 'string' ? meta.last_name.trim()  : null
 
-  // Lazy import so the auth feature doesn't depend on the tickets feature
-  // unless this code path actually fires.
-  const { PARTNER_WORKSHOPS } = await import('@/features/tickets/constants')
+  // partner_workshops vient d'être ajoutée aux types, on garde le cast unknown
+  // pour rester compatible avec un env sans la table.
+  const db = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
 
-  // Strategy 1: explicit workshop_id in metadata
+  function normalizeRow(row: CurrentWorkshopRow): CurrentWorkshop {
+    const id = String(row.id ?? '')
+    const label = typeof row.label === 'string' ? row.label
+                : typeof row.name  === 'string' ? row.name
+                : id
+    return {
+      id,
+      label,
+      city:   typeof row.city   === 'string' ? row.city   : undefined,
+      region: typeof row.region === 'string' ? row.region : undefined,
+    }
+  }
+
+  // Strategy 1: lookup direct par user_id sur partner_workshops.
+  try {
+    const r = await db
+      .from('partner_workshops')
+      .select('id, name, city, region')
+      .eq('user_id', user.id)
+      .limit(1)
+      .maybeSingle()
+    if (!r.error && r.data) return normalizeRow(r.data as CurrentWorkshopRow)
+  } catch { /* table absente, on tente la suite */ }
+
+  // Strategy 2: metadata.workshop_id → lookup par id.
   if (wsId) {
-    const w = PARTNER_WORKSHOPS.find((x) => x.id === wsId)
-    if (w) return { id: w.id, label: w.label, city: w.city, region: w.region }
+    try {
+      const r = await db
+        .from('partner_workshops')
+        .select('id, name, city, region')
+        .eq('id', wsId)
+        .maybeSingle()
+      if (!r.error && r.data) return normalizeRow(r.data as CurrentWorkshopRow)
+    } catch { /* idem */ }
   }
 
-  // Strategy 2: full_name matches a workshop label (case-insensitive)
-  if (name) {
-    const lc = name.toLowerCase()
-    const w  = PARTNER_WORKSHOPS.find((x) => x.label.toLowerCase() === lc)
-    if (w) return { id: w.id, label: w.label, city: w.city, region: w.region }
-  }
-
-  // Strategy 3: synthesize from metadata (no DB row, no PARTNER_WORKSHOPS hit)
+  // Strategy 3: synthesize depuis user_metadata.
   const synthLabel = name ?? ([first, last].filter(Boolean).join(' ') || null)
   if (synthLabel) return { id: `auth-${user.id}`, label: synthLabel }
 

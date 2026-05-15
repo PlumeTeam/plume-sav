@@ -2,44 +2,30 @@
 
 import { InspectionPhotoField, type LocalInspectionPhoto } from '../InspectionPhotoField'
 import {
-  INFLATION_SURFACE_LABELS,
-  INFLATION_TENDENCY_LABELS,
   type InflationSurfaceConsistency,
   type InflationTendency,
   type Phase2,
+  INFLATION_SURFACE_LABELS,
+  INFLATION_TENDENCY_LABELS,
 } from '../steps'
-import {
-  Field,
-  NavButtons,
-  ScreenLayout,
-  SegmentedChoice,
-} from '../_shell'
+import { Field, NavButtons, ScreenLayout, SegmentedChoice } from './_shared'
 
-export interface InflationScreenProps {
-  phase2:      Phase2
-  setPhase2:   (p: Phase2) => void
-  photos:      LocalInspectionPhoto[]
-  addPhoto:    (p: LocalInspectionPhoto) => void
-  removePhoto: (id: string) => void
-  valid:       boolean
-  onBack:      () => void
-  onNext:      () => void
-  onSkip:      () => void
+interface InflationScreenProps {
+  phase2:          Phase2
+  setPhase2:       (next: Phase2) => void
+  inflationPhotos: LocalInspectionPhoto[]
+  onAddPhoto:      (photo: LocalInspectionPhoto) => void
+  onRemovePhoto:   (id: string) => void
+  isValid:         boolean
+  onBack:          () => void
+  onNext:          () => void
+  onSkip:          () => void
 }
 
 export function InflationScreen({
-  phase2, setPhase2, photos, addPhoto, removePhoto, valid, onBack, onNext, onSkip,
+  phase2, setPhase2, inflationPhotos, onAddPhoto, onRemovePhoto,
+  isValid, onBack, onNext, onSkip,
 }: InflationScreenProps) {
-  // Helper : déduit l'option Yes/No actuelle à partir du payload phase2
-  const yesNoValue: 'yes' | 'no' | undefined =
-    phase2.skipped
-      ? 'no'
-      : (phase2.inflationSurfaceConsistency ||
-         phase2.inflationTendency ||
-         photos.length > 0)
-        ? 'yes'
-        : undefined
-
   return (
     <ScreenLayout
       phase="Phase 2 — Check gonflage (optionnel)"
@@ -49,7 +35,7 @@ export function InflationScreen({
         <NavButtons
           onBack={onBack}
           onNext={onNext}
-          nextDisabled={!valid}
+          nextDisabled={!isValid}
           tertiaryLabel="Passer cette phase →"
           onTertiary={onSkip}
         />
@@ -61,7 +47,12 @@ export function InflationScreen({
             { value: 'yes', label: "Oui, j'ai fait un check au sol" },
             { value: 'no',  label: 'Non, pas possible'              },
           ]}
-          value={yesNoValue}
+          value={phase2.skipped ? 'no' : (
+            phase2.inflationSurfaceConsistency ||
+            phase2.inflationTendency ||
+            inflationPhotos.length > 0
+              ? 'yes' : undefined
+          )}
           onChange={(v) => {
             if (v === 'no') setPhase2({ skipped: true })
             else            setPhase2({ skipped: false })
@@ -98,9 +89,9 @@ export function InflationScreen({
 
           <Field label="Photos du gonflage (optionnel)">
             <InspectionPhotoField
-              photos={photos}
-              onAdd={addPhoto}
-              onRemove={removePhoto}
+              photos={inflationPhotos}
+              onAdd={onAddPhoto}
+              onRemove={onRemovePhoto}
             />
           </Field>
 

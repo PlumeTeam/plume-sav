@@ -6,7 +6,7 @@ import {
   addRoleMessageAction,
   assignWorkshopForCommunicationAction,
 } from '@/features/tickets/actions'
-import { PARTNER_WORKSHOPS } from '@/features/tickets/constants'
+import type { PartnerWorkshop } from '@/features/tickets/constants'
 import { CommentThread } from '@/features/tickets/components/CommentThread'
 import type { TicketMessage } from '@/features/tickets/types'
 
@@ -23,14 +23,14 @@ const WorkshopMapPicker = dynamic(
   }
 )
 
-const AFFILIATED_WORKSHOPS = PARTNER_WORKSHOPS.filter((w) => w.affiliated)
-
 interface SchoolWorkshopChannelProps {
   ticketId:              string
   /** Messages déjà filtrés sur visibility_level='workshop_plume'. */
   messages:              TicketMessage[]
   assignedWorkshopId:    string | null
   assignedWorkshopLabel: string | null
+  /** Ateliers affiliés (filtrés côté Server Component avant de descendre). */
+  workshops:             PartnerWorkshop[]
 }
 
 /**
@@ -52,6 +52,7 @@ export function SchoolWorkshopChannel({
   messages,
   assignedWorkshopId,
   assignedWorkshopLabel,
+  workshops,
 }: SchoolWorkshopChannelProps) {
   const [showPicker, setShowPicker] = useState<boolean>(!assignedWorkshopId)
 
@@ -60,6 +61,7 @@ export function SchoolWorkshopChannel({
       <PickerView
         ticketId={ticketId}
         initialId={assignedWorkshopId}
+        workshops={workshops}
         onCancel={assignedWorkshopId ? () => setShowPicker(false) : null}
         onAssigned={() => setShowPicker(false)}
       />
@@ -84,11 +86,12 @@ export function SchoolWorkshopChannel({
 interface PickerViewProps {
   ticketId:    string
   initialId:   string | null
+  workshops:   PartnerWorkshop[]
   onCancel:    (() => void) | null
   onAssigned:  () => void
 }
 
-function PickerView({ ticketId, initialId, onCancel, onAssigned }: PickerViewProps) {
+function PickerView({ ticketId, initialId, workshops, onCancel, onAssigned }: PickerViewProps) {
   const [pickedId, setPickedId] = useState<string>(initialId ?? '')
   const [isPending, startTransition] = useTransition()
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'error'; msg: string } | null>(null)
@@ -96,7 +99,7 @@ function PickerView({ ticketId, initialId, onCancel, onAssigned }: PickerViewPro
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!pickedId) return
-    const ws = AFFILIATED_WORKSHOPS.find((w) => w.id === pickedId)
+    const ws = workshops.find((w) => w.id === pickedId)
     if (!ws) return
 
     startTransition(async () => {
@@ -137,14 +140,14 @@ function PickerView({ ticketId, initialId, onCancel, onAssigned }: PickerViewPro
       </p>
 
       <WorkshopMapPicker
-        workshops={AFFILIATED_WORKSHOPS}
+        workshops={workshops}
         selectedId={pickedId || null}
         onSelect={setPickedId}
       />
 
       {/* Liste textuelle — fallback / clavier / lisibilité */}
       <div className="space-y-2">
-        {AFFILIATED_WORKSHOPS.map((w) => {
+        {workshops.map((w) => {
           const isSelected = pickedId === w.id
           return (
             <button

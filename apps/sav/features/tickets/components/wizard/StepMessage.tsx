@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useWizardStore } from '../../store'
+import { useWizardStore, computeWarranty } from '../../store'
 import { DEFAULT_CLIENT_MESSAGE } from '../../constants'
 import { StepLayout, StepNav } from './StepLayout'
 
@@ -11,7 +11,17 @@ interface StepMessageProps {
 }
 
 export function StepMessage({ onNext, onBack }: StepMessageProps) {
-  const { problem, setProblem } = useWizardStore()
+  const { requestType, wingInfo, problem, setProblem } = useWizardStore()
+
+  // Aligne le libellé sur la route choisie par buildWizardFlow :
+  //  - repair / inspection            → atelier
+  //  - manufacturing_defect hors gar. → atelier
+  //  - manufacturing_defect ss gar.   → école
+  const goesToWorkshop =
+    requestType === 'repair' ||
+    requestType === 'inspection' ||
+    (requestType === 'manufacturing_defect' && computeWarranty(wingInfo.purchaseDate).outOfWarranty)
+  const recipientLabel = goesToWorkshop ? "l'atelier" : "l'école"
 
   // Pre-fill with the default template only on first visit. If the client
   // came back to this step (problem.clientMessage is already set, even to
@@ -31,8 +41,8 @@ export function StepMessage({ onNext, onBack }: StepMessageProps) {
 
   return (
     <StepLayout
-      title="Message à l'école"
-      subtitle="Ajoutez un message personnalisé pour l'école. Vous pouvez aussi laisser le message par défaut tel quel."
+      title={`Message à ${recipientLabel}`}
+      subtitle={`Ajoutez un message personnalisé pour ${recipientLabel}. Vous pouvez aussi laisser le message par défaut tel quel.`}
       footer={
         <StepNav
           onBack={onBack}
@@ -65,9 +75,9 @@ export function StepMessage({ onNext, onBack }: StepMessageProps) {
         </div>
 
         <p className="rounded-xl bg-brand-cream p-3 text-xs text-slate-600">
-          💬 Ce message sera envoyé à l&apos;école avec votre demande et
+          💬 Ce message sera envoyé à {recipientLabel} avec votre demande et
           apparaîtra comme premier échange dans la conversation de la demande.
-          Vous pourrez continuer à dialoguer avec l&apos;école depuis votre
+          Vous pourrez continuer à dialoguer avec {recipientLabel} depuis votre
           espace SAV.
         </p>
       </div>

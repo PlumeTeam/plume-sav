@@ -7,7 +7,7 @@ import {
   addRoleMessageAction,
   assignWorkshopForCommunicationAction,
 } from '@/features/tickets/actions'
-import { PARTNER_WORKSHOPS } from '@/features/tickets/constants'
+import type { PartnerWorkshop } from '@/features/tickets/constants'
 
 // Leaflet must not run on the server (window/document access).
 const WorkshopMapPicker = dynamic(
@@ -30,6 +30,8 @@ interface SchoolActionsProps {
   isCheckValidated:      boolean
   assignedWorkshopId:    string | null
   assignedWorkshopLabel: string | null
+  /** Ateliers affiliés (filtrés côté Server Component avant de descendre). */
+  workshops:             PartnerWorkshop[]
   /**
    * Which cards to render. Defaults to all three. Used by the tabbed page to
    * show only the workshop+check pair in the "Check aile" tab — client comm
@@ -43,6 +45,7 @@ export function SchoolActions({
   isCheckValidated,
   assignedWorkshopId,
   assignedWorkshopLabel,
+  workshops,
   cards = ['client', 'workshop', 'check'],
 }: SchoolActionsProps) {
   const [open, setOpen] = useState<Channel | null>(null)
@@ -138,6 +141,7 @@ export function SchoolActions({
         <WorkshopComposer
           ticketId={ticketId}
           workshop={workshop}
+          workshops={workshops}
           onPicked={(w) => setWorkshop(w)}
           onClose={() => setOpen(null)}
         />
@@ -214,17 +218,14 @@ function ClientComposer({ ticketId, onClose }: { ticketId: string; onClose: () =
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface WorkshopComposerProps {
-  ticketId: string
-  workshop: { id: string; label: string } | null
-  onPicked: (w: { id: string; label: string }) => void
-  onClose:  () => void
+  ticketId:  string
+  workshop:  { id: string; label: string } | null
+  workshops: PartnerWorkshop[]
+  onPicked:  (w: { id: string; label: string }) => void
+  onClose:   () => void
 }
 
-// Only affiliated workshops are exposed to the school — non-affiliated entries
-// in PARTNER_WORKSHOPS exist for context/future use but aren't pickable here.
-const AFFILIATED_WORKSHOPS = PARTNER_WORKSHOPS.filter((w) => w.affiliated)
-
-function WorkshopComposer({ ticketId, workshop, onPicked, onClose }: WorkshopComposerProps) {
+function WorkshopComposer({ ticketId, workshop, workshops, onPicked, onClose }: WorkshopComposerProps) {
   const [step, setStep] = useState<'pick' | 'compose'>(workshop ? 'compose' : 'pick')
   const [pickedId, setPickedId] = useState<string>(workshop?.id ?? '')
   const [isPending, startTransition] = useTransition()
@@ -234,7 +235,7 @@ function WorkshopComposer({ ticketId, workshop, onPicked, onClose }: WorkshopCom
   function handlePick(e: React.FormEvent) {
     e.preventDefault()
     if (!pickedId) return
-    const ws = AFFILIATED_WORKSHOPS.find((w) => w.id === pickedId)
+    const ws = workshops.find((w) => w.id === pickedId)
     if (!ws) return
 
     startTransition(async () => {
@@ -295,14 +296,14 @@ function WorkshopComposer({ ticketId, workshop, onPicked, onClose }: WorkshopCom
         </p>
 
         <WorkshopMapPicker
-          workshops={AFFILIATED_WORKSHOPS}
+          workshops={workshops}
           selectedId={pickedId || null}
           onSelect={setPickedId}
         />
 
         {/* Liste textuelle — fallback / clavier / lisibilité */}
         <div className="space-y-2">
-          {AFFILIATED_WORKSHOPS.map((w) => {
+          {workshops.map((w) => {
             const isSelected = pickedId === w.id
             return (
               <button

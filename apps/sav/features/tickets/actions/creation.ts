@@ -1,24 +1,23 @@
-﻿'use server'
+'use server'
 
 import { revalidatePath } from 'next/cache'
+import type { Database } from '@plume/db'
 import { createClient } from '@/lib/supabase/server'
-import { getCurrentUserRoles } from '@/features/auth/queries'
-import { PARTNER_WORKSHOPS } from '../constants'
-import { countPreviousSavClaims, getPartnerSchoolById, getPlumeSettings } from '../queries'
+import {
+  countPreviousSavClaims,
+  getPartnerSchoolById,
+  getPartnerWorkshopById,
+  getPlumeSettings,
+} from '../queries'
 import { computeWarrantyTier } from '../utils'
 import type {
-  ClientShippingAddress,
-  MessageSenderRole,
-  ProblemCategory,
   RequestStatus,
-  SchoolResolution,
+  RequestType,
   ServiceType,
-  ShipmentLeg,
-  TicketStatus,
-  TicketUpdate,
-  WizardProblemCategory,
 } from '../types'
 import { attachTicketPhotosSchema, createTicketSchema } from '../schemas'
+
+type ServiceRequestInsert = Database['public']['Tables']['service_requests']['Insert']
 import { resolveClientIdentity } from '@/features/auth/identity'
 import {
   sendClientConfirmationEmail,
@@ -28,9 +27,18 @@ import {
 import {
   buildRichDescription,
   deriveServiceType,
-  requestStatusToSavStatus,
   PROBLEM_CATEGORY_LABELS,
 } from './_helpers'
+
+// Maps RequestType → ServiceType (table partagée). Surchargé après par
+// deriveServiceType quand on a une catégorie de problème explicite.
+function requestTypeToServiceType(type: RequestType): ServiceType {
+  switch (type) {
+    case 'repair':                return 'repair'
+    case 'inspection':            return 'revision'
+    case 'manufacturing_defect':  return 'sav'
+  }
+}
 
 export async function createTicketAction(input: unknown) {
   const parsed = createTicketSchema.safeParse(input)
@@ -40,33 +48,59 @@ export async function createTicketAction(input: unknown) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: { _form: ['Non authentifiÃ©'] } }
+  if (!user) return { error: { _form: ['Non authentifié'] } }
 
   const identity = await resolveClientIdentity(supabase, user)
 
   const {
+    requestType,
     wingBrand, wingModel, wingSize, wingSerial, wingColor,
     purchaseDate, flightHours, problemCategory, problemDescription,
-    urgency, photoPaths, schoolId, referentSchoolId: _ignoredReferentId,
+    urgency, photoPaths, schoolId, workshopId,
+    referentSchoolId: _ignoredReferentId,
     schoolChangeReasonCode, schoolChangeReasonNote, deliveryMethod,
     wingBehaviors, wingHistory, clientMessage,
   } = parsed.data
 
-  const serviceType = deriveServiceType(problemCategory)
+  // Pour repair/inspection ou manufacturing_defect hors garantie : le ticket
+  // est routé directement vers un atelier. Le `school_id` reste null et
+  // `assigned_workshop_id` est renseigné dès la création.
+  const routesToWorkshop = !!workshopId && !schoolId
+  // Source de vérité = partner_workshops (DB). Si la table est down/RLS,
+  // getPartnerWorkshopById renvoie le fallback Plume Embrun pour son propre
+  // UUID. Pour tout autre id absent côté DB on refuse — pas de fake atelier.
+  const workshop = workshopId
+    ? await getPartnerWorkshopById(workshopId)
+    : null
+  if (workshopId && !workshop) {
+    return { error: { _form: ["Atelier inconnu — choisissez un atelier du réseau partenaire"] } }
+  }
 
-  // The DB has a single `referent_school_id` column (no separate `school_id`).
-  // We use it for the school that actually handles the ticket â€” i.e. the one
-  // chosen by the client (`schoolId`). When that's a fallback hardcoded id
-  // (no row in partner_schools), persist null so the FK isn't violated.
-  const persistedSchoolId = schoolId.startsWith('plume-default-') ? null : schoolId
+  // Pour les routes 'école', on garde l'ancien comportement.
+  const persistedSchoolId = schoolId
+    ? (schoolId.startsWith('plume-default-') ? null : schoolId)
+    : null
 
-  // Build the rich description that folds all wizard metadata (category,
-  // urgency, wing size/colour, flight hours, behaviors, wing history) into
-  // the single narrative column the DB actually has.
+  // Service type — préfère deriveServiceType quand on a une catégorie explicite
+  // (manufacturing_defect avec category), sinon fallback sur le RequestType.
+  const serviceType: ServiceType = problemCategory
+    ? deriveServiceType(problemCategory)
+    : requestTypeToServiceType(requestType)
+
+  // Description — pour inspection on n'a pas de problemDescription saisie,
+  // on construit à partir du wingHistory.
+  const effectiveDescription = (problemDescription ?? '').trim() ||
+    (requestType === 'inspection'
+      ? `Demande de contrôle de l'aile ${wingBrand} ${wingModel}.`
+      : 'Demande SAV')
+
   const richDescription = buildRichDescription({
-    problemCategory,
+    // Quand on n'a pas de catégorie (repair/inspection), on omet le préfixe en
+    // utilisant 'other' qui mappe sur "Comportement" — pas idéal pour repair.
+    // On préfère afficher le type en tête.
+    problemCategory: problemCategory ?? 'other',
     urgency,
-    freeText:    problemDescription,
+    freeText:    effectiveDescription,
     wingBrand,
     wingModel,
     wingSize,
@@ -90,30 +124,28 @@ export async function createTicketAction(input: unknown) {
     maxSavClaimsExtended:  policy.maxSavClaimsExtended,
   })
 
-  // Insert payload â€” restricted to columns that actually exist in
-  // public.service_requests on the live DB. NOT NULL columns covered:
-  // user_id, service_type, first_name, last_name, email, phone, description.
-  const insertPayload = {
+  // Insert payload — colonnes du live DB.
+  const insertPayload: ServiceRequestInsert = {
     user_id:        user.id,
     client_id:      user.id,
     first_name:     identity.firstName,
     last_name:      identity.lastName,
     email:          identity.email,
-    phone:          identity.phone, // '' when unknown â€” column is NOT NULL
+    phone:          identity.phone,
     service_type:   serviceType,
-    status:         'pending' as RequestStatus,
+    // 'pending_workshop' pour routage direct client → atelier (repair /
+    // inspection / defect hors garantie) — sinon la RLS atelier filtre le
+    // ticket dehors. Flow école classique : 'pending'.
+    status:         routesToWorkshop ? 'pending_workshop' : 'pending',
     product_brand:  wingBrand,
     product_model:  wingModel,
     serial_number:  wingSerial,
     description:    richDescription,
     urgency_level:  urgency === 'urgent' ? 2 : 1,
     purchase_date:  purchaseDate,
-    // Recent migrations
+    request_type:   requestType,
+    // École référente / qui traite (seulement si flow école).
     referent_school_id:        persistedSchoolId,
-    // school_id mirrors referent_school_id â€” c'est la colonne utilisÃ©e par
-    // la RLS pour scoper les tickets par Ã©cole. Doit rester en sync (cf.
-    // applySchoolResolutionAction qui ne touche pas Ã  school_id quand
-    // l'Ã©cole escalade vers un atelier).
     school_id:                 persistedSchoolId,
     school_change_reason_code: schoolChangeReasonCode ?? null,
     school_change_reason_note: schoolChangeReasonNote ?? null,
@@ -122,12 +154,18 @@ export async function createTicketAction(input: unknown) {
     warranty_tier:        warranty.tier,
     sav_claim_number:     warranty.claimNumber,
     warranty_expires_at:  warranty.expiresAt,
+    // Routing direct atelier (repair / inspection / defect hors garantie).
+    // workshop.id = UUID Supabase partner_workshops (assigned_workshop_id est text
+    // côté DB partagée mais on n'y stocke plus que des UUID valides).
+    assigned_workshop_id:    workshop?.id    ?? null,
+    assigned_workshop_label: workshop?.label ?? null,
+    workshop_assigned_at:    workshop ? new Date().toISOString() : null,
+    workshop_assigned_by:    workshop ? user.id : null,
   }
 
   const { data: ticket, error: ticketError } = await supabase
     .from('service_requests')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .insert(insertPayload as any)
+    .insert(insertPayload)
     .select('id')
     .single<{ id: string }>()
 
@@ -137,8 +175,7 @@ export async function createTicketAction(input: unknown) {
     return { error: { _form: [`Erreur lors de l'envoi de la demande${detail}`] } }
   }
 
-  // Photos: separate ticket_photos table (best-effort â€” failure shouldn't
-  // block the ticket since it's already created)
+  // Photos (best-effort)
   if (photoPaths.length > 0) {
     const photoRows = photoPaths.map((p, idx) => ({
       ticket_id:    ticket.id,
@@ -151,7 +188,7 @@ export async function createTicketAction(input: unknown) {
     if (photoError) console.warn('Photo insert failed:', photoError.message)
   }
 
-  // Audit trail (best-effort â€” table may not exist on legacy envs)
+  // Audit trail
   const { error: histError } = await supabase.from('ticket_status_history').insert({
     ticket_id:  ticket.id,
     old_status: null,
@@ -160,9 +197,7 @@ export async function createTicketAction(input: unknown) {
   })
   if (histError) console.error('[SAV] ticket_status_history insert failed:', histError.message)
 
-  // First chat message â€” posts the client's personalised message as the
-  // opening reply so the school sees it in the conversation thread.
-  // Best-effort: skipped silently if empty or if ticket_messages is missing.
+  // First chat message
   const trimmedClientMessage = clientMessage?.trim() ?? ''
   if (trimmedClientMessage.length > 0) {
     const { error: msgError } = await supabase.from('ticket_messages').insert({
@@ -177,8 +212,9 @@ export async function createTicketAction(input: unknown) {
     if (msgError) console.warn('client message insert failed:', msgError.message)
   }
 
-  // Email notifications (best-effort) â€” never block ticket creation.
-  // Both dispatches run in parallel; failures are logged but swallowed.
+  // Email notifications — pour l'instant, on n'envoie l'email école que si le
+  // ticket est routé vers une école. Le routing direct atelier n'a pas encore
+  // de notification email dédiée (à venir dans une PR séparée).
   try {
     const schoolDetail = persistedSchoolId
       ? await getPartnerSchoolById(persistedSchoolId)
@@ -193,9 +229,9 @@ export async function createTicketAction(input: unknown) {
         email:      identity.email,
       },
       school: {
-        name:       schoolDetail?.name ?? 'Votre Ã©cole partenaire',
+        name:       schoolDetail?.name ?? workshop?.label ?? 'Votre destinataire',
         email:      schoolDetail?.email ?? null,
-        city:       schoolDetail?.city ?? null,
+        city:       schoolDetail?.city ?? workshop?.city ?? null,
       },
       wing: {
         brand:      wingBrand,
@@ -204,36 +240,36 @@ export async function createTicketAction(input: unknown) {
         color:      wingColor,
         serial:     wingSerial,
       },
-      problemLabel:   PROBLEM_CATEGORY_LABELS[problemCategory] ?? problemCategory,
+      problemLabel:   problemCategory
+        ? PROBLEM_CATEGORY_LABELS[problemCategory] ?? problemCategory
+        : requestType === 'inspection' ? 'Contrôle' : 'Réparation',
       description:    richDescription,
       urgency,
       deliveryMethod,
       clientMessage:  trimmedClientMessage || undefined,
     }
 
-    const [clientRes, schoolRes] = await Promise.allSettled([
+    const promises: Array<Promise<{ ok: boolean; error?: string }>> = [
       sendClientConfirmationEmail(supabase, emailCtx),
-      sendSchoolNotificationEmail(supabase, emailCtx),
-    ])
-
-    if (clientRes.status === 'rejected') {
-      console.warn('[createTicketAction] client email threw:', clientRes.reason)
-    } else if (!clientRes.value.ok) {
-      console.warn('[createTicketAction] client email skipped/failed:', clientRes.value.error)
+    ]
+    if (!routesToWorkshop && persistedSchoolId) {
+      promises.push(sendSchoolNotificationEmail(supabase, emailCtx))
     }
-    if (schoolRes.status === 'rejected') {
-      console.warn('[createTicketAction] school email threw:', schoolRes.reason)
-    } else if (!schoolRes.value.ok) {
-      console.warn('[createTicketAction] school email skipped/failed:', schoolRes.value.error)
+
+    const results = await Promise.allSettled(promises)
+    for (const [i, r] of results.entries()) {
+      const which = i === 0 ? 'client' : 'school'
+      if (r.status === 'rejected') {
+        console.warn(`[createTicketAction] ${which} email threw:`, r.reason)
+      } else if (!r.value.ok) {
+        console.warn(`[createTicketAction] ${which} email skipped/failed:`, r.value.error)
+      }
     }
   } catch (e) {
     console.warn('[createTicketAction] email dispatch threw:', e)
   }
 
   revalidatePath('/client')
-  // The client navigates to the confirmation page itself after this call so
-  // it can reset() the wizard store before the URL change. Returning a typed
-  // success here is more flexible than throwing redirect() from the server.
   return { ok: true as const, ticketId: ticket.id }
 }
 

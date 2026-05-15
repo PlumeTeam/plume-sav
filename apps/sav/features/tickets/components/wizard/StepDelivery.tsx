@@ -2,32 +2,34 @@
 
 import { useState, useMemo } from 'react'
 import { useWizardStore } from '../../store'
+import type { PartnerWorkshop } from '../../constants'
 import type { DeliveryMethod } from '../../types'
 import type { PartnerSchool } from '../../queries'
 import { StepLayout, StepNav } from './StepLayout'
 
 interface StepDeliveryProps {
-  schools: PartnerSchool[]
-  onNext:  () => void
-  onBack:  () => void
+  schools:   PartnerSchool[]
+  workshops: PartnerWorkshop[]
+  onNext:    () => void
+  onBack:    () => void
 }
 
 const OPTIONS: Array<{ value: DeliveryMethod; emoji: string; label: string; description: string }> = [
   {
     value: 'in_person',
     emoji: '🤝',
-    label: 'J\'emmène mon aile à l\'école',
-    description: 'Remise en main propre. Vous prendrez rendez-vous directement avec votre école.',
+    label: 'Je remets mon aile en main propre',
+    description: 'Rendez-vous sur place. Vous prendrez rendez-vous directement.',
   },
   {
     value: 'postal',
     emoji: '📦',
     label: 'J\'envoie mon aile par la poste',
-    description: 'Envoi postal. L\'école recevra un colis et vous tiendra informé à la réception.',
+    description: 'Envoi postal. Le destinataire recevra un colis et vous tiendra informé à la réception.',
   },
 ]
 
-export function StepDelivery({ schools, onNext, onBack }: StepDeliveryProps) {
+export function StepDelivery({ schools, workshops, onNext, onBack }: StepDeliveryProps) {
   const { problem, setProblem } = useWizardStore()
   const [selected, setSelected] = useState<DeliveryMethod | null>(problem.deliveryMethod ?? null)
 
@@ -35,6 +37,15 @@ export function StepDelivery({ schools, onNext, onBack }: StepDeliveryProps) {
     () => schools.find((s) => s.id === problem.partnerSchoolId) ?? null,
     [schools, problem.partnerSchoolId]
   )
+  const targetWorkshop = useMemo(
+    () => workshops.find((w) => w.id === problem.partnerWorkshopId) ?? null,
+    [workshops, problem.partnerWorkshopId]
+  )
+
+  const targetName = targetSchool?.name ?? targetWorkshop?.label ?? null
+  const targetCity = targetSchool?.city ?? targetWorkshop?.city ?? null
+  const targetKind: 'school' | 'workshop' | null =
+    targetSchool ? 'school' : targetWorkshop ? 'workshop' : null
 
   function handleNext() {
     if (!selected) return
@@ -45,8 +56,8 @@ export function StepDelivery({ schools, onNext, onBack }: StepDeliveryProps) {
   return (
     <StepLayout
       title="Comment transmettez-vous votre aile ?"
-      subtitle={targetSchool
-        ? `Votre aile doit arriver à ${targetSchool.name} pour le diagnostic.`
+      subtitle={targetName
+        ? `Votre aile doit arriver à ${targetName} pour le diagnostic.`
         : 'Choisissez la méthode qui vous arrange.'}
       footer={
         <StepNav
@@ -86,14 +97,14 @@ export function StepDelivery({ schools, onNext, onBack }: StepDeliveryProps) {
         })}
       </div>
 
-      {/* Contextual hint based on selection */}
       {selected === 'in_person' && (
         <div className="mt-4 animate-slide-up rounded-2xl bg-brand-cream p-4 text-sm text-brand-ink">
           <p className="font-semibold">📞 Prochaine étape</p>
           <p className="mt-1 text-xs text-slate-600">
             Une fois votre demande envoyée, contactez{' '}
-            <strong>{targetSchool?.name ?? 'l\'école'}</strong> pour prendre rendez-vous.
-            L\'école dispose de toutes les informations de votre demande dans son tableau de bord.
+            <strong>{targetName ?? (targetKind === 'workshop' ? 'l\'atelier' : 'l\'école')}</strong>{' '}
+            pour prendre rendez-vous. Toutes les informations de votre demande seront visibles dans
+            le tableau de bord du destinataire.
           </p>
         </div>
       )}
@@ -103,12 +114,12 @@ export function StepDelivery({ schools, onNext, onBack }: StepDeliveryProps) {
           <p className="font-semibold">📦 Conseils pour l&apos;envoi</p>
           <ul className="mt-2 space-y-1 text-xs text-slate-600">
             <li>• Emballez l&apos;aile dans son sac d&apos;origine ou un sac rembourré</li>
-
+            <li>• Conservez le numéro de suivi pour la traçabilité</li>
           </ul>
-          {targetSchool && (
+          {targetName && (
             <p className="mt-3 border-t border-brand-stone/60 pt-3 text-xs text-slate-600">
-              Adresse d&apos;envoi : contactez <strong className="text-brand-ink">{targetSchool.name}</strong>{' '}
-              {targetSchool.city && <>({targetSchool.city})</>} après l&apos;envoi de votre demande
+              Adresse d&apos;envoi : contactez <strong className="text-brand-ink">{targetName}</strong>{' '}
+              {targetCity && <>({targetCity})</>} après l&apos;envoi de votre demande
               pour récupérer leur adresse postale exacte.
             </p>
           )}

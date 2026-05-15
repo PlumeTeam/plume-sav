@@ -18,6 +18,19 @@ import { requestStatusToSavStatus } from './_helpers'
 // `updateStatusAction` gÃ©nÃ©rique : Ã§a permet d'Ã©crire le timestamp correspondant
 // et de cibler la bonne copie email sans couplage cÃ´tÃ© client.
 
+// Colonnes timestamp persistant l'horodatage de chaque transition (toutes
+// typées `string | null` côté DB). Restreint au sous-ensemble réellement
+// utilisé pour que `update[timestampColumn] = now` reste type-safe sans cast.
+type TimestampColumn =
+  | 'school_acknowledged_at'
+  | 'wing_received_school_at'
+  | 'escalated_to_workshop_at'
+  | 'wing_received_workshop_at'
+  | 'workshop_diagnosis_at'
+  | 'workshop_repair_done_at'
+  | 'wing_returned_at'
+  | 'pre_check_started_at'
+
 export interface AdvanceArgs {
   ticketId:        string
   /** Statuts Ã  partir desquels la transition est autorisÃ©e. */
@@ -25,7 +38,7 @@ export interface AdvanceArgs {
   /** Statut cible. */
   to:              RequestStatus
   /** Colonne timestamp Ã  renseigner avec NOW(). */
-  timestampColumn?: keyof TicketUpdate
+  timestampColumn?: TimestampColumn
   /** ID de copie email envoyÃ© au client Ã  la transition. null = pas d'email. */
   emailStep:       ClientStepEmail | null
   /** Champs additionnels Ã  patcher (ex: assignations). */
@@ -79,8 +92,7 @@ export async function advanceTicketStep(args: AdvanceArgs) {
     status: to,
   }
   if (timestampColumn) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(update as any)[timestampColumn] = now
+    update[timestampColumn] = now
   }
 
   const { error: updateError } = await supabase

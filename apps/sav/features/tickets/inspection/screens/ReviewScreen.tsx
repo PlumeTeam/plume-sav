@@ -2,33 +2,33 @@
 
 import { useEffect, useMemo, type ReactNode } from 'react'
 import type { LocalInspectionPhoto } from '../InspectionPhotoField'
-import type { PhotoSlot } from '../_shell'
 import {
-  FABRIC_CONDITION_LABELS,
-  LINES_CONDITION_LABELS,
-  RISERS_CONDITION_LABELS,
-  TEAR_SIZE_LABELS,
-  SEAM_DISTANCE_LABELS,
-  YESNO_LABELS,
-  YESNOIDK_LABELS,
-  INFLATION_SYMMETRY_LABELS,
-  INFLATION_SURFACE_LABELS,
-  INFLATION_TENDENCY_LABELS,
   type FabricCondition,
-  type LinesCondition,
-  type RisersCondition,
-  type Phase1,
-  type Phase2,
-  type YesNo,
-  type YesNoIdk,
   type InflationSurfaceConsistency,
   type InflationTendency,
-  type TearSize,
+  type LinesCondition,
+  type Phase1,
+  type Phase2,
+  type RisersCondition,
   type SeamDistance,
+  type TearSize,
+  type YesNo,
+  type YesNoIdk,
+  FABRIC_CONDITION_LABELS,
+  INFLATION_SURFACE_LABELS,
+  INFLATION_SYMMETRY_LABELS,
+  INFLATION_TENDENCY_LABELS,
+  LINES_CONDITION_LABELS,
+  RISERS_CONDITION_LABELS,
+  SEAM_DISTANCE_LABELS,
+  TEAR_SIZE_LABELS,
+  YESNO_LABELS,
+  YESNOIDK_LABELS,
 } from '../steps'
+import type { PhotoSlot } from './_shared'
 
-// Code couleur des lignes du résumé : ok = tout va bien, warn = point
-// d'attention (état intermédiaire ou "je ne sais pas"), alert = problème.
+// Code couleur des lignes du résumé : ok = tout va bien, warn = point d'attention
+// (état intermédiaire ou "je ne sais pas"), alert = problème identifié.
 type RowStatus = 'ok' | 'warn' | 'alert'
 
 function yesNoStatus(v: YesNo | undefined, yesIs: 'alert' | 'ok'): RowStatus | undefined {
@@ -36,44 +36,56 @@ function yesNoStatus(v: YesNo | undefined, yesIs: 'alert' | 'ok'): RowStatus | u
   if (yesIs === 'alert') return v === 'yes' ? 'alert' : 'ok'
   return v === 'yes' ? 'ok' : 'alert'
 }
+
 function fabricStatus(v: FabricCondition | undefined): RowStatus | undefined {
   if (!v) return undefined
-  if (v === 'good') return 'ok'
-  if (v === 'worn') return 'warn'
+  if (v === 'good')    return 'ok'
+  if (v === 'worn')    return 'warn'
   return 'alert'
 }
+
 function linesStatus(v: LinesCondition | undefined): RowStatus | undefined {
   if (!v) return undefined
   if (v === 'good') return 'ok'
   if (v === 'worn') return 'warn'
   return 'alert'
 }
+
 function risersStatus(v: RisersCondition | undefined): RowStatus | undefined {
   if (!v) return undefined
-  if (v === 'good') return 'ok'
-  if (v === 'worn') return 'warn'
+  if (v === 'good')    return 'ok'
+  if (v === 'worn')    return 'warn'
   return 'alert'
 }
+
 function maillonsStatus(v: YesNoIdk | undefined): RowStatus | undefined {
   if (!v) return undefined
   if (v === 'yes') return 'alert'
   if (v === 'no')  return 'ok'
   return 'warn'
 }
+
 function tearSizeStatus(v: TearSize | undefined): RowStatus | undefined {
   if (!v) return undefined
   return v === 'gt15' ? 'alert' : 'warn'
 }
+
 function seamDistanceStatus(v: SeamDistance | undefined): RowStatus | undefined {
   if (!v) return undefined
   return v === 'close' ? 'alert' : 'warn'
 }
-function inflationSurfaceStatus(v: InflationSurfaceConsistency | undefined): RowStatus | undefined {
+
+// InflationSymmetry & InflationSurfaceConsistency partagent les mêmes clés
+// ('yes' | 'no' | 'unsure') donc même mapping de statut.
+function inflationSurfaceStatus(
+  v: InflationSurfaceConsistency | undefined,
+): RowStatus | undefined {
   if (!v) return undefined
-  if (v === 'yes') return 'ok'
-  if (v === 'no')  return 'alert'
+  if (v === 'yes')    return 'ok'
+  if (v === 'no')     return 'alert'
   return 'warn'
 }
+
 function inflationTendencyStatus(v: InflationTendency | undefined): RowStatus | undefined {
   if (!v) return undefined
   if (v === 'none')   return 'ok'
@@ -81,7 +93,7 @@ function inflationTendencyStatus(v: InflationTendency | undefined): RowStatus | 
   return 'alert'
 }
 
-export interface ReviewScreenProps {
+interface ReviewScreenProps {
   inspectorName:      string
   phase1:             Phase1
   phase2:             Phase2
@@ -113,6 +125,7 @@ export function ReviewScreen({
         </div>
       )}
 
+      {/* Phase 1 */}
       <ReviewSection title="Inspection visuelle générale">
         <ReviewRow
           label="Dommages visibles"
@@ -120,7 +133,12 @@ export function ReviewScreen({
           status={yesNoStatus(phase1.visibleDamage, 'alert')}
         />
         {phase1.damageDescription && (
-          <ReviewRow label="Description" value={phase1.damageDescription} multiline status="alert" />
+          <ReviewRow
+            label="Description"
+            value={phase1.damageDescription}
+            multiline
+            status="alert"
+          />
         )}
         <ReviewPhotos label="Dommages" photos={photos.damage} />
       </ReviewSection>
@@ -190,6 +208,7 @@ export function ReviewScreen({
                 status={inflationSurfaceStatus(phase2.inflationSurfaceConsistency)}
               />
             ) : phase2.inflationSymmetry ? (
+              // Legacy V2 payload : la question s'appelait "Gonflage symétrique ?"
               <ReviewRow
                 label="Symétrie (ancien)"
                 value={INFLATION_SYMMETRY_LABELS[phase2.inflationSymmetry]}
@@ -200,15 +219,14 @@ export function ReviewScreen({
             )}
             <ReviewRow
               label="Comportement au gonflage"
-              value={
-                phase2.inflationTendency
-                  ? INFLATION_TENDENCY_LABELS[phase2.inflationTendency]
-                  : phase2.inflationNormalBehavior === 'no'
-                    ? 'Non (suspicieux) (ancien)'
-                    : phase2.inflationNormalBehavior
-                      ? `${YESNO_LABELS[phase2.inflationNormalBehavior]} (ancien)`
-                      : '—'
-              }
+              value={phase2.inflationTendency
+                ? INFLATION_TENDENCY_LABELS[phase2.inflationTendency]
+                : phase2.inflationNormalBehavior === 'no'
+                  // Legacy V2 — l'ancien yes/no n'avait pas de nuance.
+                  ? 'Non (suspicieux) (ancien)'
+                  : phase2.inflationNormalBehavior
+                    ? `${YESNO_LABELS[phase2.inflationNormalBehavior]} (ancien)`
+                    : '—'}
               status={
                 phase2.inflationTendency
                   ? inflationTendencyStatus(phase2.inflationTendency)
@@ -301,11 +319,15 @@ function ReviewSection({ title, children, skipped }: { title: string; children?:
 function ReviewRow({
   label, value, multiline, status,
 }: {
-  label:      string
-  value:      string
+  label:     string
+  value:     string
   multiline?: boolean
   status?:    RowStatus
 }) {
+  // Bordure gauche colorée + fond léger pour repérer d'un coup d'œil quels
+  // points vont bien (vert), méritent attention (jaune) ou posent problème
+  // (rouge). Une ligne sans statut (—, "Photos jointes") garde le style neutre
+  // mais conserve le même padding pour aligner verticalement.
   const wrap =
     status === 'ok'    ? 'border-emerald-400 bg-emerald-50/70'
   : status === 'warn'  ? 'border-amber-400  bg-amber-50/70'
@@ -322,7 +344,12 @@ function ReviewRow({
       multiline ? 'flex flex-col gap-1' : 'flex items-baseline justify-between gap-3'
     }`}>
       <p className="flex items-center gap-1.5 text-xs text-slate-500">
-        {status && <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} aria-hidden />}
+        {status && (
+          <span
+            className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${dot}`}
+            aria-hidden
+          />
+        )}
         {label}
       </p>
       <p className={`text-sm text-brand-ink ${multiline ? 'whitespace-pre-line' : 'text-right font-semibold'}`}>
@@ -332,11 +359,18 @@ function ReviewRow({
   )
 }
 
+// Thumbnails strip under the relevant row(s) of the review screen.
+// Pour les photos déjà uploadées : `dataUrl` est l'URL publique Supabase,
+// directement navigable en `target="_blank"`. Pour les photos ajoutées dans
+// la session courante : `dataUrl` est un base64 (utilisable en <img src>)
+// mais Chrome bloque la navigation top-level vers `data:` — on matérialise
+// donc un blob URL via `URL.createObjectURL(file)` pour le lien.
 function ReviewPhotos({ label, photos }: { label: string; photos: LocalInspectionPhoto[] }) {
   const openUrls = useMemo(
     () => photos.map((p) => (p.file ? URL.createObjectURL(p.file) : p.dataUrl)),
     [photos],
   )
+
   useEffect(() => {
     return () => {
       openUrls.forEach((url) => {
@@ -346,6 +380,7 @@ function ReviewPhotos({ label, photos }: { label: string; photos: LocalInspectio
   }, [openUrls])
 
   if (photos.length === 0) return null
+
   return (
     <div className="px-2 py-1.5">
       <p className="mb-1.5 text-xs text-slate-500">
@@ -362,7 +397,11 @@ function ReviewPhotos({ label, photos }: { label: string; photos: LocalInspectio
             aria-label={`Ouvrir la photo ${i + 1} en grand`}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={p.dataUrl} alt="" className="h-full w-full object-cover" />
+            <img
+              src={p.dataUrl}
+              alt=""
+              className="h-full w-full object-cover"
+            />
           </a>
         ))}
       </div>

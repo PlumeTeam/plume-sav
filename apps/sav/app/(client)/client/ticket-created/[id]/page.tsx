@@ -95,6 +95,16 @@ export default async function TicketCreatedPage({ params }: PageProps) {
         )}
       </section>
 
+      {tier === 'out_of_warranty' && (
+        <section className="card border-brand-stone bg-brand-cream p-5">
+          <p className="text-sm font-semibold text-brand-ink">Facturation</p>
+          <p className="mt-1.5 text-sm leading-relaxed text-brand-ink/80">
+            La facture de l&apos;atelier vous sera transmise directement via la
+            messagerie du ticket. Le paiement se fait entre vous et l&apos;atelier.
+          </p>
+        </section>
+      )}
+
       {/* ── Coordonnées école — gros et au-dessus ───────────────── */}
       {school && (school.phone || school.email) && (
         <section className="card p-5">

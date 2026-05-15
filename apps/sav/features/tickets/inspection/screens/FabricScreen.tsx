@@ -2,44 +2,43 @@
 
 import { InspectionPhotoField, type LocalInspectionPhoto } from '../InspectionPhotoField'
 import {
-  FABRIC_CONDITION_LABELS,
-  TEAR_SIZE_LABELS,
-  SEAM_DISTANCE_LABELS,
-  showRipstopHint,
   type FabricCondition,
   type Phase1,
   type SeamDistance,
   type TearSize,
+  FABRIC_CONDITION_LABELS,
+  SEAM_DISTANCE_LABELS,
+  TEAR_SIZE_LABELS,
+  showRipstopHint,
 } from '../steps'
-import {
-  Field,
-  NavButtons,
-  PhotoOrTextHint,
-  ScreenLayout,
-  SegmentedChoice,
-  YesNoSelector,
-} from '../_shell'
+import { Field, NavButtons, PhotoOrTextHint, ScreenLayout, SegmentedChoice, YesNoSelector } from './_shared'
 
-export interface FabricScreenProps {
-  phase1:      Phase1
-  setPhase1:   (p: Phase1) => void
-  photos:      LocalInspectionPhoto[]
-  addPhoto:    (p: LocalInspectionPhoto) => void
-  removePhoto: (id: string) => void
-  valid:       boolean
-  onBack:      () => void
-  onNext:      () => void
+interface FabricScreenProps {
+  phase1:        Phase1
+  setPhase1:     (next: Phase1) => void
+  tearsPhotos:   LocalInspectionPhoto[]
+  onAddPhoto:    (photo: LocalInspectionPhoto) => void
+  onRemovePhoto: (id: string) => void
+  isValid:       boolean
+  onBack:        () => void
+  onNext:        () => void
 }
 
 export function FabricScreen({
-  phase1, setPhase1, photos, addPhoto, removePhoto, valid, onBack, onNext,
+  phase1, setPhase1, tearsPhotos, onAddPhoto, onRemovePhoto, isValid, onBack, onNext,
 }: FabricScreenProps) {
   return (
     <ScreenLayout
       phase="Phase 1 — Inspection visuelle"
       title="Tissu"
       subtitle="Inspectez la voile sur l'extrados et l'intrados."
-      footer={<NavButtons onBack={onBack} onNext={onNext} nextDisabled={!valid} />}
+      footer={
+        <NavButtons
+          onBack={onBack}
+          onNext={onNext}
+          nextDisabled={!isValid}
+        />
+      }
     >
       <Field label="État du tissu">
         <SegmentedChoice<FabricCondition>
@@ -56,13 +55,7 @@ export function FabricScreen({
       <Field label="Déchirures visibles ?">
         <YesNoSelector
           value={phase1.visibleTears}
-          onChange={(v) =>
-            setPhase1({
-              ...phase1,
-              visibleTears: v,
-              ...(v === 'no' ? { tearSize: undefined, seamDistance: undefined } : {}),
-            })
-          }
+          onChange={(v) => setPhase1({ ...phase1, visibleTears: v, ...(v === 'no' ? { tearSize: undefined, seamDistance: undefined } : {}) })}
         />
       </Field>
 
@@ -71,10 +64,10 @@ export function FabricScreen({
           <Field label="Taille estimée de la déchirure">
             <SegmentedChoice<TearSize>
               options={[
-                { value: 'lt5',    label: TEAR_SIZE_LABELS.lt5     },
-                { value: '5to10',  label: TEAR_SIZE_LABELS['5to10'] },
-                { value: '10to15', label: TEAR_SIZE_LABELS['10to15']},
-                { value: 'gt15',   label: TEAR_SIZE_LABELS.gt15,   tone: 'red' },
+                { value: 'lt5',     label: TEAR_SIZE_LABELS.lt5     },
+                { value: '5to10',   label: TEAR_SIZE_LABELS['5to10'] },
+                { value: '10to15',  label: TEAR_SIZE_LABELS['10to15']},
+                { value: 'gt15',    label: TEAR_SIZE_LABELS.gt15,   tone: 'red' },
               ]}
               value={phase1.tearSize}
               onChange={(v) => setPhase1({ ...phase1, tearSize: v })}
@@ -111,9 +104,9 @@ export function FabricScreen({
 
           <Field label="Photos de la déchirure">
             <InspectionPhotoField
-              photos={photos}
-              onAdd={addPhoto}
-              onRemove={removePhoto}
+              photos={tearsPhotos}
+              onAdd={onAddPhoto}
+              onRemove={onRemovePhoto}
             />
           </Field>
 

@@ -6,17 +6,13 @@ import { saveSchoolChecklistAction } from '@/features/tickets/actions'
 import { createClient } from '@/lib/supabase/client'
 import { getSupabasePublicUrl } from '../utils'
 import type { LocalInspectionPhoto } from './InspectionPhotoField'
-import {
-  type SchoolCheckPayload,
-  type Phase1,
-  type Phase2,
-} from './steps'
-import { NavButtons, ScreenLayout, type PhotoSlot } from './_shell'
-import { VisualGeneralScreen } from './screens/VisualGeneralScreen'
+import type { Phase1, Phase2, SchoolCheckPayload } from './steps'
 import { FabricScreen } from './screens/FabricScreen'
-import { SeamsStructureScreen } from './screens/SeamsStructureScreen'
 import { InflationScreen } from './screens/InflationScreen'
 import { ReviewScreen } from './screens/ReviewScreen'
+import { SeamsStructureScreen } from './screens/SeamsStructureScreen'
+import { VisualGeneralScreen } from './screens/VisualGeneralScreen'
+import { NavButtons, ScreenLayout, type PhotoSlot } from './screens/_shared'
 
 function rehydratePhotos(paths: string[] | undefined): LocalInspectionPhoto[] {
   if (!paths || paths.length === 0) return []
@@ -34,7 +30,7 @@ interface CheckWizardProps {
   initial:           SchoolCheckPayload | null
 }
 
-// 6 écrans — noms courts pour la navigation sans URL.
+// 6 screens total — names kept short for the URL-less navigation.
 // Pas de test en vol : faire voler une aile signalée en SAV exposerait
 // l'école à un risque de responsabilité.
 type Screen =
@@ -54,11 +50,6 @@ const ORDER: Screen[] = [
   'review',
 ]
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Root wizard — état, routing inter-écrans, upload photos, submit
-// Les écrans eux-mêmes vivent dans ./screens/
-// ─────────────────────────────────────────────────────────────────────────────
-
 export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }: CheckWizardProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -68,10 +59,10 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
   const [phase2, setPhase2] = useState<Phase2>(initial?.phase2 ?? { skipped: false })
   const [globalNote, setGlobalNote] = useState<string>(initial?.globalNote ?? '')
 
-  // Photos attachées à chaque question de phase 1. Pre-uploaded paths d'une
-  // sauvegarde précédente sont réhydratés en thumbnails read-only que
-  // l'école peut quand même retirer (la suppression est matérialisée au
-  // submit en n'incluant simplement plus le path — l'orphelin reste).
+  // Photos joined to each "Oui" question in phase 1. Pre-uploaded paths from
+  // a previous save are rehydrated as read-only thumbnails the school can
+  // still remove (the removal is materialised at submit time by simply not
+  // including the path in the new payload — the orphan stays in the bucket).
   const [photos, setPhotos] = useState<Record<PhotoSlot, LocalInspectionPhoto[]>>({
     damage:    rehydratePhotos(initial?.phase1?.damagePhotoPaths),
     tears:     rehydratePhotos(initial?.phase1?.tearsPhotoPaths),
@@ -114,12 +105,9 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
     go('next')
   }
 
-  // ─── Validation par écran (gate du bouton Continuer) ──────────────────────
-  // Règle pour chaque "Oui" en phase 1 : l'école doit fournir au moins une
-  // photo ou une description — jamais rien.
-
-  const inspectorValid = inspectorName.trim().length >= 2
-
+  // Validation per screen (used to gate the "Continuer" button).
+  // Rule for every "Oui" answer: the school must provide at least a photo or
+  // a free-text description — never nothing.
   const visualGeneralValid = useMemo(() => {
     if (phase1.visibleDamage === 'no') return true
     if (phase1.visibleDamage === 'yes') {
@@ -143,36 +131,41 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
     if (!phase1.openSeams || !phase1.linesCondition || !phase1.maillonsInverted || !phase1.risersCondition) {
       return false
     }
-    // Open seams = "yes" → require evidence
     if (phase1.openSeams === 'yes') {
-      const ok = !!phase1.openSeamsNote?.trim() || photos.openSeams.length > 0
-      if (!ok) return false
+      const hasText  = !!phase1.openSeamsNote?.trim()
+      const hasPhoto = photos.openSeams.length > 0
+      if (!hasText && !hasPhoto) return false
     }
-    // Broken lines → require evidence (worn = optional)
-    if (phase1.linesCondition === 'broken') {
-      const ok = !!phase1.linesNote?.trim() || photos.lines.length > 0
-      if (!ok) return false
-    }
-    // Maillons inverted → require evidence
     if (phase1.maillonsInverted === 'yes') {
-      const ok = !!phase1.maillonsNote?.trim() || photos.maillons.length > 0
-      if (!ok) return false
+      const hasText  = !!phase1.maillonsNote?.trim()
+      const hasPhoto = photos.maillons.length > 0
+      if (!hasText && !hasPhoto) return false
     }
-    // Damaged risers → require evidence (worn = optional)
+    if (phase1.linesCondition === 'broken') {
+      const hasText  = !!phase1.linesNote?.trim()
+      const hasPhoto = photos.lines.length > 0
+      if (!hasText && !hasPhoto) return false
+    }
     if (phase1.risersCondition === 'damaged') {
-      const ok = !!phase1.risersNote?.trim() || photos.risers.length > 0
-      if (!ok) return false
+      const hasText  = !!phase1.risersNote?.trim()
+      const hasPhoto = photos.risers.length > 0
+      if (!hasText && !hasPhoto) return false
     }
     return true
-  }, [phase1, photos])
+  }, [phase1.openSeams, phase1.linesCondition, phase1.maillonsInverted, phase1.risersCondition,
+      phase1.openSeamsNote, phase1.maillonsNote, phase1.linesNote, phase1.risersNote,
+      photos.openSeams, photos.maillons, photos.lines, photos.risers])
 
   const inflationValid = useMemo(() => {
     if (phase2.skipped) return true
     return !!phase2.inflationSurfaceConsistency && !!phase2.inflationTendency
   }, [phase2])
 
-  // ─── Upload + submit ─────────────────────────────────────────────────────
+  const inspectorValid = inspectorName.trim().length >= 2
 
+  // Uploads new photos (those with a File) to the 'tickets' bucket and merges
+  // the resulting paths with the already-existing ones the school kept. Returns
+  // a record of storage paths per slot, ready to be persisted in Phase1.
   async function uploadPendingPhotos(userId: string): Promise<{
     paths: Record<PhotoSlot, string[]>
     error: string | null
@@ -181,7 +174,7 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
     const slots: PhotoSlot[] = ['damage', 'tears', 'openSeams', 'maillons', 'lines', 'risers', 'inflation']
 
     const totalToUpload = slots.reduce(
-      (acc, s) => acc + photos[s].filter((p) => p.file).length, 0,
+      (acc, s) => acc + photos[s].filter((p) => p.file).length, 0
     )
     if (totalToUpload === 0) {
       return {
@@ -252,9 +245,9 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
 
       const { paths, error: uploadErr } = await uploadPendingPhotos(user.id)
 
-      // Si l'école a ajouté des photos et que *toutes* ont échoué, surface
-      // l'erreur Supabase plutôt que de sauver silencieusement un payload
-      // incomplet. Si seulement certaines ont échoué, on continue.
+      // If the school added photos and *all* of them failed, surface the error
+      // instead of silently saving an incomplete payload. If only some failed,
+      // we keep going (the successfully uploaded ones are saved).
       const ALL_SLOTS: PhotoSlot[] = ['damage','tears','openSeams','maillons','lines','risers','inflation']
       const newPhotosCount = ALL_SLOTS
         .reduce((acc, s) => acc + photos[s].filter((p) => p.file).length, 0)
@@ -295,8 +288,8 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
       if (!phase2.skipped && (phase2.inflationTendency === 'closes_easily' || phase2.inflationTendency === 'lazy')) {
         checkedIds.push('inflation_abnormal')
       }
-      // Toujours inclure un sentinel pour que isCheckValidated reste truthy
-      // même si toutes les réponses sont "ok".
+      // Always include a sentinel so isCheckValidated stays truthy even if
+      // every answer happens to be "all good".
       checkedIds.push('check_completed')
 
       const payload: SchoolCheckPayload = {
@@ -328,8 +321,6 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
       }
     })
   }
-
-  // ─── Rendu ───────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-4">
@@ -392,10 +383,10 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
         <VisualGeneralScreen
           phase1={phase1}
           setPhase1={setPhase1}
-          photos={photos.damage}
-          addPhoto={(p) => addPhoto('damage', p)}
-          removePhoto={(id) => removePhoto('damage', id)}
-          valid={visualGeneralValid}
+          damagePhotos={photos.damage}
+          onAddPhoto={(p)   => addPhoto('damage', p)}
+          onRemovePhoto={(id) => removePhoto('damage', id)}
+          isValid={visualGeneralValid}
           onBack={() => go('back')}
           onNext={() => go('next')}
         />
@@ -405,10 +396,10 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
         <FabricScreen
           phase1={phase1}
           setPhase1={setPhase1}
-          photos={photos.tears}
-          addPhoto={(p) => addPhoto('tears', p)}
-          removePhoto={(id) => removePhoto('tears', id)}
-          valid={fabricValid}
+          tearsPhotos={photos.tears}
+          onAddPhoto={(p)   => addPhoto('tears', p)}
+          onRemovePhoto={(id) => removePhoto('tears', id)}
+          isValid={fabricValid}
           onBack={() => go('back')}
           onNext={() => go('next')}
         />
@@ -424,9 +415,15 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
             maillons:  photos.maillons,
             risers:    photos.risers,
           }}
-          addPhoto={(slot, p) => addPhoto(slot, p)}
-          removePhoto={(slot, id) => removePhoto(slot, id)}
-          valid={seamsValid}
+          onAddOpenSeamsPhoto={(p)    => addPhoto('openSeams', p)}
+          onRemoveOpenSeamsPhoto={(id) => removePhoto('openSeams', id)}
+          onAddLinesPhoto={(p)         => addPhoto('lines', p)}
+          onRemoveLinesPhoto={(id)     => removePhoto('lines', id)}
+          onAddMaillonsPhoto={(p)      => addPhoto('maillons', p)}
+          onRemoveMaillonsPhoto={(id)  => removePhoto('maillons', id)}
+          onAddRisersPhoto={(p)        => addPhoto('risers', p)}
+          onRemoveRisersPhoto={(id)    => removePhoto('risers', id)}
+          isValid={seamsValid}
           onBack={() => go('back')}
           onNext={() => go('next')}
         />
@@ -436,10 +433,10 @@ export function CheckWizard({ ticketId, ticketHref, reportedCategory, initial }:
         <InflationScreen
           phase2={phase2}
           setPhase2={setPhase2}
-          photos={photos.inflation}
-          addPhoto={(p) => addPhoto('inflation', p)}
-          removePhoto={(id) => removePhoto('inflation', id)}
-          valid={inflationValid}
+          inflationPhotos={photos.inflation}
+          onAddPhoto={(p)   => addPhoto('inflation', p)}
+          onRemovePhoto={(id) => removePhoto('inflation', id)}
+          isValid={inflationValid}
           onBack={() => go('back')}
           onNext={() => go('next')}
           onSkip={skipPhase2}

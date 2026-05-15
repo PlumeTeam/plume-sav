@@ -2,6 +2,11 @@ import { createClient } from '@/lib/supabase/server'
 import type { TicketWithPhotos, TicketDetail, TicketStatus, RequestStatus } from './types'
 import { attachUnreadCounts, type TicketWithUnread } from './messages-unread'
 import { attachContactsToList, type TicketWithContacts } from './contacts'
+import {
+  FALLBACK_PARTNER_WORKSHOPS,
+  PLUME_EMBRUN_WORKSHOP_ID,
+  type PartnerWorkshop,
+} from './constants'
 
 export type ClientWing = {
   id: string
@@ -210,30 +215,19 @@ export async function getPartnerSchools(): Promise<PartnerSchool[]> {
   type Row = Record<string, unknown>
   type AttemptResult = { data: Row[] | null; error: { message: string; code?: string } | null }
 
-  // Attempts in decreasing specificity. We try affiliated-only variants first
-  // (the preferred set), then fall back to "active only" if the
-  // is_affiliated column is missing or no school is currently flagged. Within
-  // each tier we drop columns progressively so a missing `region` or unknown
-  // schema doesn't kill the lookup. We never keep a 0-row success — empty
-  // is treated like an error so the next attempt gets a chance.
+  // Attempts in decreasing specificity. The wizard needs ALL active schools
+  // visible to the client (no is_affiliated filter — that flag is for ops
+  // partnerships, not for hiding schools from end-users). We drop columns
+  // progressively so a missing `region` or unknown schema doesn't kill the
+  // lookup, and fall back to unfiltered selects if `active` is missing.
+  // A 0-row success is treated like an error so the next attempt gets a chance.
   const attempts: Array<{ label: string; run: () => Promise<AttemptResult> }> = [
-    // ── Tier 1: only schools the team has explicitly affiliated ──────────
-    { label: 'rich+active+affiliated',     run: () => db.from('partner_schools').select('id, name, city, region, lat, lng').eq('is_affiliated', true).eq('active', true).order('name', { ascending: true }) },
-    { label: 'rich+affiliated',            run: () => db.from('partner_schools').select('id, name, city, region, lat, lng').eq('is_affiliated', true).order('name', { ascending: true }) },
-    { label: 'noregion+active+affiliated', run: () => db.from('partner_schools').select('id, name, city, lat, lng').eq('is_affiliated', true).eq('active', true).order('name', { ascending: true }) },
-    { label: 'noregion+affiliated',        run: () => db.from('partner_schools').select('id, name, city, lat, lng').eq('is_affiliated', true).order('name', { ascending: true }) },
-    { label: 'minimal+active+affiliated',  run: () => db.from('partner_schools').select('id, name').eq('is_affiliated', true).eq('active', true).order('name', { ascending: true }) },
-    { label: 'minimal+affiliated',         run: () => db.from('partner_schools').select('id, name').eq('is_affiliated', true).order('name', { ascending: true }) },
-
-    // ── Tier 2: active-only fallback ─────────────────────────────────────
-    // Used when the is_affiliated column doesn't exist yet, or when no
-    // school is flagged is_affiliated=true (so we don't strand the wizard).
-    { label: 'rich+active',                run: () => db.from('partner_schools').select('id, name, city, region, lat, lng').eq('active', true).order('name', { ascending: true }) },
-    { label: 'rich',                       run: () => db.from('partner_schools').select('id, name, city, region, lat, lng').order('name', { ascending: true }) },
-    { label: 'noregion+active',            run: () => db.from('partner_schools').select('id, name, city, lat, lng').eq('active', true).order('name', { ascending: true }) },
-    { label: 'noregion',                   run: () => db.from('partner_schools').select('id, name, city, lat, lng').order('name', { ascending: true }) },
-    { label: 'minimal+active',             run: () => db.from('partner_schools').select('id, name').eq('active', true).order('name', { ascending: true }) },
-    { label: 'minimal',                    run: () => db.from('partner_schools').select('id, name').order('name', { ascending: true }) },
+    { label: 'rich+active',     run: () => db.from('partner_schools').select('id, name, city, region, lat, lng').eq('active', true).order('name', { ascending: true }) },
+    { label: 'rich',            run: () => db.from('partner_schools').select('id, name, city, region, lat, lng').order('name', { ascending: true }) },
+    { label: 'noregion+active', run: () => db.from('partner_schools').select('id, name, city, lat, lng').eq('active', true).order('name', { ascending: true }) },
+    { label: 'noregion',        run: () => db.from('partner_schools').select('id, name, city, lat, lng').order('name', { ascending: true }) },
+    { label: 'minimal+active',  run: () => db.from('partner_schools').select('id, name').eq('active', true).order('name', { ascending: true }) },
+    { label: 'minimal',         run: () => db.from('partner_schools').select('id, name').order('name', { ascending: true }) },
   ]
 
   let rows: Row[] | null = null
@@ -363,6 +357,113 @@ export async function getPartnerSchoolById(id: string): Promise<PartnerSchoolDet
     } catch (e) {
       console.warn(`[getPartnerSchoolById] "${label}" threw:`, e)
     }
+  }
+  return null
+}
+
+// ── Partner workshops ────────────────────────────────────────────────────────
+//
+// Table partner_workshops (UUID id) — calquée sur partner_schools. Toutes les
+// lectures passent par ces helpers (jamais d'id hardcodé dans le code applicatif).
+// Cascade défensive identique à getPartnerSchools : on dégrade le SELECT si
+// un sous-ensemble de colonnes n'existe pas, et on retombe sur FALLBACK_PARTNER_WORKSHOPS
+// si la table est inaccessible — le wizard reste utilisable même DB down.
+
+function normaliseWorkshop(raw: Record<string, unknown>): PartnerWorkshop {
+  // Tolère deux formes possibles côté DB : `name` (calque de partner_schools)
+  // ou `label` (si une migration future renomme la colonne).
+  const label = typeof raw.label === 'string' ? raw.label
+              : typeof raw.name  === 'string' ? raw.name
+              : String(raw.id ?? '')
+  return {
+    id:         String(raw.id ?? ''),
+    label,
+    city:       typeof raw.city    === 'string' ? raw.city    : null,
+    region:     typeof raw.region  === 'string' ? raw.region  : null,
+    address:    typeof raw.address === 'string' ? raw.address : null,
+    lat:        toNumber(raw.lat),
+    lng:        toNumber(raw.lng),
+    affiliated: raw.is_affiliated === false ? false : true,
+    email:      typeof raw.email   === 'string' ? raw.email   : null,
+    phone:      typeof raw.phone   === 'string' ? raw.phone   : null,
+  }
+}
+
+export async function getPartnerWorkshops(): Promise<PartnerWorkshop[]> {
+  const supabase = await createClient()
+  // partner_workshops vient d'être ajoutée aux types mais on garde le cast
+  // unknown pour rester compatible avec une DB qui n'aurait pas encore la table.
+  const db = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
+
+  type Row = Record<string, unknown>
+  type AttemptResult = { data: Row[] | null; error: { message: string; code?: string } | null }
+
+  const attempts: Array<{ label: string; run: () => Promise<AttemptResult> }> = [
+    { label: 'rich+active+affiliated',  run: () => db.from('partner_workshops').select('id, name, city, region, address, email, phone, lat, lng, is_affiliated').eq('is_affiliated', true).eq('active', true).order('name', { ascending: true }) },
+    { label: 'rich+affiliated',         run: () => db.from('partner_workshops').select('id, name, city, region, address, email, phone, lat, lng, is_affiliated').eq('is_affiliated', true).order('name', { ascending: true }) },
+    { label: 'rich+active',             run: () => db.from('partner_workshops').select('id, name, city, region, address, email, phone, lat, lng, is_affiliated').eq('active', true).order('name', { ascending: true }) },
+    { label: 'rich',                    run: () => db.from('partner_workshops').select('id, name, city, region, address, email, phone, lat, lng, is_affiliated').order('name', { ascending: true }) },
+    { label: 'noaffiliated',            run: () => db.from('partner_workshops').select('id, name, city, region, address, email, phone, lat, lng').order('name', { ascending: true }) },
+    { label: 'noaddress',               run: () => db.from('partner_workshops').select('id, name, city, region, email, phone, lat, lng').order('name', { ascending: true }) },
+    { label: 'minimal',                 run: () => db.from('partner_workshops').select('id, name').order('name', { ascending: true }) },
+  ]
+
+  for (const { label, run } of attempts) {
+    let r: AttemptResult
+    try {
+      r = await run()
+    } catch (e) {
+      console.warn(`[getPartnerWorkshops] attempt "${label}" threw:`, e)
+      continue
+    }
+    if (r.error) {
+      console.warn(`[getPartnerWorkshops] attempt "${label}" errored:`, r.error.code ?? '?', r.error.message)
+      continue
+    }
+    const count = r.data?.length ?? 0
+    if (count > 0) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[getPartnerWorkshops] using DB rows (path="${label}", count=${count})`)
+      }
+      return (r.data as Row[]).map(normaliseWorkshop)
+    }
+  }
+
+  console.warn('[getPartnerWorkshops] all attempts failed or returned empty — using FALLBACK_PARTNER_WORKSHOPS')
+  return FALLBACK_PARTNER_WORKSHOPS
+}
+
+export type PartnerWorkshopDetail = PartnerWorkshop
+
+export async function getPartnerWorkshopById(id: string): Promise<PartnerWorkshopDetail | null> {
+  if (!id) return null
+  const supabase = await createClient()
+  const db = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
+
+  type Row = Record<string, unknown>
+  type AttemptResult = { data: Row | null; error: { message: string; code?: string } | null }
+
+  const attempts: Array<{ label: string; run: () => Promise<AttemptResult> }> = [
+    { label: 'rich',     run: () => db.from('partner_workshops').select('id, name, city, region, address, email, phone, lat, lng, is_affiliated').eq('id', id).maybeSingle() },
+    { label: 'noaffil',  run: () => db.from('partner_workshops').select('id, name, city, region, address, email, phone, lat, lng').eq('id', id).maybeSingle() },
+    { label: 'noaddr',   run: () => db.from('partner_workshops').select('id, name, city, region, email, phone, lat, lng').eq('id', id).maybeSingle() },
+    { label: 'minimal',  run: () => db.from('partner_workshops').select('id, name').eq('id', id).maybeSingle() },
+  ]
+
+  for (const { label, run } of attempts) {
+    try {
+      const r = await run()
+      if (!r.error && r.data) return normaliseWorkshop(r.data)
+      if (r.error) console.warn(`[getPartnerWorkshopById] "${label}" errored:`, r.error.code ?? '?', r.error.message)
+    } catch (e) {
+      console.warn(`[getPartnerWorkshopById] "${label}" threw:`, e)
+    }
+  }
+
+  // Dernier recours : si on cherche l'atelier Plume Embrun, on renvoie au moins
+  // ses coords/contact depuis le fallback.
+  if (id === PLUME_EMBRUN_WORKSHOP_ID) {
+    return FALLBACK_PARTNER_WORKSHOPS[0] ?? null
   }
   return null
 }
@@ -510,6 +611,66 @@ export async function getClientWings(): Promise<ClientWing[]> {
   return rows ?? []
 }
 
+/**
+ * Renvoie l'aile correspondante au n° de série, restreinte au propriétaire courant.
+ * Utilisé par la page "Carnet d'entretien" — RLS garantit qu'un client ne lit que
+ * ses propres ailes mais on filtre quand même côté requête pour clarté.
+ */
+export async function getClientWingBySerial(serial: string): Promise<ClientWing | null> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const db = supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
+
+  // Optimistic select with partner_school_id; fallback to the smaller projection
+  // when the column is missing (mirrors getClientWings).
+  try {
+    const r = await db
+      .from('customer_wings')
+      .select('id, serial_number, product_model, product_label, size, color_name, registered_at, partner_school_id')
+      .eq('owner_user_id', user.id)
+      .eq('serial_number', serial)
+      .maybeSingle()
+    if (!r.error && r.data) return r.data as ClientWing
+  } catch { /* fall through */ }
+
+  const r = await db
+    .from('customer_wings')
+    .select('id, serial_number, product_model, product_label, size, color_name, registered_at')
+    .eq('owner_user_id', user.id)
+    .eq('serial_number', serial)
+    .maybeSingle()
+  if (r.error || !r.data) return null
+  return { ...(r.data as Omit<ClientWing, 'partner_school_id'>), partner_school_id: null }
+}
+
+/**
+ * Tous les tickets SAV ouverts par le client courant pour une aile donnée.
+ * Sert de "carnet d'entretien" — historique chronologique inverse, RLS scope par user.
+ */
+export async function getTicketsForWingSerial(serial: string): Promise<TicketWithPhotos[]> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  // RLS contraint déjà la lecture aux tickets du client. Le filtre serial_number
+  // OR wing_serial_number couvre les anciennes/nouvelles colonnes (table partagée
+  // entre apps Plume — la SAV remplit `serial_number`, mais des écritures plus
+  // anciennes alimentaient `wing_serial_number`).
+  const { data, error } = await supabase
+    .from('service_requests')
+    .select('*')
+    .or(`serial_number.eq.${serial},wing_serial_number.eq.${serial}`)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('getTicketsForWingSerial error:', error.message)
+    return []
+  }
+  return attachPhotosToList(supabase, (data ?? []) as Array<Record<string, unknown>>)
+}
+
 export async function getClientTickets(): Promise<Array<TicketWithContacts & { unread_count: number }>> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -597,7 +758,9 @@ export async function getWorkshopTickets(): Promise<TicketWithContacts[]> {
   if (!user) return []
 
   // Workshop sees:
-  //  - tickets dans le pipeline atelier (escalated → wing_returned)
+  //  - tickets dans le pipeline atelier (pending_workshop → wing_returned)
+  //    'pending_workshop' = routage direct client → atelier (repair/inspection),
+  //    aile pas encore reçue mais le ticket est déjà visible côté atelier.
   //  - les tickets historiques (processing/approved/completed) — rétrocompat
   //  - school_resolution = 'workshop_advice_requested' → avis distance, pas de transfert
   // OR PostgREST permettant de couvrir les anciennes ET nouvelles entrées.
@@ -605,7 +768,7 @@ export async function getWorkshopTickets(): Promise<TicketWithContacts[]> {
     .from('service_requests')
     .select('*')
     .or(
-      'status.in.(processing,approved,completed,escalated_to_workshop,wing_received_workshop,workshop_diagnosing,workshop_repairing,workshop_done,wing_returned),' +
+      'status.in.(processing,approved,completed,pending_workshop,escalated_to_workshop,wing_received_workshop,workshop_pre_checking,workshop_diagnosing,workshop_repairing,workshop_done,wing_returned),' +
       'school_resolution.eq.workshop_advice_requested'
     )
     .order('urgency_level', { ascending: false })

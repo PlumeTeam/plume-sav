@@ -1,3 +1,4 @@
+// TODO: Replace manual types with auto-generated ones by running: SUPABASE_ACCESS_TOKEN=xxx pnpm db:gen-types
 // Placeholder — remplacer via `pnpm db:gen-types` (MCP Supabase, project gxighesxbavnzzyngjaz)
 // Structure exacte requise par @supabase/postgrest-js GenericTable (Relationships obligatoire)
 
@@ -15,6 +16,10 @@ export type RequestStatus =
   | 'school_checking'
   | 'school_resolved'
   | 'escalated_to_workshop'
+  // Routage direct client → atelier (repair / inspection) : statut initial
+  // dédié, distinct de 'pending' (réservé au flow école). Voir migration
+  // 20260515120000_sav_pending_workshop_status.sql.
+  | 'pending_workshop'
   | 'wing_received_workshop'
   | 'workshop_pre_checking'
   | 'workshop_diagnosing'
@@ -28,6 +33,14 @@ export type TicketStatus =
   | 'repair_in_progress' | 'repaired' | 'shipped' | 'closed' | 'rejected'
 
 export type ServiceType = 'sav' | 'revision' | 'repair' | 'information'
+
+// Type de demande SAV — 3 entrées possibles pour le client (migration request_type)
+//  - repair                : dommage constaté sur l'aile, réparation directe atelier
+//  - inspection            : contrôle / révision périodique, atelier
+//  - manufacturing_defect  : suspicion de défaut d'origine → école si sous garantie,
+//                            atelier sinon. Valeur par défaut historique (couvre
+//                            les tickets créés avant l'ajout de la colonne).
+export type RequestType = 'repair' | 'inspection' | 'manufacturing_defect'
 
 export type ProblemCategory =
   | 'tear' | 'line_issue' | 'riser_issue' | 'buckle_issue' | 'porosity' | 'other'
@@ -194,6 +207,14 @@ export interface Database {
           warranty_override_by:  string | null
           warranty_override_at:  string | null
           warranty_override_note: string | null
+          // Type de demande SAV — colonne ajoutée par la migration request_type
+          request_type: RequestType
+          // Revision report (migration 20260514000000) — uploaded by workshop
+          // for tickets with request_type='inspection' (contrôle/révision).
+          revision_report_path:        string | null
+          revision_report_filename:    string | null
+          revision_report_uploaded_at: string | null
+          revision_report_uploaded_by: string | null
           created_at: string
           updated_at: string
         }
@@ -292,6 +313,11 @@ export interface Database {
           warranty_override_by?:  string | null
           warranty_override_at?:  string | null
           warranty_override_note?: string | null
+          request_type?: RequestType
+          revision_report_path?:        string | null
+          revision_report_filename?:    string | null
+          revision_report_uploaded_at?: string | null
+          revision_report_uploaded_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -390,6 +416,11 @@ export interface Database {
           warranty_override_by?:  string | null
           warranty_override_at?:  string | null
           warranty_override_note?: string | null
+          request_type?: RequestType
+          revision_report_path?:        string | null
+          revision_report_filename?:    string | null
+          revision_report_uploaded_at?: string | null
+          revision_report_uploaded_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -526,6 +557,63 @@ export interface Database {
         }
         Relationships: []
       }
+      partner_workshops: {
+        // Réseau d'ateliers partenaires Plume. Même structure que partner_schools.
+        // user_id pointe sur le compte authentifié de l'atelier (utilisé par la
+        // RLS pour scoper la lecture des tickets côté atelier).
+        Row: {
+          id: string
+          name: string
+          city: string | null
+          region: string | null
+          address: string | null
+          email: string | null
+          phone: string | null
+          lat: number | null
+          lng: number | null
+          is_affiliated: boolean | null
+          active: boolean | null
+          user_id: string | null
+          company_address: Json | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          city?: string | null
+          region?: string | null
+          address?: string | null
+          email?: string | null
+          phone?: string | null
+          lat?: number | null
+          lng?: number | null
+          is_affiliated?: boolean | null
+          active?: boolean | null
+          user_id?: string | null
+          company_address?: Json | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          city?: string | null
+          region?: string | null
+          address?: string | null
+          email?: string | null
+          phone?: string | null
+          lat?: number | null
+          lng?: number | null
+          is_affiliated?: boolean | null
+          active?: boolean | null
+          user_id?: string | null
+          company_address?: Json | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       ticket_messages: {
         Row: {
           id: string
@@ -575,7 +663,24 @@ export interface Database {
       }
     }
     Views: Record<string, never>
-    Functions: Record<string, never>
+    Functions: {
+      mark_ticket_read_by_client: {
+        Args: { p_ticket_id: string }
+        Returns: void
+      }
+      mark_ticket_read_by_school: {
+        Args: { p_ticket_id: string }
+        Returns: void
+      }
+      mark_ticket_read_by_workshop: {
+        Args: { p_ticket_id: string }
+        Returns: void
+      }
+      mark_ticket_read_by_plume: {
+        Args: { p_ticket_id: string }
+        Returns: void
+      }
+    }
     Enums: {
       ticket_status: TicketStatus
       problem_category: ProblemCategory

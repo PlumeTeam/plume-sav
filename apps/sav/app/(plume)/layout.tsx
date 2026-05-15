@@ -18,6 +18,7 @@ export default async function PlumeLayout({ children }: { children: React.ReactN
         spaceColor="navy"
         links={[
           { href: '/plume',          label: 'Dashboard' },
+          { href: '/plume/rd',       label: 'Données R&D' },
           { href: '/plume/settings', label: 'Réglages'  },
           { href: '/school',         label: 'Vue École' },
           { href: '/workshop',       label: 'Vue Atelier' },

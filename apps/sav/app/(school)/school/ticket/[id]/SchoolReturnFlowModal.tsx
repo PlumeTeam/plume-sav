@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, type ReactNode } from 'react'
+import { useState, useTransition } from 'react'
 import {
   markTicketCompletedAction,
   markWingReceivedWorkshopAction,
@@ -9,19 +9,30 @@ import { ScanGateModal } from '@/features/tickets/components/ScanGateModal'
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
 import type { SchoolResolution, WarrantyTier } from '@/features/tickets/types'
 
-// Modal "Renvoyer l'aile" — étape 5 du SchoolStepPanel.
-// Encapsule tout le state local lié au renvoi (option sélectionnée, scans
-// QR effectués, gate de scan en cours, erreurs) qui pollluait SchoolStepPanel.
-// L'état partagé avec le panel parent (status du ticket, tracking GLS) est
-// passé en props.
-
 type ReturnOption = 'client_pickup' | 'carrier_to_client' | 'to_workshop' | 'workshop_pickup'
 
+/**
+ * Suggère l'option logique selon la décision prise à l'étape 4 :
+ *  - Niveau 1 (mineur, école gère)         → client revient chercher
+ *  - Niveau 2/3/4 (besoin atelier)         → envoi à l'atelier
+ *
+ * L'utilisateur peut toujours basculer sur une autre option via le toggle
+ * "Autre option" (carrier_to_client si l'école renvoie par poste, ou
+ * workshop_pickup si l'atelier vient chercher l'aile sur place).
+ */
+function getRecommendedReturnOption(resolution: SchoolResolution | null): ReturnOption {
+  if (resolution === 'resolved_by_school' || resolution === 'normal_behavior_explained') {
+    return 'client_pickup'
+  }
+  return 'to_workshop'
+}
+
 interface ReturnOptionMeta {
-  key:          ReturnOption
-  emoji:        string
-  title:        string
-  description:  string
+  key:         ReturnOption
+  emoji:       string
+  title:       string
+  description: string
+  /** True si l'option exige un scan QR avant de générer le bon de transport. */
   requiresScan: boolean
 }
 
@@ -43,58 +54,63 @@ function buildReturnOptions(assignedWorkshopLabel: string | null): ReturnOptionM
     },
     {
       key:          'to_workshop',
-      emoji:        '🛠️',
-      title:        assignedWorkshopLabel
-        ? `Envoyer à ${assignedWorkshopLabel}`
-        : "Envoyer à l'atelier partenaire",
-      description:  "Envoi postal GLS depuis l'école vers l'atelier.",
+      emoji:        '🔧',
+      title:        "Envoyer à l'atelier",
+      description:  assignedWorkshopLabel
+        ? `L'aile part chez ${assignedWorkshopLabel}.`
+        : "L'aile part à l'atelier choisi lors de la décision.",
       requiresScan: true,
     },
     {
       key:          'workshop_pickup',
-      emoji:        '🚐',
+      emoji:        '🚗',
       title:        "L'atelier vient chercher l'aile",
-      description:  "Pas d'expédition — l'atelier se déplace.",
+      description:  assignedWorkshopLabel
+        ? `${assignedWorkshopLabel} se déplace à l'école pour récupérer l'aile.`
+        : "L'atelier se déplace à l'école pour récupérer l'aile.",
       requiresScan: false,
     },
   ]
 }
 
-interface Props {
-  ticketId:                            string
-  /** Pré-sélection : option recommandée par la décision école (étape 4). */
-  recommendedOption:                   ReturnOption
-  schoolResolution:                    SchoolResolution | null
-  assignedWorkshopLabel:               string | null
-  wingSerial:                          string | null
-  warrantyTier:                        WarrantyTier | null
-  extendedCoversSchoolWorkshopShipping: boolean
-  schoolWorkshopTracking:              string | null
-  schoolWorkshopLabelUrl:              string | null
-  workshopReturnTracking:              string | null
-  workshopReturnLabelUrl:              string | null
-  onClose:                             () => void
+interface SchoolReturnFlowModalProps {
+  open:                                   boolean
+  onClose:                                () => void
+  ticketId:                               string
+  wingSerial:                             string | null
+  schoolResolution:                       SchoolResolution | null
+  assignedWorkshopLabel:                  string | null
+  schoolWorkshopTracking:                 string | null
+  schoolWorkshopLabelUrl:                 string | null
+  workshopReturnTracking:                 string | null
+  workshopReturnLabelUrl:                 string | null
+  warrantyTier:                           WarrantyTier | null
+  extendedCoversSchoolWorkshopShipping:   boolean
 }
 
 export function SchoolReturnFlowModal({
+  open,
+  onClose,
   ticketId,
-  recommendedOption,
-  assignedWorkshopLabel,
   wingSerial,
-  warrantyTier,
-  extendedCoversSchoolWorkshopShipping,
+  schoolResolution,
+  assignedWorkshopLabel,
   schoolWorkshopTracking,
   schoolWorkshopLabelUrl,
   workshopReturnTracking,
   workshopReturnLabelUrl,
-  onClose,
-}: Props) {
+  warrantyTier,
+  extendedCoversSchoolWorkshopShipping,
+}: SchoolReturnFlowModalProps) {
   const [isPending, startTransition] = useTransition()
+  const recommendedOption = getRecommendedReturnOption(schoolResolution)
+  const returnOptions     = buildReturnOptions(assignedWorkshopLabel)
+
   const [returnOption, setReturnOption] = useState<ReturnOption | null>(recommendedOption)
   const [showOtherReturnOptions, setShowOtherReturnOptions] = useState(false)
   const [returnError, setReturnError] = useState<string | null>(null)
-  // Le scan QR (options carrier_to_client / to_workshop) doit être lu AVANT
-  // d'afficher le bouton "Générer le bon de transport". Si une étiquette a
+  // Module Flashcode — pour les options qui exigent un scan, le QR doit être lu
+  // AVANT d'afficher le bouton "Générer le bon de transport". Si une étiquette a
   // déjà été générée pour ce leg, on considère le scan implicitement validé.
   const [returnScanGateFor, setReturnScanGateFor] = useState<ReturnOption | null>(null)
   const [scannedReturnOptions, setScannedReturnOptions] = useState<Set<ReturnOption>>(() => {
@@ -104,17 +120,25 @@ export function SchoolReturnFlowModal({
     return s
   })
 
-  const returnOptions = buildReturnOptions(assignedWorkshopLabel)
-
+  // Sélection d'une option de retour — cliquer sur n'importe quelle card la
+  // sélectionne immédiatement. Le scan QR (pour options carrier_to_client /
+  // to_workshop) se fait ensuite via le bouton dédié à l'intérieur de la card
+  // expandée, pas en interceptant le clic sur la card (sinon : conflit z-index
+  // avec la modal "Renvoyer l'aile" qui rend le scan invisible sur mobile).
   function selectReturnOption(opt: ReturnOption) {
     setReturnError(null)
     setReturnOption(opt)
   }
+
   function requestReturnScan(opt: ReturnOption) {
     setReturnError(null)
     setReturnScanGateFor(opt)
   }
-  // Bypass scan QR — phase test/démo. À gater par feature flag avant prod.
+
+  // Bypass scan QR — réservé à la phase de test/démo. Marque l'option comme
+  // « scannée » sans déclencher la caméra, ce qui affiche directement le bouton
+  // de génération du bon de transport. À retirer / gater par feature flag avant
+  // la mise en ligne client.
   function skipReturnScan(opt: ReturnOption) {
     setReturnError(null)
     setScannedReturnOptions((prev) => {
@@ -124,6 +148,7 @@ export function SchoolReturnFlowModal({
     })
     setReturnOption(opt)
   }
+
   function handleReturnScanSuccess(_method: 'camera' | 'demo' | 'manual') {
     if (!returnScanGateFor) return
     const opt = returnScanGateFor
@@ -150,9 +175,10 @@ export function SchoolReturnFlowModal({
       onClose()
     })
   }
-  // "L'atelier vient chercher" — pas de scan ni de bon, on avance le ticket
-  // vers wing_received_workshop (statut habituellement atteint après réception
-  // du colis GLS par l'atelier).
+
+  // Option "L'atelier vient chercher l'aile" — simple confirmation, pas de scan
+  // ni de bon de transport. On avance le ticket vers wing_received_workshop, qui
+  // est le statut atteint normalement après que l'atelier ait reçu le colis GLS.
   function handleWorkshopPickupConfirm() {
     setReturnError(null)
     startTransition(async () => {
@@ -168,7 +194,10 @@ export function SchoolReturnFlowModal({
     })
   }
 
-  function renderReturnContent(opt: ReturnOption): ReactNode {
+  // ── Contenu expandé de chaque card ─────────────────────────────────────
+  // Dépend du status de scan pour les options 2/3 → fonction interne plutôt
+  // que prop sur ReturnOptionCard pour garder la card générique.
+  function renderReturnContent(opt: ReturnOption): React.ReactNode {
     switch (opt) {
       case 'client_pickup':
         return (
@@ -241,9 +270,11 @@ export function SchoolReturnFlowModal({
           />
         )
       case 'to_workshop': {
-        // Plume couvre le transport école → atelier uniquement pour
-        // standard / plume_override, ou extended ET toggle activé. Sinon
-        // l'école doit gérer l'envoi hors plateforme.
+        // Plume couvre le transport école → atelier uniquement pour les
+        // tickets standard / plume_override, ou si la garantie étendue est
+        // configurée pour le couvrir. Hors garantie ou étendue sans toggle :
+        // le bon n'est pas généré par Plume — l'école doit gérer l'envoi
+        // hors plateforme et le client paie le transport.
         const schoolWorkshopCovered =
           warrantyTier === 'standard' ||
           warrantyTier === 'plume_override' ||
@@ -296,6 +327,8 @@ export function SchoolReturnFlowModal({
     }
   }
 
+  if (!open) return null
+
   return (
     <>
       <div
@@ -303,12 +336,17 @@ export function SchoolReturnFlowModal({
         aria-modal="true"
         aria-labelledby="return-modal-title"
         className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
-        onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose()
+        }}
       >
         <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-xl sm:rounded-3xl">
           <div className="flex items-start justify-between gap-3 border-b border-brand-stone px-5 py-4">
             <div>
-              <h2 id="return-modal-title" className="text-base font-semibold text-brand-ink">
+              <h2
+                id="return-modal-title"
+                className="text-base font-semibold text-brand-ink"
+              >
                 ✈️ Renvoyer l&apos;aile
               </h2>
               <p className="mt-0.5 text-xs text-slate-500">
@@ -326,9 +364,11 @@ export function SchoolReturnFlowModal({
           </div>
 
           <div className="overflow-y-auto px-5 py-4 space-y-3">
-            {/* Option recommandée d'abord, avec badge "Recommandé" et
-                auto-sélection. Les 3 autres sont cachées derrière le toggle
-                "Autre option" — pour ne pas noyer le moniteur. */}
+            {/* L'option recommandée par la décision (étape 4) est affichée
+                en premier avec un badge "Recommandé" et auto-sélectionnée.
+                Les 3 autres options sont cachées derrière le toggle "Autre
+                option" — pour ne pas noyer le moniteur dans des choix qui
+                n'ont pas de sens vu la décision prise. */}
             {returnOptions
               .filter((o) => o.key === recommendedOption)
               .map((o) => (
@@ -386,8 +426,10 @@ export function SchoolReturnFlowModal({
         </div>
       </div>
 
-      {/* Scan gate empilé APRÈS la modal parente — les 2 sont z-50, l'ordre
-          DOM décide. Bug historique : rendu avant, le scanner était invisible
+      {/* Scan gate pour les options carrier_to_client / to_workshop.
+          Rendu APRÈS la modal "Renvoyer l'aile" pour que le scanner s'empile
+          AU-DESSUS d'elle (les deux modales utilisent z-50, donc l'ordre DOM
+          décide). Bug historique : rendu avant, le scanner était invisible
           sur mobile car caché derrière la modal parente. */}
       <ScanGateModal
         open={returnScanGateFor !== null}
@@ -406,17 +448,27 @@ export function SchoolReturnFlowModal({
 }
 
 function ReturnOptionCard({
-  emoji, title, description, isSelected, onClick,
-  scanRequired = false, isRecommended = false, children,
+  emoji,
+  title,
+  description,
+  isSelected,
+  onClick,
+  scanRequired = false,
+  isRecommended = false,
+  children,
 }: {
-  emoji:         string
-  title:         string
-  description:   string
-  isSelected:    boolean
-  onClick:       () => void
+  emoji:        string
+  title:        string
+  description:  string
+  isSelected:   boolean
+  onClick:      () => void
+  /** Si true, affiche un badge "Scan requis" — informationnel, le click ne déclenche
+      pas le scan : il sélectionne juste la card. Le scan se lance via le bouton
+      "Scanner l'aile" rendu DANS le contenu expandé. */
   scanRequired?: boolean
+  /** Si true, badge "✨ Recommandé" pour mettre l'option en avant. */
   isRecommended?: boolean
-  children:      ReactNode
+  children:     React.ReactNode
 }) {
   return (
     <div
@@ -426,7 +478,8 @@ function ReturnOptionCard({
           : 'border-brand-stone bg-white hover:border-brand-gold/40'
       }`}
     >
-      {/* `touch-manipulation` désactive les délais de tap iOS. */}
+      {/* `touch-manipulation` désactive les délais de tap iOS qui retardaient
+          la réaction au clic sur les cards 2/3. */}
       <button
         type="button"
         onClick={onClick}
@@ -450,9 +503,8 @@ function ReturnOptionCard({
           <p className="mt-0.5 text-xs text-slate-600">{description}</p>
         </div>
         <span className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold ${
-          isSelected
-            ? 'border-brand-gold bg-brand-gold text-white'
-            : 'border-brand-stone bg-white text-transparent'
+          isSelected ? 'border-brand-gold bg-brand-gold text-white'
+                     : 'border-brand-stone bg-white text-transparent'
         }`} aria-hidden>✓</span>
       </button>
       {isSelected && (

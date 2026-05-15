@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUserRoles } from '@/features/auth/queries'
-import { PARTNER_WORKSHOPS } from '../constants'
 import { getPartnerSchoolById, getPlumeSettings } from '../queries'
 import type {
   ClientShippingAddress,
@@ -23,6 +22,7 @@ import type {
 import {
   finishWorkshopPreCheckSchema,
   repairDecisionSchema,
+  revisionReportSchema,
   startWorkshopPreCheckSchema,
   workshopChecklistSchema,
   workshopDecisionSchema,
@@ -33,6 +33,52 @@ import { computeRepairDecision, computeWarrantyStatus } from '../utils'
 import { getPreCheckFeeEur } from '@/features/settings/queries'
 import { requestStatusToSavStatus } from './_helpers'
 import { advanceTicketStep } from './_step-advance'
+
+/**
+ * Persiste un rapport de révision uploadé par l'atelier sur un ticket
+ * request_type='inspection' (contrôle/révision). Le fichier vit déjà dans
+ * le bucket 'tickets' (préfixe revision-reports/{ticketId}/...) — on ne
+ * stocke ici que le storage_path + métadonnées d'audit.
+ *
+ * Réservé aux rôles `workshop` et `plume_admin` (les autres tentatives
+ * sont rejetées explicitement avant tout SQL).
+ */
+export async function saveRevisionReportAction(formData: FormData) {
+  const parsed = revisionReportSchema.safeParse({
+    ticketId:    formData.get('ticketId'),
+    storagePath: formData.get('storagePath'),
+    filename:    formData.get('filename'),
+  })
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: { _form: ['Non authentifié'] } }
+
+  const roles = await getCurrentUserRoles()
+  if (!roles.includes('workshop') && !roles.includes('plume_admin')) {
+    return { error: { _form: ['Action réservée à l\'atelier ou Plume HQ'] } }
+  }
+
+  const { ticketId, storagePath, filename } = parsed.data
+
+  const { error } = await supabase
+    .from('service_requests')
+    .update({
+      revision_report_path:        storagePath,
+      revision_report_filename:    filename,
+      revision_report_uploaded_at: new Date().toISOString(),
+      revision_report_uploaded_by: user.id,
+    })
+    .eq('id', ticketId)
+
+  if (error) return { error: { _form: [`Erreur lors de l'enregistrement (${error.message})`] } }
+
+  revalidatePath(`/workshop/ticket/${ticketId}`)
+  revalidatePath(`/client/ticket/${ticketId}`)
+  revalidatePath(`/plume`)
+  return { success: true }
+}
 
 export async function saveWorkshopChecklistAction(formData: FormData) {
   const parsed = workshopChecklistSchema.safeParse({
@@ -109,9 +155,12 @@ export async function saveWorkshopFullChecklistAction(formData: FormData) {
 export async function markWingReceivedWorkshopAction(formData: FormData) {
   const ticketId = String(formData.get('ticketId') ?? '')
   if (!ticketId) return { error: { _form: ['Identifiant manquant'] } }
+  // 'pending_workshop' = entrée directe client → atelier (repair/inspection),
+  // 'escalated_to_workshop' = escalade depuis l'école. Les deux convergent
+  // sur cette transition quand l'aile arrive physiquement à l'atelier.
   return advanceTicketStep({
     ticketId,
-    from:            ['escalated_to_workshop'],
+    from:            ['pending_workshop', 'escalated_to_workshop'],
     to:              'wing_received_workshop',
     timestampColumn: 'wing_received_workshop_at',
     emailStep:       'wing_received_workshop',

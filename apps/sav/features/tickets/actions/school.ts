@@ -3,8 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUserRoles } from '@/features/auth/queries'
-import { PARTNER_WORKSHOPS } from '../constants'
-import { getPartnerSchoolById } from '../queries'
+import { getPartnerSchoolById, getPartnerWorkshopById } from '../queries'
 import type {
   ClientShippingAddress,
   MessageSenderRole,
@@ -116,7 +115,11 @@ export async function applySchoolResolutionAction(formData: FormData) {
   // correspondre Ã  un atelier connu de PARTNER_WORKSHOPS. EmpÃªche un client
   // qui forgerait une requÃªte de pointer vers un atelier arbitraire.
   if (resolution === 'escalated_to_workshop' || resolution === 'workshop_advice_requested') {
-    if (!workshopId || !PARTNER_WORKSHOPS.some((w) => w.id === workshopId)) {
+    if (!workshopId) {
+      return { error: { _form: ["Atelier inconnu — choisissez un atelier du réseau partenaire"] } }
+    }
+    const ws = await getPartnerWorkshopById(workshopId)
+    if (!ws) {
       return { error: { _form: ["Atelier inconnu â€” choisissez un atelier du rÃ©seau partenaire"] } }
     }
   }

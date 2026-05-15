@@ -19,7 +19,6 @@ export function StepBehaviors({ onNext, onBack }: StepBehaviorsProps) {
   }
 
   function handleNext() {
-    if (selected.length === 0) return
     setProblem({ wingBehaviors: selected })
     onNext()
   }
@@ -27,14 +26,13 @@ export function StepBehaviors({ onNext, onBack }: StepBehaviorsProps) {
   return (
     <StepLayout
       title="Quels comportements ?"
-      subtitle="Sélectionnez tout ce que vous observez. Vous pourrez détailler à l'étape suivante."
+      subtitle="Sélectionnez ce que vous observez. Si rien d'anormal, passez à la suite."
       footer={
         <StepNav
           onBack={onBack}
           onNext={handleNext}
-          nextDisabled={selected.length === 0}
           nextLabel={selected.length === 0
-            ? 'Sélectionnez au moins un'
+            ? 'Aucun comportement à signaler'
             : `Continuer · ${selected.length} sélectionné${selected.length > 1 ? 's' : ''}`}
         />
       }

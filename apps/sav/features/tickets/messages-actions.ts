@@ -24,9 +24,7 @@ export async function markTicketReadByClientAction(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'unauthorized' }
 
-  // The RPC name isn't in the generated DB types yet — narrow cast.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any).rpc('mark_ticket_read_by_client', {
+  const { error } = await supabase.rpc('mark_ticket_read_by_client', {
     p_ticket_id: ticketId,
   })
 

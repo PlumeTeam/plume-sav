@@ -4,14 +4,16 @@ import { getTicketDetail, getPartnerSchoolById } from '@/features/tickets/querie
 import { markTicketReadByClientAction } from '@/features/tickets/messages-actions'
 import { markTicketReadByPlumeAction } from '@/features/tickets/messages-actions-plume'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
-import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { ClientJourneyTimeline } from '@/features/tickets/components/ClientJourneyTimeline'
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
 import { CommentThread } from '@/features/tickets/components/CommentThread'
-import { ClientDeclarationView } from '@/features/tickets/components/ClientDeclarationView'
+import { ClientDeclarationPanel } from '@/features/tickets/components/ClientDeclarationPanel'
 import { WingLocationCard } from '@/features/tickets/components/WingLocationCard'
 import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
-import { formatDate } from '@/features/tickets/utils'
+import { WarrantyTierBadge } from '@/features/tickets/components/WarrantyTierBadge'
+import { RequestTypeBadge } from '@/features/tickets/components/RequestTypeBadge'
+import { RevisionReportView } from '@/features/tickets/components/RevisionReportView'
+import { formatAge, formatDate, resolveWarrantyTierForDisplay } from '@/features/tickets/utils'
 import { filterMessagesForRole } from '@/features/tickets/channels'
 import type { ClientShippingAddress, CloserRole, ClosureOutcome } from '@/features/tickets/types'
 import { MessageForm } from './MessageForm'
@@ -43,7 +45,6 @@ export default async function TicketDetailPage({ params }: PageProps) {
     ? await getPartnerSchoolById(ticket.referent_school_id)
     : null
 
-  const sortedPhotos   = [...ticket.ticket_photos].sort((a, b) => a.sort_order - b.sort_order)
   // Le client voit ses 3 canaux (school_client, client_workshop, group) + les
   // messages legacy avec visibility_level='all'. filterMessagesForRole couvre
   // les deux régimes.
@@ -60,6 +61,12 @@ export default async function TicketDetailPage({ params }: PageProps) {
       !!ticket.client_school_label_url || !wingHandedOver
     )
   const initialClientAddress = readClientShippingAddress(ticket.client_shipping_address)
+
+  // Pour les ailes hors garantie on enrichit le tab Messages d'une mention
+  // explicite : c'est l'atelier qui transmet devis & factures par chat
+  // (canal "all"), le paiement étant entre le client et l'atelier.
+  const warrantyTier = resolveWarrantyTierForDisplay(ticket.warranty_tier, ticket.purchase_date)
+  const wingAge      = formatAge(ticket.purchase_date)
 
   // ── Tab content ────────────────────────────────────────────────────────────
 
@@ -149,6 +156,15 @@ export default async function TicketDetailPage({ params }: PageProps) {
       <h2 className="section-title mb-4">
         Échanges{school?.name ? ` avec ${school.name}` : " avec votre école"}
       </h2>
+      {warrantyTier === 'out_of_warranty' && (
+        <div className="mb-4 rounded-2xl border border-brand-stone bg-brand-cream px-4 py-3">
+          <p className="text-sm font-semibold text-brand-ink">Canal direct avec l&apos;atelier</p>
+          <p className="mt-1 text-xs leading-relaxed text-brand-ink/80">
+            L&apos;atelier peut vous transmettre un devis et une facture en pièce
+            jointe (photo du document) directement dans cette messagerie.
+          </p>
+        </div>
+      )}
       <div className="mb-4">
         <CommentThread
           messages={publicMessages}
@@ -199,21 +215,38 @@ export default async function TicketDetailPage({ params }: PageProps) {
   const infosNode = (
     <>
       <section className="card p-5">
-        <h2 className="section-title mb-3">Produit</h2>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="section-title">Produit</h2>
+          <WarrantyTierBadge tier={warrantyTier} size="sm" compact />
+        </div>
         <div className="space-y-2">
           <InfoRow label="Marque / Modèle" value={`${ticket.product_brand ?? '—'} ${ticket.product_model ?? '—'}`} />
           <InfoRow label="N° de série" value={ticket.serial_number ?? '—'} mono />
-          {ticket.purchase_date && <InfoRow label="Date d'achat" value={formatDate(ticket.purchase_date)} />}
+          {ticket.purchase_date && (
+            <InfoRow
+              label="Date d'achat"
+              value={`${formatDate(ticket.purchase_date)}${wingAge ? ` — ${wingAge}` : ''}`}
+            />
+          )}
         </div>
       </section>
       <section className="card p-5">
-        <h2 className="section-title mb-4">Demande</h2>
-        <ClientDeclarationView description={ticket.description} urgencyLevel={ticket.urgency_level} />
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h2 className="section-title">Demande</h2>
+          <RequestTypeBadge type={ticket.request_type} size="sm" />
+        </div>
+        <ClientDeclarationPanel ticket={ticket} />
       </section>
-      {sortedPhotos.length > 0 && (
+      {/* Rapport de révision — visible uniquement quand l'atelier l'a uploadé.
+          Tickets request_type='inspection' (contrôle/révision). */}
+      {ticket.request_type === 'inspection' && ticket.revision_report_path && (
         <section className="card p-5">
-          <h2 className="section-title mb-3">Photos ({sortedPhotos.length})</h2>
-          <PhotoLightbox photos={sortedPhotos} />
+          <h2 className="section-title mb-3">Rapport de révision</h2>
+          <RevisionReportView
+            storagePath={ticket.revision_report_path}
+            filename={ticket.revision_report_filename}
+            uploadedAt={ticket.revision_report_uploaded_at}
+          />
         </section>
       )}
     </>
@@ -222,21 +255,29 @@ export default async function TicketDetailPage({ params }: PageProps) {
   return (
     <div className="min-h-screen">
       <header className="bg-brand-cream">
-        <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 pt-4 pb-3">
-          <Link
-            href="/client"
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-brand-ink hover:bg-white"
-            aria-label="Retour"
-          >
-            ←
-          </Link>
-          <div className="flex-1 min-w-0">
-            <p className="font-mono text-xs text-slate-500">{ticketRef}</p>
-            <p className="truncate text-sm font-semibold text-brand-ink">
-              {ticket.product_brand} {ticket.product_model}
-            </p>
+        <div className="mx-auto max-w-2xl px-4 pt-4 pb-3">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/client"
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-brand-ink hover:bg-white"
+              aria-label="Retour"
+            >
+              ←
+            </Link>
+            <div className="flex-1 min-w-0">
+              <p className="font-mono text-xs text-slate-500">{ticketRef}</p>
+              <p className="truncate text-sm font-semibold text-brand-ink">
+                {ticket.product_brand} {ticket.product_model}
+              </p>
+            </div>
+            <StatusBadge status={ticket.status} size="sm" />
           </div>
-          <StatusBadge status={ticket.status} size="sm" />
+          {(ticket.request_type || warrantyTier) && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 pl-[52px]">
+              <RequestTypeBadge type={ticket.request_type} size="sm" />
+              <WarrantyTierBadge tier={warrantyTier} size="sm" compact />
+            </div>
+          )}
         </div>
       </header>
 

@@ -10,8 +10,9 @@ import {
 import { ScanGateModal } from '@/features/tickets/components/ScanGateModal'
 import { RevertStepLink } from '@/features/tickets/components/RevertStepLink'
 import { formatDateTime } from '@/features/tickets/utils'
+import type { PartnerWorkshop } from '@/features/tickets/constants'
 import type { DeliveryMethod, RequestStatus, SchoolResolution, WarrantyTier } from '@/features/tickets/types'
-import { SchoolDecisionModal } from './SchoolDecisionModal'
+import { SchoolResolutionModal } from './SchoolResolutionModal'
 import { SchoolReturnFlowModal } from './SchoolReturnFlowModal'
 import { SchoolShippingApprovalCard } from './SchoolShippingApprovalCard'
 
@@ -48,26 +49,11 @@ interface SchoolStepPanelProps {
   /** Toggle Plume HQ — la garantie étendue couvre-t-elle le transport
    *  école → atelier ? Lu depuis plume_settings. */
   extendedCoversSchoolWorkshopShipping:  boolean
+  /** Ateliers affiliés (chargés côté serveur, passés à la modal décision). */
+  workshops:                             PartnerWorkshop[]
 }
 
 type StepKey = 'ack' | 'wing' | 'check' | 'decision' | 'return'
-type ReturnOption = 'client_pickup' | 'carrier_to_client' | 'to_workshop' | 'workshop_pickup'
-
-/**
- * Suggère l'option logique selon la décision prise à l'étape 4 :
- *  - Niveau 1 (mineur, école gère)         → client revient chercher
- *  - Niveau 2/3/4 (besoin atelier)         → envoi à l'atelier
- *
- * L'utilisateur peut toujours basculer sur une autre option via le toggle
- * "Autre option" (carrier_to_client si l'école renvoie par poste, ou
- * workshop_pickup si l'atelier vient chercher l'aile sur place).
- */
-function getRecommendedReturnOption(resolution: SchoolResolution | null): ReturnOption {
-  if (resolution === 'resolved_by_school' || resolution === 'normal_behavior_explained') {
-    return 'client_pickup'
-  }
-  return 'to_workshop'
-}
 
 interface StepCtx {
   status:                  RequestStatus
@@ -209,14 +195,13 @@ export function SchoolStepPanel({
   shippingRefusalReason,
   warrantyTier,
   extendedCoversSchoolWorkshopShipping,
+  workshops,
 }: SchoolStepPanelProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [scanGateFor, setScanGateFor] = useState<StepKey | null>(null)
   const [decisionModalOpen, setDecisionModalOpen] = useState(false)
   const [returnModalOpen, setReturnModalOpen] = useState(false)
-
-  const recommendedOption = getRecommendedReturnOption(schoolResolution)
 
   const ctx: StepCtx = {
     status,
@@ -426,32 +411,30 @@ export function SchoolStepPanel({
         subtitle={activeScanStep?.scanSubtitle ?? ''}
       />
 
-      {decisionModalOpen && (
-        <SchoolDecisionModal
-          ticketId={ticketId}
-          currentResolution={schoolResolution}
-          assignedWorkshopLabel={assignedWorkshopLabel}
-          isPlumeUrgent={isPlumeUrgent}
-          onClose={() => setDecisionModalOpen(false)}
-        />
-      )}
+      <SchoolResolutionModal
+        open={decisionModalOpen}
+        onClose={() => setDecisionModalOpen(false)}
+        ticketId={ticketId}
+        schoolResolution={schoolResolution}
+        assignedWorkshopLabel={assignedWorkshopLabel}
+        isPlumeUrgent={isPlumeUrgent}
+        workshops={workshops}
+      />
 
-      {returnModalOpen && (
-        <SchoolReturnFlowModal
-          ticketId={ticketId}
-          recommendedOption={recommendedOption}
-          schoolResolution={schoolResolution}
-          assignedWorkshopLabel={assignedWorkshopLabel}
-          wingSerial={wingSerial}
-          warrantyTier={warrantyTier}
-          extendedCoversSchoolWorkshopShipping={extendedCoversSchoolWorkshopShipping}
-          schoolWorkshopTracking={schoolWorkshopTracking}
-          schoolWorkshopLabelUrl={schoolWorkshopLabelUrl}
-          workshopReturnTracking={workshopReturnTracking}
-          workshopReturnLabelUrl={workshopReturnLabelUrl}
-          onClose={() => setReturnModalOpen(false)}
-        />
-      )}
+      <SchoolReturnFlowModal
+        open={returnModalOpen}
+        onClose={() => setReturnModalOpen(false)}
+        ticketId={ticketId}
+        wingSerial={wingSerial}
+        schoolResolution={schoolResolution}
+        assignedWorkshopLabel={assignedWorkshopLabel}
+        schoolWorkshopTracking={schoolWorkshopTracking}
+        schoolWorkshopLabelUrl={schoolWorkshopLabelUrl}
+        workshopReturnTracking={workshopReturnTracking}
+        workshopReturnLabelUrl={workshopReturnLabelUrl}
+        warrantyTier={warrantyTier}
+        extendedCoversSchoolWorkshopShipping={extendedCoversSchoolWorkshopShipping}
+      />
     </>
   )
 }

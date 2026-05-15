@@ -1,0 +1,35 @@
+-- =============================================================
+-- Migration : SAV — Suppression de la policy permissive
+--             "authenticated_access" sur service_requests
+-- Date      : 2026-05-14
+-- Notes     : La policy "authenticated_access" (créée hors migration,
+--             vraisemblablement via le dashboard) autorise toute opération
+--             à tout utilisateur authentifié — elle annule en pratique
+--             les policies fines `client_*`, `school_*`, `ecole_*`,
+--             `atelier_*` et `plume_admin_*` mises en place ensuite.
+--             Faille critique : un user authentifié peut lire/modifier
+--             les tickets d'autres clients.
+--
+--             Vérification de couverture avant DROP (rôles × verbes) :
+--               plume_admin : plume_admin_all_tickets (ALL)             ✅
+--               client      : client_select_own_tickets (SELECT)         ✅
+--                             sec_client_select_own    (SELECT, OR)      ✅
+--                             client_insert_own_tickets (INSERT)         ✅
+--                             sec_client_insert_own    (INSERT, OR)      ✅
+--                             client_update_draft_tickets (UPDATE)       ✅
+--                                 — limité à status='draft', conforme
+--               école       : school_select_assigned_tickets (SELECT)    ✅
+--                             sec_partner_select_school (SELECT, OR)     ✅
+--                             ecole_update_assigned_tickets (UPDATE)     ✅
+--               atelier     : atelier_select_assigned_tickets (SELECT)   ✅
+--                             atelier_update_assigned_tickets (UPDATE)   ✅
+--               DELETE      : aucun rôle non-admin, plume_admin ALL OK   ✅
+--
+--             Aucune policy fine manquante — DROP sans création
+--             compensatoire. La migration reste idempotente (DROP IF
+--             EXISTS) pour pouvoir être rejouée sur staging/local où la
+--             policy n'a jamais été créée.
+-- Application : MCP Supabase apply_migration sur project gxighesxbavnzzyngjaz
+-- =============================================================
+
+DROP POLICY IF EXISTS "authenticated_access" ON public.service_requests;

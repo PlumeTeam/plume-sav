@@ -38,6 +38,7 @@ export function deriveServiceType(category: WizardProblemCategory): ServiceType 
 export function requestStatusToSavStatus(status: RequestStatus): TicketStatus {
   switch (status) {
     case 'pending':                 return 'submitted'
+    case 'pending_workshop':        return 'submitted'
     case 'school_acknowledged':     return 'submitted'
     case 'wing_received_school':    return 'in_review'
     case 'school_checking':         return 'in_review'

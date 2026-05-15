@@ -1,35 +1,40 @@
 'use client'
 
-import { SchoolResolutionPanel } from './SchoolResolutionPanel'
+import type { PartnerWorkshop } from '@/features/tickets/constants'
 import type { SchoolResolution } from '@/features/tickets/types'
+import { SchoolResolutionPanel } from './SchoolResolutionPanel'
 
-// Modal de décision école — wrapper autour de SchoolResolutionPanel.
-// Extrait du SchoolStepPanel pour réduire sa taille — le modal lui-même
-// est purement présentationnel : tout l'état (resolution, escalation,
-// note) vit dans SchoolResolutionPanel.
-interface Props {
-  ticketId:              string
-  currentResolution:     SchoolResolution | null
-  assignedWorkshopLabel: string | null
-  isPlumeUrgent:         boolean
-  onClose:               () => void
+interface SchoolResolutionModalProps {
+  open:                   boolean
+  onClose:                () => void
+  ticketId:               string
+  schoolResolution:       SchoolResolution | null
+  assignedWorkshopLabel:  string | null
+  isPlumeUrgent:          boolean
+  workshops:              PartnerWorkshop[]
 }
 
-export function SchoolDecisionModal({
-  ticketId, currentResolution, assignedWorkshopLabel, isPlumeUrgent, onClose,
-}: Props) {
+export function SchoolResolutionModal({
+  open, onClose, ticketId, schoolResolution, assignedWorkshopLabel, isPlumeUrgent, workshops,
+}: SchoolResolutionModalProps) {
+  if (!open) return null
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="decision-modal-title"
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
     >
       <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-xl sm:rounded-3xl">
         <div className="flex items-start justify-between gap-3 border-b border-brand-stone px-5 py-4">
           <div>
-            <h2 id="decision-modal-title" className="text-base font-semibold text-brand-ink">
+            <h2
+              id="decision-modal-title"
+              className="text-base font-semibold text-brand-ink"
+            >
               ⚖️ Prendre la décision
             </h2>
             <p className="mt-0.5 text-xs text-slate-500">
@@ -48,9 +53,10 @@ export function SchoolDecisionModal({
         <div className="overflow-y-auto px-5 py-4">
           <SchoolResolutionPanel
             ticketId={ticketId}
-            currentResolution={currentResolution}
+            currentResolution={schoolResolution}
             assignedWorkshopLabel={assignedWorkshopLabel}
             isPlumeUrgent={isPlumeUrgent}
+            workshops={workshops}
           />
         </div>
       </div>
