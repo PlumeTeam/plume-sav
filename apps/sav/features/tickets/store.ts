@@ -85,11 +85,12 @@ interface BuildFlowOptions {
 //
 // - repair               : aile → historique → description+photos → atelier → livraison → message → récap
 // - inspection           : aile → historique → atelier → livraison → message → récap
-// - manufacturing_defect : aile → description+photos → comportements → historique
+// - manufacturing_defect : aile → catégorie → description+photos → (comportements si 'other')
+//                           → historique
 //                           → (école si sous garantie standard/étendue) OU (atelier sinon)
 //                           → livraison → message → récap
 export function buildWizardFlow(opts: BuildFlowOptions): StepId[] {
-  const { requestType, purchaseDate } = opts
+  const { requestType, problemCategory, purchaseDate } = opts
 
   if (requestType === 'repair') {
     return ['wing', 'wing-history', 'description', 'photos', 'workshop', 'delivery', 'message', 'review']
@@ -104,11 +105,18 @@ export function buildWizardFlow(opts: BuildFlowOptions): StepId[] {
   const warranty = computeWarranty(purchaseDate)
   const destination: StepId = warranty.outOfWarranty ? 'workshop' : 'school'
 
+  // 'behaviors' uniquement si l'utilisateur a choisi la carte « Comportement »
+  // dans StepProblemCategory (qui sette problemCategory = 'other'). Pour les
+  // autres catégories (tear/fabric/line/riser) la liste des comportements
+  // anormaux n'a pas de sens et on saute l'étape.
+  const includeBehaviors = problemCategory === 'other'
+
   return [
     'wing',
+    'problem-category',
     'description',
     'photos',
-    'behaviors',
+    ...(includeBehaviors ? (['behaviors'] as StepId[]) : []),
     'wing-history',
     destination,
     'delivery',
