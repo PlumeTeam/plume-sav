@@ -2,12 +2,11 @@
 
 import { useState, type ReactNode } from 'react'
 
-type Tab = 'state' | 'messages' | 'contact' | 'infos'
+type Tab = 'state' | 'messages' | 'infos'
 
 interface ClientTicketTabsProps {
   state:    ReactNode
   messages: ReactNode
-  contact:  ReactNode
   infos:    ReactNode
   /** Total visible messages — surfaced as a badge on the Messages tab. */
   messagesCount: number
@@ -23,7 +22,6 @@ interface ClientTicketTabsProps {
 export function ClientTicketTabs({
   state,
   messages,
-  contact,
   infos,
   messagesCount,
   unreadCount = 0,
@@ -87,18 +85,6 @@ export function ClientTicketTabs({
         <button
           type="button"
           role="tab"
-          aria-selected={tab === 'contact'}
-          aria-controls="panel-contact"
-          id="tab-contact"
-          onClick={() => setTab('contact')}
-          className={`${baseBtn} ${tab === 'contact' ? activeBtn : idleBtn}`}
-        >
-          <span aria-hidden>🏫</span>
-          <span>École</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
           aria-selected={tab === 'infos'}
           aria-controls="panel-infos"
           id="tab-infos"
@@ -130,15 +116,7 @@ export function ClientTicketTabs({
         {tab === 'messages' && messages}
       </div>
 
-      <div
-        id="panel-contact"
-        role="tabpanel"
-        aria-labelledby="tab-contact"
-        hidden={tab !== 'contact'}
-        className="space-y-3"
-      >
-        {tab === 'contact' && contact}
-      </div>
+
 
       <div
         id="panel-infos"
