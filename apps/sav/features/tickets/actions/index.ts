@@ -12,6 +12,7 @@ export {
   refuseShippingAction,
   saveDiagnosisAction,
   saveSchoolChecklistAction,
+  schoolConfirmReceptionByScanAction,
   startSchoolCheckAction,
 } from './school'
 export {

@@ -18,6 +18,7 @@ import type {
 } from '../types'
 import {
   approveShippingSchema,
+  confirmReceptionByScanSchema,
   diagnosisSchema,
   refuseShippingSchema,
   schoolChecklistSchema,
@@ -276,6 +277,104 @@ export async function markWingReceivedSchoolAction(formData: FormData) {
     timestampColumn: 'wing_received_school_at',
     emailStep:       'wing_received_school',
   })
+}
+
+/**
+ * Raccourci école — "Confirmer la réception par scan QR".
+ *
+ * Bypass du flow shipping standard : utile quand le client dépose son aile en
+ * main propre, quand aucun bon d'envoi GLS n'a été généré (postal refusé /
+ * jamais demandé), ou en démo/test. Le scan QR garantit que l'école manipule
+ * la bonne aile pour ce ticket.
+ *
+ * Diffère de `markWingReceivedSchoolAction` sur trois points :
+ *   - accepte aussi `pending` comme statut de départ (auto-ack en parallèle) ;
+ *   - re-vérifie côté serveur que le serial scanné = serial du ticket ;
+ *   - log un message public dans le canal `group` pour matérialiser le bypass.
+ *
+ * Cible : `pending | school_acknowledged → wing_received_school`.
+ */
+export async function schoolConfirmReceptionByScanAction(formData: FormData) {
+  const parsed = confirmReceptionByScanSchema.safeParse({
+    ticketId:      formData.get('ticketId'),
+    scannedSerial: formData.get('scannedSerial'),
+  })
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: { _form: ['Non authentifié'] } }
+
+  const { ticketId, scannedSerial } = parsed.data
+
+  // Vérification serveur : le QR scanné DOIT matcher le serial du ticket.
+  // C'est de la défense en profondeur (le client ScanGateModal vérifie déjà
+  // en amont) — empêche qu'un bypass UI passe un scan arbitraire.
+  const { data: ticket, error: fetchError } = await supabase
+    .from('service_requests')
+    .select('serial_number, school_acknowledged_at')
+    .eq('id', ticketId)
+    .maybeSingle()
+    .returns<{ serial_number: string | null; school_acknowledged_at: string | null }>()
+
+  if (fetchError || !ticket) {
+    return { error: { _form: ['Demande introuvable'] } }
+  }
+
+  const expected = (ticket.serial_number ?? '').trim().toUpperCase()
+  if (!expected) {
+    return {
+      error: {
+        _form: ["Aucun n° de série enregistré sur ce ticket — impossible de vérifier le QR."],
+      },
+    }
+  }
+  if (expected !== scannedSerial.trim().toUpperCase()) {
+    return {
+      error: {
+        _form: [
+          `Le QR scanné ne correspond pas à l'aile du ticket (attendu : ${ticket.serial_number}).`,
+        ],
+      },
+    }
+  }
+
+  // Auto-ack si l'école n'avait pas encore acknowledged : le scan vaut prise
+  // de connaissance ET réception en un geste.
+  const patch: Partial<TicketUpdate> = {}
+  if (!ticket.school_acknowledged_at) {
+    patch.school_acknowledged_at = new Date().toISOString()
+  }
+
+  const result = await advanceTicketStep({
+    ticketId,
+    from:            ['pending', 'school_acknowledged'],
+    to:              'wing_received_school',
+    timestampColumn: 'wing_received_school_at',
+    emailStep:       'wing_received_school',
+    patch,
+    historyNote:     'Réception confirmée par scan QR (école)',
+  })
+
+  if ('error' in result && result.error) return result
+
+  // Trace publique dans le canal `group` (visible client + atelier + Plume) —
+  // matérialise le bypass shipping pour que tout le monde voie comment l'aile
+  // est arrivée. Best-effort : ne bloque jamais la transition de statut.
+  const { error: msgError } = await supabase.from('ticket_messages').insert({
+    ticket_id:        ticketId,
+    sender_id:        user.id,
+    sender_role:      'school',
+    content:          '📦 Réception confirmée par scan QR (école).',
+    is_internal:      false,
+    visibility_level: 'all',
+    channel:          'group',
+  })
+  if (msgError) {
+    console.error('[schoolConfirmReceptionByScanAction] message insert failed:', msgError.message)
+  }
+
+  return result
 }
 
 /**

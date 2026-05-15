@@ -430,6 +430,15 @@ export const refuseShippingSchema = z.object({
   reason:   z.string().trim().min(10, 'Expliquez la raison du refus (10 caractères min.)').max(2000),
 })
 
+// École : raccourci "Confirmer la réception par scan QR" — bypass du flow
+// shipping (utile quand le client dépose son aile en main propre, quand aucun
+// bon d'envoi n'a été généré, ou en mode démo/test). Le scannedSerial est
+// re-vérifié côté serveur contre serial_number du ticket.
+export const confirmReceptionByScanSchema = z.object({
+  ticketId:      z.string().uuid(),
+  scannedSerial: z.string().trim().min(1, 'N° de série scanné manquant'),
+})
+
 export type WingInfoInput = z.infer<typeof wingInfoSchema>
 export type ProblemInput = z.infer<typeof problemSchema>
 export type CreateTicketInput = z.infer<typeof createTicketSchema>

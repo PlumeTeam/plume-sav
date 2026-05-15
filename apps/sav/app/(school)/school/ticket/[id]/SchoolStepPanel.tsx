@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   acknowledgeTicketAction,
   markWingReceivedSchoolAction,
+  schoolConfirmReceptionByScanAction,
   startSchoolCheckAction,
 } from '@/features/tickets/actions'
 import { ScanGateModal } from '@/features/tickets/components/ScanGateModal'
@@ -202,6 +203,10 @@ export function SchoolStepPanel({
   const [scanGateFor, setScanGateFor] = useState<StepKey | null>(null)
   const [decisionModalOpen, setDecisionModalOpen] = useState(false)
   const [returnModalOpen, setReturnModalOpen] = useState(false)
+  // Raccourci "Confirmer la réception (scan QR)" — bypass shipping. Sépare le
+  // scan du flow step 2 standard pour qu'on puisse l'ouvrir même quand status
+  // === 'pending' (étape 2 verrouillée). Voir schoolConfirmReceptionByScanAction.
+  const [bypassScanOpen, setBypassScanOpen] = useState(false)
 
   const ctx: StepCtx = {
     status,
@@ -263,6 +268,32 @@ export function SchoolStepPanel({
       setScanGateFor(null)
       executeStep(k)
     }
+  }
+
+  // Bypass shipping : on appelle l'action dédiée qui accepte `pending` ET
+  // `school_acknowledged` comme statut de départ. On envoie le wingSerial
+  // comme `scannedSerial` (la ScanGateModal a déjà vérifié le match en amont
+  // côté client). En mode démo, le wingSerial est utilisé tel quel.
+  function handleBypassScanSuccess(_method: 'camera' | 'demo' | 'manual') {
+    setBypassScanOpen(false)
+    if (!wingSerial) {
+      alert("N° de série introuvable sur ce ticket — impossible de valider la réception par scan.")
+      return
+    }
+    startTransition(async () => {
+      const fd = new FormData()
+      fd.set('ticketId', ticketId)
+      fd.set('scannedSerial', wingSerial)
+      const r = await schoolConfirmReceptionByScanAction(fd)
+      if (r && 'error' in r && r.error) {
+        const err = r.error as Record<string, string[] | undefined>
+        const msg = err._form?.[0]
+          ?? err.scannedSerial?.[0]
+          ?? err.ticketId?.[0]
+          ?? 'Erreur'
+        alert(msg)
+      }
+    })
   }
 
   const activeScanStep = scanGateFor ? STEPS.find((s) => s.key === scanGateFor) : null
@@ -397,6 +428,34 @@ export function SchoolStepPanel({
                   shippingRefusalReason={shippingRefusalReason}
                 />
               )}
+
+              {/* Raccourci bypass — "Confirmer la réception (scan QR)".
+                  Visible dans le bloc step 2 tant que l'aile n'est pas reçue
+                  (status ∈ pending | school_acknowledged). Permet de
+                  court-circuiter le flow shipping (client en main propre,
+                  pas de bon GLS généré, démo). Greffé ici plutôt que dans
+                  une carte séparée pour rester sur l'étape pertinente. */}
+              {step.key === 'wing'
+                && (status === 'pending' || status === 'school_acknowledged')
+                && wingSerial && (
+                <div className="mt-3 rounded-xl border-2 border-dashed border-brand-gold/40 bg-brand-gold/5 p-3">
+                  <p className="text-xs font-semibold text-brand-ink">
+                    🤝 L&apos;aile est déjà chez vous ?
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-slate-600">
+                    Dépôt en main propre ou colis arrivé sans bon d&apos;envoi —
+                    scannez le QR pour valider la réception et passer à l&apos;étape suivante.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setBypassScanOpen(true)}
+                    disabled={isPending}
+                    className="mt-2 w-full rounded-xl border-2 border-brand-gold bg-white px-4 py-2 text-sm font-semibold text-brand-ink hover:bg-brand-gold/10 disabled:opacity-50"
+                  >
+                    📷 Confirmer la réception (scan QR)
+                  </button>
+                </div>
+              )}
             </div>
           )
         })}
@@ -409,6 +468,18 @@ export function SchoolStepPanel({
         expectedSerial={wingSerial}
         title={activeScanStep?.scanTitle ?? 'Scan flashcode'}
         subtitle={activeScanStep?.scanSubtitle ?? ''}
+      />
+
+      {/* Modal du raccourci bypass — scan QR pour valider la réception
+          même quand aucun bon d'envoi n'a été généré. Réutilise la même
+          ScanGateModal (caméra + fallback manuel + mode démo). */}
+      <ScanGateModal
+        open={bypassScanOpen}
+        onClose={() => setBypassScanOpen(false)}
+        onScanSuccess={handleBypassScanSuccess}
+        expectedSerial={wingSerial}
+        title="Confirmer la réception (raccourci)"
+        subtitle="Scannez le QR cousu sur l'aile pour confirmer sa réception — bypass shipping."
       />
 
       <SchoolResolutionModal
