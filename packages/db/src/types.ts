@@ -535,6 +535,7 @@ export interface Database {
           extended_covers_school_workshop_shipping:  boolean
           extended_covers_repair:                    boolean
           extended_covers_replacement:               boolean
+          warranty_max_hours: number
           updated_at: string
           updated_by: string | null
         }
@@ -552,6 +553,7 @@ export interface Database {
           extended_covers_school_workshop_shipping?:  boolean
           extended_covers_repair?:                    boolean
           extended_covers_replacement?:               boolean
+          warranty_max_hours?: number
           updated_at?: string
           updated_by?: string | null
         }
@@ -569,6 +571,7 @@ export interface Database {
           extended_covers_school_workshop_shipping?:  boolean
           extended_covers_repair?:                    boolean
           extended_covers_replacement?:               boolean
+          warranty_max_hours?: number
           updated_at?: string
           updated_by?: string | null
         }

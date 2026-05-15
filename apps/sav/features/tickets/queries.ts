@@ -109,6 +109,8 @@ export interface PlumeSettings {
   extendedCoversSchoolWorkshopShipping:  boolean
   extendedCoversRepair:                  boolean
   extendedCoversReplacement:             boolean
+  // Plafond heures de vol au-delà duquel la garantie expire
+  warrantyMaxHours:              number
 }
 
 const DEFAULT_PLUME_SETTINGS: PlumeSettings = {
@@ -124,6 +126,7 @@ const DEFAULT_PLUME_SETTINGS: PlumeSettings = {
   extendedCoversSchoolWorkshopShipping:  true,
   extendedCoversRepair:                  false,
   extendedCoversReplacement:             false,
+  warrantyMaxHours:              300,
 }
 
 // Coerce un champ DB numeric (souvent renvoyé en string par PostgREST) en
@@ -154,7 +157,8 @@ export async function getPlumeSettings(): Promise<PlumeSettings> {
       extended_covers_school_workshop_shipping,
       extended_covers_repair,
       extended_covers_replacement,
-      pre_check_fee_eur
+      pre_check_fee_eur,
+      warranty_max_hours
     `)
     .eq('id', 1)
     .maybeSingle()
@@ -177,6 +181,7 @@ export async function getPlumeSettings(): Promise<PlumeSettings> {
     extendedCoversSchoolWorkshopShipping:  toBool(data.extended_covers_school_workshop_shipping,  DEFAULT_PLUME_SETTINGS.extendedCoversSchoolWorkshopShipping),
     extendedCoversRepair:                  toBool(data.extended_covers_repair,                    DEFAULT_PLUME_SETTINGS.extendedCoversRepair),
     extendedCoversReplacement:             toBool(data.extended_covers_replacement,               DEFAULT_PLUME_SETTINGS.extendedCoversReplacement),
+    warrantyMaxHours:                      toNum(data.warranty_max_hours,                         DEFAULT_PLUME_SETTINGS.warrantyMaxHours),
   }
 }
 
