@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getPartnerSchoolById, getPlumeSettings, getWorkshopTicketDetail } from '@/features/tickets/queries'
+import { getPartnerSchoolById, getPartnerWorkshopById, getPlumeSettings, getWorkshopTicketDetail } from '@/features/tickets/queries'
 import { markTicketReadByWorkshopAction } from '@/features/tickets/messages-actions-workshop'
 import { markTicketReadByPlumeAction } from '@/features/tickets/messages-actions-plume'
 import { getCurrentUser, getCurrentUserRoles } from '@/features/auth/queries'
@@ -24,6 +24,7 @@ import { WorkshopStepPanel } from './WorkshopStepPanel'
 import { WorkshopTicketTabs } from './WorkshopTicketTabs'
 import { DiagnosticViewSwitcher } from './DiagnosticViewSwitcher'
 import { ClientDeclarationPanel } from '@/features/tickets/components/ClientDeclarationPanel'
+import { TicketHeaderInfo, ticketHeaderProps } from '@/features/tickets/components/TicketHeaderInfo'
 import type { CloserRole, ClosureOutcome, TicketMessage, WarrantyStatus, WarrantyTier, WorkshopDecision, WorkshopReturnDestination } from '@/features/tickets/types'
 
 // Garantie : 2 ans à compter de la date d'achat (politique Plume Paragliders).
@@ -80,9 +81,12 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
   // simplement la section dans la vue.
   // En parallèle on résout l'école référente d'achat — utile pour la section
   // "Détails complets" quand le client a changé d'école par rapport à son achat.
-  const [school, referentSchool] = await Promise.all([
+  const [school, referentSchool, assignedWorkshop] = await Promise.all([
     ticket.school_id          ? getPartnerSchoolById(ticket.school_id)                            : null,
     ticket.referent_school_id ? getPartnerSchoolById(ticket.referent_school_id).catch(() => null) : null,
+    ticket.assigned_workshop_id
+      ? getPartnerWorkshopById(ticket.assigned_workshop_id).catch(() => null)
+      : null,
   ])
 
   const isPlumeAdmin = currentRoles.includes('plume_admin')
@@ -121,9 +125,6 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
   // figé sur le ticket, sinon retombe sur le calcul purchase_date.
   const ticketWarrantyTier = resolveWarrantyTierForDisplay(ticket.warranty_tier, ticket.purchase_date)
   const wingAge = formatAge(ticket.purchase_date)
-
-  // Nom client formaté (prénom + nom) ou fallback.
-  const clientName = [ticket.first_name, ticket.last_name].filter(Boolean).join(' ') || '—'
 
   // Checklist diagnostic atelier — payload v2 (6 sections) lu depuis
   // workshop_checklist. Si l'ancien payload v1 est encore stocké, on
@@ -189,17 +190,20 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
           </p>
         )}
 
-        {/* Bandeau d'info compact — regroupe les 4 contextes que le technicien
-            consulte le plus souvent (expédition, école, client, aile). Reste
-            au-dessus des onglets pour rester accessible quelle que soit la vue. */}
-        <section className="card grid grid-cols-1 gap-x-5 gap-y-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
-          {/* ─── Expédition ─────────────────────────────────────────────── */}
-          <div className="min-w-0">
-            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        {/* Bandeau d'info compact — partagé avec les pages client / école /
+            plume pour donner aux 4 rôles le même contexte d'arrivée. */}
+        <TicketHeaderInfo {...ticketHeaderProps(ticket, school, assignedWorkshop)} />
+
+        {/* Encart expédition / achat / garantie — spécifique atelier, complète
+            le bandeau partagé avec les infos opérationnelles dont seul l'atelier
+            a besoin (tracking, date d'achat, badge garantie). */}
+        <section className="card flex flex-wrap items-start gap-x-6 gap-y-3 p-4 text-sm">
+          <div className="min-w-0 flex-1">
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
               Expédition
             </p>
             {ticket.school_workshop_tracking ? (
-              <div className="space-y-1 text-sm text-brand-ink">
+              <div className="space-y-1 text-brand-ink">
                 <p className="flex items-center gap-1.5">
                   <span aria-hidden>📦</span>
                   <span className="font-medium">Transporteur GLS</span>
@@ -216,13 +220,13 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                   Suivre →
                 </a>
                 {ticket.wing_received_workshop_at && (
-                  <p className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
+                  <p className="inline-block rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
                     ✓ Reçue le {formatDate(ticket.wing_received_workshop_at)}
                   </p>
                 )}
               </div>
             ) : ticket.escalated_to_workshop_at ? (
-              <div className="space-y-1 text-sm text-brand-ink">
+              <div className="space-y-1 text-brand-ink">
                 <p className="flex items-center gap-1.5">
                   <span aria-hidden>🤝</span>
                   <span className="font-medium">Remise en main propre</span>
@@ -237,103 +241,25 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                 )}
               </div>
             ) : (
-              <p className="text-sm italic text-slate-500">Pas encore escaladée</p>
+              <p className="italic text-slate-500">Pas encore escaladée</p>
             )}
           </div>
 
-          {/* ─── École partenaire ───────────────────────────────────────── */}
-          <div className="min-w-0">
-            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-              École
+          <div className="min-w-0 flex-1">
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              Achat & garantie
             </p>
-            {school ? (
-              <div className="space-y-1 text-sm text-brand-ink">
-                <p className="truncate font-semibold">{school.name}</p>
-                {(school.city || school.region) && (
-                  <p className="truncate text-xs text-slate-500">
-                    {[school.city, school.region].filter(Boolean).join(' · ')}
-                  </p>
-                )}
-                {school.email && (
-                  <a
-                    href={`mailto:${school.email}`}
-                    className="block truncate text-xs text-brand-gold hover:underline"
-                    title={school.email}
-                  >
-                    ✉ {school.email}
-                  </a>
-                )}
-                {school.phone && (
-                  <a
-                    href={`tel:${school.phone.replace(/\s+/g, '')}`}
-                    className="block truncate text-xs text-brand-gold hover:underline"
-                  >
-                    📞 {school.phone}
-                  </a>
-                )}
-              </div>
+            {ticket.purchase_date ? (
+              <p className="text-xs text-slate-500">
+                Achetée le {formatDate(ticket.purchase_date)}
+                {wingAge && <span className="text-slate-400"> — {wingAge}</span>}
+              </p>
             ) : (
-              <p className="text-sm italic text-slate-500">Non renseignée</p>
+              <p className="text-xs italic text-slate-400">Date d&apos;achat inconnue</p>
             )}
-          </div>
-
-          {/* ─── Client final ──────────────────────────────────────────── */}
-          <div className="min-w-0">
-            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-              Client
-            </p>
-            <div className="space-y-1 text-sm text-brand-ink">
-              <p className="truncate font-semibold">{clientName}</p>
-              {ticket.email && (
-                <a
-                  href={`mailto:${ticket.email}`}
-                  className="block truncate text-xs text-brand-gold hover:underline"
-                  title={ticket.email}
-                >
-                  ✉ {ticket.email}
-                </a>
-              )}
-              {ticket.phone && (
-                <a
-                  href={`tel:${ticket.phone.replace(/\s+/g, '')}`}
-                  className="block truncate text-xs text-brand-gold hover:underline"
-                >
-                  📞 {ticket.phone}
-                </a>
-              )}
-            </div>
-          </div>
-
-          {/* ─── Aile ──────────────────────────────────────────────────── */}
-          <div className="min-w-0">
-            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-              Aile
-            </p>
-            <div className="space-y-1 text-sm text-brand-ink">
-              <p className="truncate font-semibold">
-                {[ticket.product_brand, ticket.product_model].filter(Boolean).join(' ') || '—'}
-              </p>
-              <p className="truncate text-xs text-slate-500">
-                {[
-                  ticket.wing_size && `Taille ${ticket.wing_size}`,
-                  ticket.wing_color,
-                ].filter(Boolean).join(' · ') || '—'}
-              </p>
-              {ticket.serial_number && (
-                <p className="break-all font-mono text-xs text-slate-500">
-                  S/N {ticket.serial_number}
-                </p>
-              )}
-              {ticket.purchase_date && (
-                <p className="text-xs text-slate-500">
-                  Achetée le {formatDate(ticket.purchase_date)}
-                  {wingAge && <span className="text-slate-400"> — {wingAge}</span>}
-                </p>
-              )}
-              <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                <WarrantyTierBadge tier={ticketWarrantyTier} size="sm" compact />
-                {warranty && <WarrantyBadge warranty={warranty} />}
-              </div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <WarrantyTierBadge tier={ticketWarrantyTier} size="sm" compact />
+              {warranty && <WarrantyBadge warranty={warranty} />}
             </div>
           </div>
         </section>

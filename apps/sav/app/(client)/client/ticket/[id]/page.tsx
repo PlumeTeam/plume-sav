@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getTicketDetail, getPartnerSchoolById } from '@/features/tickets/queries'
+import { getTicketDetail, getPartnerSchoolById, getPartnerWorkshopById } from '@/features/tickets/queries'
 import { markTicketReadByClientAction } from '@/features/tickets/messages-actions'
 import { markTicketReadByPlumeAction } from '@/features/tickets/messages-actions-plume'
 import { markTicketNotificationsReadAction } from '@/features/notifications/actions'
@@ -9,6 +9,7 @@ import { ClientJourneyTimeline } from '@/features/tickets/components/ClientJourn
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
 import { CommentThread } from '@/features/tickets/components/CommentThread'
 import { ClientDeclarationPanel } from '@/features/tickets/components/ClientDeclarationPanel'
+import { TicketHeaderInfo, ticketHeaderProps } from '@/features/tickets/components/TicketHeaderInfo'
 import { WingLocationCard } from '@/features/tickets/components/WingLocationCard'
 import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
 import { WarrantyTierBadge } from '@/features/tickets/components/WarrantyTierBadge'
@@ -58,6 +59,14 @@ export default async function TicketDetailPage({ params }: PageProps) {
     ticket.school_id && ticket.school_id !== ticket.referent_school_id
       ? await getPartnerSchoolById(ticket.school_id).catch(() => null)
       : school
+
+  // Atelier assigné — résolu côté serveur pour le bandeau Aile/Client/École/Atelier.
+  // Tolérant : si la table partner_workshops est inaccessible, on tombe sur null
+  // et le bloc affiche "Pas encore assigné".
+  const assignedWorkshop = ticket.assigned_workshop_id
+    ? await getPartnerWorkshopById(ticket.assigned_workshop_id).catch(() => null)
+    : null
+  const headerSchool = destinationSchool ?? school
 
   // Le client voit ses 3 canaux (school_client, client_workshop, group) + les
   // messages legacy avec visibility_level='all'. filterMessagesForRole couvre
@@ -325,6 +334,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
       </header>
 
       <main className="mx-auto max-w-2xl space-y-4 p-4 pb-12">
+        <TicketHeaderInfo {...ticketHeaderProps(ticket, headerSchool, assignedWorkshop)} />
         <ClientTicketTabs
           state={stateNode}
           messages={messagesNode}

@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getPartnerSchoolById, getPartnerWorkshops, getSchoolTicketDetail, getPlumeSettings } from '@/features/tickets/queries'
+import { getPartnerSchoolById, getPartnerWorkshopById, getPartnerWorkshops, getSchoolTicketDetail, getPlumeSettings } from '@/features/tickets/queries'
 import { markTicketReadBySchoolAction } from '@/features/tickets/messages-actions-school'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { WarrantyTierBadge } from '@/features/tickets/components/WarrantyTierBadge'
@@ -13,6 +13,7 @@ import { formatDateTime, resolveWarrantyTierForDisplay } from '@/features/ticket
 import { CloseTicketButton } from '@/features/tickets/components/CloseTicketButton'
 import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
 import { ClientDeclarationPanel } from '@/features/tickets/components/ClientDeclarationPanel'
+import { TicketHeaderInfo, ticketHeaderProps } from '@/features/tickets/components/TicketHeaderInfo'
 import { SchoolStepPanel } from './SchoolStepPanel'
 import { SchoolTicketTabs } from './SchoolTicketTabs'
 import { SchoolWorkshopChannel } from './SchoolWorkshopChannel'
@@ -48,10 +49,18 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
   // veut pas que ClientDeclarationPanel touche à la DB — il reste pur.
   // Si la cascade tombe (RLS / table manquante), on retombe sur null et la
   // section affiche "(nom non résolu)" plutôt que de planter le rendu.
-  const [destinationSchool, referentSchool] = await Promise.all([
+  const [destinationSchool, referentSchool, assignedWorkshop] = await Promise.all([
     ticket.school_id          ? getPartnerSchoolById(ticket.school_id).catch(() => null)          : null,
     ticket.referent_school_id ? getPartnerSchoolById(ticket.referent_school_id).catch(() => null) : null,
+    ticket.assigned_workshop_id
+      ? getPartnerWorkshopById(ticket.assigned_workshop_id).catch(() => null)
+      : null,
   ])
+
+  // École à afficher dans le bandeau : on privilégie l'école qui suit
+  // effectivement le ticket (school_id). Si la cascade échoue, on retombe
+  // sur l'école référente (achat) pour ne jamais laisser le bloc vide.
+  const headerSchool = destinationSchool ?? referentSchool
 
   // Best-effort: mark this ticket as read for the current school user. The RPC
   // checks ownership via current_user_partner_school_ids() server-side.
@@ -337,6 +346,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
       </header>
 
       <main className="mx-auto max-w-4xl space-y-3 p-4 pb-12">
+        <TicketHeaderInfo {...ticketHeaderProps(ticket, headerSchool, assignedWorkshop)} />
         <SchoolTicketTabs
           state={stateTab}
           declaration={declarationTab}
