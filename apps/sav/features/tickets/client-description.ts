@@ -1,9 +1,10 @@
 // Parser de la `description` riche construite par createTicketAction.
 // Le wizard client fold les métadonnées (catégorie, urgence, comportements,
 // historique aile) en bloc préfixe `[Section] valeur`, séparé du texte libre
-// par `\n\n---\n\n`. On reconstruit ici un objet structuré pour rendre la vue
-// "Client" du DiagnosticViewSwitcher en cartes propres (équivalent UX du
-// SchoolCheckSummary côté école), au lieu de balancer le texte brut.
+// par `\n\n---\n\n`. On reconstruit ici un objet structuré partagé entre les
+// dashboards client / école / atelier pour rendre la déclaration en cartes
+// propres (équivalent UX du SchoolCheckSummary côté école), au lieu de
+// balancer le texte brut.
 
 export interface ParsedClientDescription {
   /** Comportements de l'aile signalés au wizard (libellés en clair, joints). */

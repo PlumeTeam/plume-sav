@@ -12,7 +12,7 @@ import { readSchoolCheckInspector } from '@/features/tickets/inspection/steps'
 import { formatDateTime, resolveWarrantyTierForDisplay } from '@/features/tickets/utils'
 import { CloseTicketButton } from '@/features/tickets/components/CloseTicketButton'
 import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
-import { SchoolDeclarationPanel } from './SchoolDeclarationPanel'
+import { ClientDeclarationPanel } from '@/features/tickets/components/ClientDeclarationPanel'
 import { SchoolStepPanel } from './SchoolStepPanel'
 import { SchoolTicketTabs } from './SchoolTicketTabs'
 import { SchoolWorkshopChannel } from './SchoolWorkshopChannel'
@@ -181,10 +181,16 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
   )
 
   // ── Tab 2: Déclaration ──────────────────────────────────────────────────
-  // Panel délégué — calque la vue "Client" du DiagnosticViewSwitcher atelier
-  // (bandeau verdict + historique + problème + aile + photos + coordonnées).
-  const declarationTab = <SchoolDeclarationPanel ticket={ticket} />
-
+  // Panel délégué partagé avec client / atelier — bandeau verdict, historique
+  // color-codé, problème signalé, aile concernée + garantie, photos client,
+  // coordonnées client (utiles pour l'école qui rappelle directement).
+  const declarationTab = (
+    <ClientDeclarationPanel
+      ticket={ticket}
+      showWing
+      showClientContact
+    />
+  )
 
   // ── Tab 3: Messages — 2 canaux : Client / Atelier ───────────────────────
   // Spotlight (message du client à la création) + photos restent dans le

@@ -5,10 +5,10 @@ import {
   type Severity,
 } from '@/features/tickets/inspection/SeverityBlocks'
 
-// Vue "Client" du DiagnosticViewSwitcher — calque le pattern de
-// SchoolCheckSummary : bandeau verdict global en haut, puis section avec
-// rows label/badge coloré pour chaque item d'historique. Les severities
-// suivent les seuils définis dans la spec produit (cf. commit message).
+// Bandeau verdict + section "Historique de l'aile" en lignes label/badge.
+// Calque le pattern de SchoolCheckSummary : verdict global en haut puis rows
+// label/severity. Partagé entre les dashboards client / école / atelier.
+// Les severities suivent les seuils définis dans la spec produit.
 
 interface HistoryItem {
   label: string

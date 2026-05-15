@@ -4,11 +4,10 @@ import { getTicketDetail, getPartnerSchoolById } from '@/features/tickets/querie
 import { markTicketReadByClientAction } from '@/features/tickets/messages-actions'
 import { markTicketReadByPlumeAction } from '@/features/tickets/messages-actions-plume'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
-import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { ClientJourneyTimeline } from '@/features/tickets/components/ClientJourneyTimeline'
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
 import { CommentThread } from '@/features/tickets/components/CommentThread'
-import { ClientDeclarationView } from '@/features/tickets/components/ClientDeclarationView'
+import { ClientDeclarationPanel } from '@/features/tickets/components/ClientDeclarationPanel'
 import { WingLocationCard } from '@/features/tickets/components/WingLocationCard'
 import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
 import { WarrantyTierBadge } from '@/features/tickets/components/WarrantyTierBadge'
@@ -46,7 +45,6 @@ export default async function TicketDetailPage({ params }: PageProps) {
     ? await getPartnerSchoolById(ticket.referent_school_id)
     : null
 
-  const sortedPhotos   = [...ticket.ticket_photos].sort((a, b) => a.sort_order - b.sort_order)
   // Le client voit ses 3 canaux (school_client, client_workshop, group) + les
   // messages legacy avec visibility_level='all'. filterMessagesForRole couvre
   // les deux régimes.
@@ -237,7 +235,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
           <h2 className="section-title">Demande</h2>
           <RequestTypeBadge type={ticket.request_type} size="sm" />
         </div>
-        <ClientDeclarationView description={ticket.description} urgencyLevel={ticket.urgency_level} />
+        <ClientDeclarationPanel ticket={ticket} />
       </section>
       {/* Rapport de révision — visible uniquement quand l'atelier l'a uploadé.
           Tickets request_type='inspection' (contrôle/révision). */}
@@ -249,12 +247,6 @@ export default async function TicketDetailPage({ params }: PageProps) {
             filename={ticket.revision_report_filename}
             uploadedAt={ticket.revision_report_uploaded_at}
           />
-        </section>
-      )}
-      {sortedPhotos.length > 0 && (
-        <section className="card p-5">
-          <h2 className="section-title mb-3">Photos ({sortedPhotos.length})</h2>
-          <PhotoLightbox photos={sortedPhotos} />
         </section>
       )}
     </>
