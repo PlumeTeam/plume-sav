@@ -24,8 +24,13 @@ export interface ParsedClientDescription {
 const SEPARATOR = '\n\n---\n\n'
 
 // Lignes historique du wizard, format `  • Label : valeur`.
-// Tolère un espace en plus, un bullet alternatif, et la valeur sans `:` (skip).
-const HISTORY_LINE_RE = /^\s*•\s*([^:]+?)\s*:\s*(.+?)\s*$/
+// Tolère un espace en plus et plusieurs variantes de bullet :
+//   - `•` (U+2022) — sortie correcte de la version courante de formatWingHistory
+//   - `â€¢` — mojibake legacy : tickets créés avant le 2026-05-15 quand
+//     `_helpers.ts` était corrompu en encodage UTF-8↔Latin-1. On le matche pour
+//     que leur historique reste lisible dans le rapport sans rewrite DB.
+//   - `*` / `-` — fallback ASCII si un autre flux le générait.
+const HISTORY_LINE_RE = /^\s*(?:•|â€¢|\*|-)\s*([^:]+?)\s*:\s*(.+?)\s*$/
 
 export function parseClientDescription(description: string | null): ParsedClientDescription {
   if (!description) {
