@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUserRoles } from '@/features/auth/queries'
+import { getPlumeSettings } from '@/features/tickets/queries'
 
 const updatePreCheckFeeSchema = z.object({
   feeEur: z.preprocess(
@@ -136,6 +137,67 @@ export async function updateWarrantyPolicyAction(formData: FormData) {
 
   if (error) return { error: { _form: [`Erreur de sauvegarde (${error.message})`] } }
 
+  revalidatePath('/plume/settings')
+  return { success: true as const }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Heures de vol max avant fin de garantie (plume_settings.warranty_max_hours)
+// ────────────────────────────────────────────────────────────────────────────
+//
+// Plafond d'heures de vol au-delà duquel la garantie expire, indépendamment
+// de la durée écoulée depuis l'achat. La valeur sera comparée à
+// service_requests.flight_hours à la création d'un ticket (chantier suivant).
+// Pour l'instant : lecture + écriture seulement.
+
+const updateWarrantyMaxHoursSchema = z.object({
+  maxHours: z.preprocess(
+    (v) => (v === '' || v == null ? undefined : Number(v)),
+    z.number({ invalid_type_error: 'Nombre invalide' })
+      .int('Doit être un entier')
+      .min(0, 'Doit être positif')
+      .max(100000, 'Valeur trop élevée'),
+  ),
+})
+
+/** Lecture du plafond heures de vol — fallback sur la valeur par défaut. */
+export async function getWarrantyMaxHoursAction(): Promise<{ maxHours: number }> {
+  const settings = await getPlumeSettings()
+  return { maxHours: settings.warrantyMaxHours }
+}
+
+/**
+ * Met à jour le plafond d'heures de vol sur le singleton plume_settings (id=1).
+ * Réservé plume_admin — la RLS sur plume_settings est doublée d'une vérif
+ * explicite ici.
+ */
+export async function updateWarrantyMaxHoursAction(formData: FormData) {
+  const parsed = updateWarrantyMaxHoursSchema.safeParse({
+    maxHours: formData.get('maxHours'),
+  })
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: { _form: ['Non authentifié'] } }
+
+  const roles = await getCurrentUserRoles()
+  if (!roles.includes('plume_admin')) {
+    return { error: { _form: ['Action réservée à Plume HQ'] } }
+  }
+
+  const { error } = await supabase
+    .from('plume_settings')
+    .update({
+      warranty_max_hours: parsed.data.maxHours,
+      updated_at:         new Date().toISOString(),
+      updated_by:         user.id,
+    })
+    .eq('id', 1)
+
+  if (error) return { error: { _form: [`Erreur de sauvegarde (${error.message})`] } }
+
+  revalidatePath('/plume')
   revalidatePath('/plume/settings')
   return { success: true as const }
 }

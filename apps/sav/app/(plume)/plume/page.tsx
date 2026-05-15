@@ -1,11 +1,12 @@
 import Link from 'next/link'
-import { getAllTickets, getPartnerSchools, getTicketStats } from '@/features/tickets/queries'
+import { getAllTickets, getPartnerSchools, getPlumeSettings, getTicketStats } from '@/features/tickets/queries'
 import { STATUS_CONFIG } from '@/features/tickets/types'
 import type { RequestStatus, TicketWithPhotos } from '@/features/tickets/types'
 import type { TicketWithContacts } from '@/features/tickets/contacts'
 import { AdminTicketTable } from './AdminTicketTable'
 import { AdminAlerts, type AdminAlertGroup } from './AdminAlerts'
 import { PlumeShippingApprovalCard } from './PlumeShippingApprovalCard'
+import { WarrantyMaxHoursForm } from './WarrantyMaxHoursForm'
 
 export const dynamic = 'force-dynamic'
 
@@ -198,10 +199,11 @@ function findStagnantTickets(tickets: TicketWithPhotos[]): StagnantTicket[] {
 }
 
 export default async function PlumeDashboardPage() {
-  const [tickets, stats, schools] = await Promise.all([
+  const [tickets, stats, schools, plumeSettings] = await Promise.all([
     getAllTickets(),
     getTicketStats(),
     getPartnerSchools(),
+    getPlumeSettings(),
   ])
 
   // Tickets explicitly escalated to Plume HQ (cas exceptionnels) — show on top.
@@ -516,6 +518,18 @@ export default async function PlumeDashboardPage() {
       <section>
         <h2 className="section-title mb-3">Tickets</h2>
         <AdminTicketTable tickets={tickets} schools={schools} />
+      </section>
+
+      {/* Paramètres garantie — réglage rapide depuis le dashboard. Pour la
+          configuration complète, voir /plume/settings. */}
+      <section className="card p-5">
+        <h2 className="section-title mb-1">Paramètres garantie</h2>
+        <p className="mb-4 text-sm text-slate-600">
+          Au-delà de ce plafond d&apos;heures de vol, l&apos;aile est considérée hors
+          garantie quelle que soit la date d&apos;achat. La valeur sera utilisée à la
+          création d&apos;un ticket pour ajuster automatiquement la couverture.
+        </p>
+        <WarrantyMaxHoursForm currentMaxHours={plumeSettings.warrantyMaxHours} />
       </section>
 
       {/* By-status detail */}
