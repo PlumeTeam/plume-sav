@@ -5,6 +5,7 @@ import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { ClientHistorySummary, analyseClientHistory } from '@/features/tickets/components/ClientHistorySummary'
 import { WarrantyTierBadge } from '@/features/tickets/components/WarrantyTierBadge'
 import { RequestTypeBadge } from '@/features/tickets/components/RequestTypeBadge'
+import { DeclarationFullDetails } from '@/features/tickets/components/DeclarationFullDetails'
 import {
   SEVERITY_BADGE,
   SEVERITY_DOT,
@@ -39,6 +40,18 @@ interface ClientDeclarationPanelProps {
   /** Affiche les coordonnées client (nom + email + téléphone, liens directs).
    *  Défaut : false — pertinent côté école / atelier / admin. */
   showClientContact?:  boolean
+  /** Niveau de la section dépliable "Voir tous les détails".
+   *   - 'business' (défaut) : champs métier lisibles (numéro SAV, dates,
+   *     destinataire, livraison, message client, étiquettes photos).
+   *   - 'technical' : + UUIDs, description brute pré-parsing, timestamps ISO.
+   *     À utiliser côté école / atelier / admin pour le support. */
+  detailLevel?:        'business' | 'technical'
+  /** Nom de l'école destinataire (résolu côté server depuis partner_schools).
+   *  Permet d'afficher "École — Vol Libre Annecy" au lieu d'un UUID. */
+  schoolName?:         string | null
+  /** Nom de l'école référente d'achat — affiché uniquement si différente
+   *  de l'école destinataire (cas changement d'école). */
+  referentSchoolName?: string | null
 }
 
 // Sévérité par comportement signalé. La liste est le set fermé de
@@ -83,9 +96,12 @@ const VERDICT_LABEL: Record<Severity, string> = {
 
 export function ClientDeclarationPanel({
   ticket,
-  showWing          = false,
-  showPhotos        = true,
-  showClientContact = false,
+  showWing           = false,
+  showPhotos         = true,
+  showClientContact  = false,
+  detailLevel        = 'business',
+  schoolName         = null,
+  referentSchoolName = null,
 }: ClientDeclarationPanelProps) {
   const parsed = parseClientDescription(ticket.description)
   const category = ticket.problem_category
@@ -298,6 +314,17 @@ export function ClientDeclarationPanel({
           </dl>
         </section>
       )}
+
+      {/* 8. Détails complets — section dépliable, fermée par défaut. Contient
+              tout ce qui n'a pas sa place dans la fiche principale : routage,
+              livraison, message client, étiquettes photos. Niveau 'technical'
+              ajoute UUIDs / description brute / timestamps pour le support. */}
+      <DeclarationFullDetails
+        ticket={ticket}
+        level={detailLevel}
+        schoolName={schoolName}
+        referentSchoolName={referentSchoolName}
+      />
     </div>
   )
 }

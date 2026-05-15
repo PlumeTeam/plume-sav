@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getPartnerWorkshops, getSchoolTicketDetail, getPlumeSettings } from '@/features/tickets/queries'
+import { getPartnerSchoolById, getPartnerWorkshops, getSchoolTicketDetail, getPlumeSettings } from '@/features/tickets/queries'
 import { markTicketReadBySchoolAction } from '@/features/tickets/messages-actions-school'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { WarrantyTierBadge } from '@/features/tickets/components/WarrantyTierBadge'
@@ -43,6 +43,15 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
   // calcule alors un fallback à partir de purchase_date pour ne jamais
   // afficher un ticket sans indicateur garantie.
   const displayWarrantyTier = resolveWarrantyTierForDisplay(ticketWarrantyTier, ticket.purchase_date)
+
+  // Résolution des noms d'école pour la section "Détails complets". On ne
+  // veut pas que ClientDeclarationPanel touche à la DB — il reste pur.
+  // Si la cascade tombe (RLS / table manquante), on retombe sur null et la
+  // section affiche "(nom non résolu)" plutôt que de planter le rendu.
+  const [destinationSchool, referentSchool] = await Promise.all([
+    ticket.school_id          ? getPartnerSchoolById(ticket.school_id).catch(() => null)          : null,
+    ticket.referent_school_id ? getPartnerSchoolById(ticket.referent_school_id).catch(() => null) : null,
+  ])
 
   // Best-effort: mark this ticket as read for the current school user. The RPC
   // checks ownership via current_user_partner_school_ids() server-side.
@@ -189,6 +198,9 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
       ticket={ticket}
       showWing
       showClientContact
+      detailLevel="technical"
+      schoolName={destinationSchool?.name ?? null}
+      referentSchoolName={referentSchool?.name ?? null}
     />
   )
 

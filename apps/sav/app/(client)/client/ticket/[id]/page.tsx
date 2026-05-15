@@ -45,6 +45,15 @@ export default async function TicketDetailPage({ params }: PageProps) {
     ? await getPartnerSchoolById(ticket.referent_school_id)
     : null
 
+  // École destinataire effective — peut différer de l'école référente d'achat
+  // si le client a changé d'école au moment de la déclaration. On résout
+  // séparément uniquement quand c'est différent, sinon on réutilise `school`
+  // (qui pointe déjà sur referent_school_id) pour éviter une requête en plus.
+  const destinationSchool =
+    ticket.school_id && ticket.school_id !== ticket.referent_school_id
+      ? await getPartnerSchoolById(ticket.school_id).catch(() => null)
+      : school
+
   // Le client voit ses 3 canaux (school_client, client_workshop, group) + les
   // messages legacy avec visibility_level='all'. filterMessagesForRole couvre
   // les deux régimes.
@@ -235,7 +244,11 @@ export default async function TicketDetailPage({ params }: PageProps) {
           <h2 className="section-title">Demande</h2>
           <RequestTypeBadge type={ticket.request_type} size="sm" />
         </div>
-        <ClientDeclarationPanel ticket={ticket} />
+        <ClientDeclarationPanel
+          ticket={ticket}
+          schoolName={destinationSchool?.name ?? null}
+          referentSchoolName={school?.name ?? null}
+        />
       </section>
       {/* Rapport de révision — visible uniquement quand l'atelier l'a uploadé.
           Tickets request_type='inspection' (contrôle/révision). */}

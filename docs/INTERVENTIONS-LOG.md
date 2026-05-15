@@ -30,6 +30,38 @@ Chaque entrée doit suivre ce gabarit pour rester scannable. Date au format `YYY
 
 ---
 
+## 2026-05-15 — Section dépliable « Détails complets » dans la fiche déclaration
+
+**Intent** : JB trouvait la fiche déclaration partagée (4 dashboards) « beaucoup trop simplifiée » — il voulait un bouton pour voir **toutes** les infos saisies par le pilote, pas juste celles déjà rendues en cartes.
+**Status** : ✅ livré
+
+### Ce qui a été fait
+- `apps/sav/features/tickets/components/DeclarationFullDetails.tsx` (nouveau, ~210 l) : section repliable via `<details>` natif (Server Component, zéro JS) en pied de `ClientDeclarationPanel`. Deux niveaux :
+  - **business** (toujours visible) : référence ticket court (`#XXXXXXXX`), `sav_claim_number`, `created_at`, `warranty_expires_at`, destinataire (école *ou* atelier avec date d'assignation), méthode de livraison, **changement d'école** si `referent_school_id ≠ school_id` (nom école d'achat + raison + note libre), premier message du client (blockquote dorée), étiquetage photos (label `photo_type` + caption).
+  - **technical** (école / atelier / admin) : UUIDs (ticket, client, écoles, atelier), `service_type` / `request_type` / `status` bruts, **description brute pré-parsing** (le bloc `[Catégorie] ... [Historique aile] ...` complet dans un `<pre>` scrollable), timestamps ISO (`created_at`, `updated_at`, `school_acknowledged_at`, `workshop_assigned_at`).
+- `apps/sav/features/tickets/components/ClientDeclarationPanel.tsx` : 3 nouvelles props (`detailLevel?: 'business' | 'technical'`, `schoolName?`, `referentSchoolName?`). Le panel reste pur (zéro I/O DB) — chaque page résout les noms et les passe.
+- `apps/sav/app/(client)/client/ticket/[id]/page.tsx` : level `business`. Résout `destinationSchool` (school_id) séparément seulement si ≠ referent_school_id (sinon réutilise le `school` déjà fetché → pas de query en plus dans le cas par défaut).
+- `apps/sav/app/(school)/school/ticket/[id]/page.tsx` : level `technical`. `Promise.all` pour résoudre destinataire + référente en parallèle, `.catch(() => null)` pour ne pas planter la page si `getPartnerSchoolById` foire.
+- `apps/sav/app/(workshop)/workshop/ticket/[id]/page.tsx` : level `technical`. Le `school` était déjà résolu, on ajoute `referentSchool` au `Promise.all`.
+
+### Décisions techniques
+- **`<details>` natif** plutôt que composant client-side : Server Component safe, accessible nativement, zéro JS, fonctionne sans React. Pas besoin d'un Dialog Radix pour un repliable simple.
+- **Niveau différencié par dashboard** demandé explicitement par JB : client ne voit pas les UUIDs ni la description brute, école / atelier / admin oui (support).
+- **Composant dédié** au lieu d'enfler `ClientDeclarationPanel.tsx` (était 327 l → aurait dépassé 500 avec l'ajout inline). Règle CLAUDE.md : split si risque de dépasser 500 l.
+- **Résolution des noms d'école côté page** (Server Component) plutôt que dans le panel : le panel reste testable / réutilisable hors I/O, et chaque page contrôle sa propre stratégie de fetch (parallel vs lazy).
+
+### Ce qui reste à faire
+- Snapshot visuel pas validé localement : middleware auth Supabase répond 307 → /login sans session, et je n'ai pas de creds de test ici. À valider sur preview Vercel après push.
+- Pas de test Vitest dédié (cohérent avec le reste de `components/` qui n'a pas de tests unitaires non plus).
+
+### Pièges rencontrés
+- Le worktree fraîchement créé n'a pas de `node_modules` — `pnpm typecheck` plantait. Workaround : `New-Item -ItemType Junction` depuis le worktree vers le `node_modules` du repo parent (à la racine ET dans `apps/sav/`). Pas tracké par git.
+- Le `.env.local` n'est pas non plus dans le worktree → middleware Supabase crash au boot du dev server. Copie depuis le repo parent pour tester.
+- `assigned_workshop_label` est stocké figé en colonne (cf. `creation.ts`) — pas besoin de join pour l'atelier, juste lire la colonne. Seul le nom d'école nécessite `getPartnerSchoolById`.
+- `getPartnerSchoolById` retourne `null` si la cascade de fallbacks PostgREST échoue (lat/lng manquants, etc.). Le panel collapse alors sur "(nom non résolu)" plutôt que de planter — comportement voulu.
+
+---
+
 ## 2026-05-12 — Vérification serial vs aile sélectionnée (Tâche 2 plan dashboard client)
 
 **Intent** : Étape « Quelle aile ? » — quand le client sélectionne une aile dans la liste puis scanne/saisit un sérial, comparer les deux. Si mismatch → erreur explicite + blocage Continuer.

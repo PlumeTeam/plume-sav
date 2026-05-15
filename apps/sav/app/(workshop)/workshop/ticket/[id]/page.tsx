@@ -78,7 +78,12 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
   // École qui traite le ticket = client direct de l'atelier. Best-effort —
   // si l'id est absent ou la table partner_schools indisponible, on masque
   // simplement la section dans la vue.
-  const school = ticket.school_id ? await getPartnerSchoolById(ticket.school_id) : null
+  // En parallèle on résout l'école référente d'achat — utile pour la section
+  // "Détails complets" quand le client a changé d'école par rapport à son achat.
+  const [school, referentSchool] = await Promise.all([
+    ticket.school_id          ? getPartnerSchoolById(ticket.school_id)                            : null,
+    ticket.referent_school_id ? getPartnerSchoolById(ticket.referent_school_id).catch(() => null) : null,
+  ])
 
   const isPlumeAdmin = currentRoles.includes('plume_admin')
 
@@ -546,7 +551,15 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                 </>
               }
               client={
-                <ClientDeclarationPanel ticket={ticket} showWing showPhotos showClientContact />
+                <ClientDeclarationPanel
+                  ticket={ticket}
+                  showWing
+                  showPhotos
+                  showClientContact
+                  detailLevel="technical"
+                  schoolName={school?.name ?? null}
+                  referentSchoolName={referentSchool?.name ?? null}
+                />
               }
             />
           }
