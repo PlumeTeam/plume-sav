@@ -79,7 +79,7 @@ export function SchoolTicketQueue({ tickets }: SchoolTicketQueueProps) {
   )
 
   return (
-    <div className="space-y-4 px-4 py-5">
+    <div className="space-y-3">
       {/* Search */}
       <input
         type="search"
@@ -91,21 +91,25 @@ export function SchoolTicketQueue({ tickets }: SchoolTicketQueueProps) {
       />
 
       {/* Filter tabs */}
-      <div className="flex gap-1 overflow-x-auto no-scrollbar" role="tablist">
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-1 px-1" role="tablist">
         {(Object.keys(TAB_LABELS) as FilterTab[]).map((t) => (
           <button
             key={t}
             role="tab"
             aria-selected={tab === t}
             onClick={() => setTab(t)}
-            className={`flex-shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+            className={`flex-shrink-0 rounded-full px-4 py-2 text-sm font-medium ring-1 transition-colors ${
               tab === t
-                ? 'bg-brand-navy text-white'
-                : 'bg-white text-slate-500 hover:bg-slate-100'
+                ? 'bg-brand-navy text-white ring-brand-navy'
+                : 'bg-white text-slate-600 ring-brand-stone hover:bg-brand-cream hover:text-brand-ink'
             }`}
           >
             {TAB_LABELS[t]}
-            <span className="ml-1.5 text-xs opacity-70">({countByTab[t]})</span>
+            <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+              tab === t ? 'bg-white/20 text-white' : 'bg-brand-cream text-brand-ink/70'
+            }`}>
+              {countByTab[t]}
+            </span>
           </button>
         ))}
       </div>

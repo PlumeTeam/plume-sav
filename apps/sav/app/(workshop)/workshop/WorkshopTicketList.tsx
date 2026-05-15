@@ -146,7 +146,7 @@ export function WorkshopTicketList({ tickets }: WorkshopTicketListProps) {
       />
 
       {/* Onglets statut */}
-      <div className="flex gap-1 overflow-x-auto no-scrollbar" role="tablist" aria-label="Filtre statut">
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-1 px-1" role="tablist" aria-label="Filtre statut">
         {(Object.keys(STATUS_TAB_LABELS) as StatusBucket[]).map((b) => (
           <button
             key={b}
@@ -154,31 +154,35 @@ export function WorkshopTicketList({ tickets }: WorkshopTicketListProps) {
             role="tab"
             aria-selected={statusBucket === b}
             onClick={() => setStatusBucket(b)}
-            className={`flex-shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+            className={`flex-shrink-0 rounded-full px-4 py-2 text-sm font-semibold ring-1 transition-colors ${
               statusBucket === b
-                ? 'bg-brand-navy text-white'
-                : 'bg-white text-slate-500 ring-1 ring-brand-stone hover:bg-brand-cream'
+                ? 'bg-brand-navy text-white ring-brand-navy'
+                : 'bg-white text-slate-600 ring-brand-stone hover:bg-brand-cream hover:text-brand-ink'
             }`}
           >
             {STATUS_TAB_LABELS[b]}
-            <span className="ml-1.5 text-xs opacity-70">({countByStatus[b]})</span>
+            <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+              statusBucket === b ? 'bg-white/20 text-white' : 'bg-brand-cream text-brand-ink/70'
+            }`}>
+              {countByStatus[b]}
+            </span>
           </button>
         ))}
       </div>
 
-      {/* Filtres secondaires : type + urgence */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex gap-1 overflow-x-auto no-scrollbar" role="group" aria-label="Filtre type">
+      {/* Filtres secondaires : type + urgence sur la même ligne, séparés visuellement */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar" role="group" aria-label="Filtre type">
           {(Object.keys(TYPE_FILTER_LABELS) as TypeFilter[]).map((t) => (
             <button
               key={t}
               type="button"
               aria-pressed={typeFilter === t}
               onClick={() => setTypeFilter(t)}
-              className={`flex-shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`flex-shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition-colors ${
                 typeFilter === t
-                  ? 'bg-brand-ink text-white'
-                  : 'bg-white text-slate-500 ring-1 ring-brand-stone hover:bg-brand-cream'
+                  ? 'bg-brand-ink text-white ring-brand-ink'
+                  : 'bg-white text-slate-600 ring-brand-stone hover:bg-brand-cream hover:text-brand-ink'
               }`}
             >
               {TYPE_FILTER_LABELS[t]}
@@ -186,31 +190,29 @@ export function WorkshopTicketList({ tickets }: WorkshopTicketListProps) {
           ))}
         </div>
         <span className="hidden h-4 w-px bg-brand-stone sm:block" aria-hidden />
-        <div className="flex gap-1 overflow-x-auto no-scrollbar" role="group" aria-label="Filtre urgence">
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar" role="group" aria-label="Filtre urgence">
           {(Object.keys(URGENCY_FILTER_LABELS) as UrgencyFilter[]).map((u) => (
             <button
               key={u}
               type="button"
               aria-pressed={urgency === u}
               onClick={() => setUrgency(u)}
-              className={`flex-shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`flex-shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition-colors ${
                 urgency === u
-                  ? 'bg-brand-ink text-white'
-                  : 'bg-white text-slate-500 ring-1 ring-brand-stone hover:bg-brand-cream'
+                  ? 'bg-brand-ink text-white ring-brand-ink'
+                  : 'bg-white text-slate-600 ring-brand-stone hover:bg-brand-cream hover:text-brand-ink'
               }`}
             >
               {URGENCY_FILTER_LABELS[u]}
             </button>
           ))}
         </div>
+        {/* Compteur inline à droite — gain de place vs ligne dédiée. */}
+        <p className="ml-auto text-xs text-slate-500">
+          {filtered.length} ticket{filtered.length > 1 ? 's' : ''}
+          {hasActiveFilter && <span className="text-brand-gold"> (filtrés)</span>}
+        </p>
       </div>
-
-      {/* Compteur de résultats */}
-      <p className="px-1 text-xs text-slate-500">
-        {filtered.length} ticket{filtered.length > 1 ? 's' : ''}
-        {hasActiveFilter && ' (filtrés)'}
-        {' · '}trié par date
-      </p>
 
       {/* Liste */}
       {filtered.length === 0 ? (
@@ -260,11 +262,33 @@ function WorkshopTicketRow({ ticket }: { ticket: TicketWithContacts }) {
       href={`/workshop/ticket/${ticket.id}`}
       className="card group block p-4 transition-all hover:-translate-y-0.5 hover:shadow-soft active:scale-[0.99]"
     >
-      {/* Ligne 1 — badges type + statut + urgence */}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Ligne 1 — produit + ref + chevron */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-brand-ink">{productLine}</p>
+          {wingMeta.length > 0 && (
+            <p className="mt-0.5 truncate text-xs text-slate-500">
+              {wingMeta.map((part, i) => (
+                <span key={i}>
+                  {i > 0 && <span className="mx-1.5 text-slate-300">•</span>}
+                  <span className={i === wingMeta.length - 1 && ticket.serial_number ? 'font-mono' : ''}>
+                    {part}
+                  </span>
+                </span>
+              ))}
+            </p>
+          )}
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <StatusBadge status={ticket.status} size="sm" />
+          <span className="font-mono text-[10px] text-slate-400">{ticketRef}</span>
+        </div>
+      </div>
+
+      {/* Ligne 2 — badges qualificatifs (type métier, type demande, garantie, urgence) */}
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <TypeBadge kind={kind} />
         <RequestTypeBadge type={ticket.request_type} size="xs" />
-        <StatusBadge status={ticket.status} size="sm" />
         {ticket.warranty_tier && (
           <WarrantyTierBadge
             tier={ticket.warranty_tier as WarrantyTier}
@@ -273,40 +297,19 @@ function WorkshopTicketRow({ ticket }: { ticket: TicketWithContacts }) {
           />
         )}
         {ticket.is_plume_urgent && (
-          <span className="inline-flex items-center rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
+          <span className="inline-flex items-center rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
             ⚠ Sécurité
           </span>
         )}
         {ticket.urgency_level === 2 && (
-          <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-red-700">
-            Urgent
+          <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-700 ring-1 ring-red-200">
+            🔥 Urgent
           </span>
         )}
-        <span className="ml-auto font-mono text-[11px] text-slate-400">{ticketRef}</span>
+        <span className="ml-auto text-xs text-slate-400">{formatDate(ticket.created_at)}</span>
       </div>
 
-      {/* Ligne 2 — produit + aile */}
-      <div className="mt-2 flex items-baseline justify-between gap-3">
-        <p className="truncate text-sm font-semibold text-brand-ink">{productLine}</p>
-        <span className="shrink-0 text-lg text-slate-300 transition-colors group-hover:text-brand-gold" aria-hidden>›</span>
-      </div>
-      {wingMeta.length > 0 && (
-        <p className="mt-0.5 truncate text-xs text-slate-500">
-          {wingMeta.map((part, i) => (
-            <span key={i}>
-              {i > 0 && <span className="mx-1.5 text-slate-300">•</span>}
-              <span className={i === wingMeta.length - 1 && ticket.serial_number ? 'font-mono' : ''}>
-                {part}
-              </span>
-            </span>
-          ))}
-        </p>
-      )}
-
-      {/* Ligne 3 — date */}
-      <p className="mt-2 text-xs text-slate-400">{formatDate(ticket.created_at)}</p>
-
-      {/* Ligne 4 — contacts (Client, École, Atelier) — partage le composant
+      {/* Ligne 3 — contacts (Client, École, Atelier) — partage le composant
           déjà utilisé sur la file école pour cohérence visuelle. */}
       <TicketContactsBlock contacts={ticket.contacts} />
     </Link>

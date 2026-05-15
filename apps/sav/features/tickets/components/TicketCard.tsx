@@ -27,7 +27,7 @@ export function TicketCard({ ticket, basePath = '/client', showUrgency = false, 
       href={`${basePath}/ticket/${ticket.id}`}
       className="card group relative flex flex-col gap-3 p-4 transition-all hover:-translate-y-0.5 active:scale-[0.99]"
     >
-      <div className="flex items-center gap-4">
+      <div className="flex items-start gap-3 sm:gap-4">
         {/* Thumbnail */}
         <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-2xl bg-brand-cream ring-1 ring-brand-stone">
           {firstPhoto ? (
@@ -53,32 +53,35 @@ export function TicketCard({ ticket, basePath = '/client', showUrgency = false, 
 
         {/* Content */}
         <div className="min-w-0 flex-1">
+          {/* Ligne 1 — produit + statut (info principale) */}
           <div className="flex items-start justify-between gap-2">
             <p className="truncate text-sm font-semibold text-brand-ink">{productLine}</p>
             <StatusBadge status={ticket.status} size="sm" />
           </div>
-          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-            <RequestTypeBadge type={ticket.request_type} size="xs" />
-            <p className="truncate font-mono text-xs text-slate-500">
-              {ticketRef}
-            </p>
-            {showUrgency && ticket.urgency_level === 2 && (
-              <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-red-700">
-                Urgent
-              </span>
-            )}
+
+          {/* Ligne 2 — ref ticket + date */}
+          <div className="mt-1 flex items-center justify-between gap-2 text-xs">
+            <span className="truncate font-mono text-slate-500">{ticketRef}</span>
+            <span className="shrink-0 text-slate-400">{formatDate(ticket.created_at)}</span>
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            <span className="text-xs text-slate-400">{formatDate(ticket.created_at)}</span>
+
+          {/* Ligne 3 — badges qualificatifs (type, garantie, urgence) */}
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <RequestTypeBadge type={ticket.request_type} size="xs" />
             <WarrantyTierBadge
               tier={resolveWarrantyTierForDisplay(ticket.warranty_tier, ticket.purchase_date)}
               size="sm"
               compact
             />
+            {showUrgency && ticket.urgency_level === 2 && (
+              <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-700 ring-1 ring-red-200">
+                🔥 Urgent
+              </span>
+            )}
           </div>
         </div>
 
-        <span className="shrink-0 text-lg text-slate-300 group-hover:text-brand-gold transition-colors" aria-hidden>›</span>
+        <span className="shrink-0 self-center text-lg text-slate-300 group-hover:text-brand-gold transition-colors" aria-hidden>›</span>
       </div>
 
       {contacts && <TicketContactsBlock contacts={contacts} />}

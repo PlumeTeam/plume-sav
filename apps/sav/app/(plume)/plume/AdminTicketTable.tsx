@@ -11,15 +11,39 @@ import type { PartnerSchool } from '@/features/tickets/queries'
 import type { TicketWithContacts } from '@/features/tickets/contacts'
 import { AdminTicketActions } from './AdminTicketActions'
 
-type StatusFilter = 'all' | 'pending' | 'processing' | 'approved' | 'completed' | 'rejected'
+type StatusFilter = 'all' | 'pending' | 'school' | 'workshop' | 'done' | 'cancelled'
 
 const FILTER_LABELS: Record<StatusFilter, string> = {
-  all:        'Tous',
-  pending:    'À traiter',
-  processing: 'En cours',
-  approved:   'Approuvés',
-  completed:  'Terminés',
-  rejected:   'Rejetés',
+  all:       'Tous',
+  pending:   'À traiter',
+  school:    'École',
+  workshop:  'Atelier',
+  done:      'Terminés',
+  cancelled: 'Rejetés/annulés',
+}
+
+// Buckets alignés sur le pipeline (cf. queries.ts et SchoolTicketQueue).
+// On accepte les statuts hérités (processing/approved) pour ne pas casser
+// les tickets antérieurs au pipeline d'étapes.
+const FILTER_STATUSES: Record<Exclude<StatusFilter, 'all'>, RequestStatus[]> = {
+  pending:   ['pending', 'pending_workshop'],
+  school:    [
+    'school_acknowledged',
+    'wing_received_school',
+    'school_checking',
+    'processing',
+    'approved',
+  ],
+  workshop:  [
+    'escalated_to_workshop',
+    'wing_received_workshop',
+    'workshop_pre_checking',
+    'workshop_diagnosing',
+    'workshop_repairing',
+    'workshop_done',
+  ],
+  done:      ['school_resolved', 'wing_returned', 'completed'],
+  cancelled: ['rejected', 'cancelled'],
 }
 
 const PAGE_SIZE = 20
@@ -72,7 +96,10 @@ export function AdminTicketTable({ tickets, schools }: AdminTicketTableProps) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return tickets.filter((t) => {
-      if (filter !== 'all' && (t.status as RequestStatus) !== filter) return false
+      if (filter !== 'all') {
+        const allowed = FILTER_STATUSES[filter]
+        if (!allowed.includes(t.status as RequestStatus)) return false
+      }
       if (schoolFilter !== 'all' && t.school_id !== schoolFilter) return false
       if (workshopFilter !== 'all' && t.assigned_workshop_id !== workshopFilter) return false
       if (!q) return true
@@ -87,6 +114,23 @@ export function AdminTicketTable({ tickets, schools }: AdminTicketTableProps) {
       )
     })
   }, [tickets, filter, search, schoolFilter, workshopFilter])
+
+  // Compteurs par filtre — repère stable pour l'utilisateur (recherche/écoles
+  // dropdown non appliquées).
+  const countByFilter = useMemo(() => {
+    const out: Record<StatusFilter, number> = {
+      all: tickets.length,
+      pending: 0, school: 0, workshop: 0, done: 0, cancelled: 0,
+    }
+    for (const t of tickets) {
+      for (const key of Object.keys(FILTER_STATUSES) as Array<Exclude<StatusFilter, 'all'>>) {
+        if (FILTER_STATUSES[key].includes(t.status as RequestStatus)) {
+          out[key] += 1
+        }
+      }
+    }
+    return out
+  }, [tickets])
 
   // Reset page si les filtres changent et la page dépasse
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -136,20 +180,25 @@ export function AdminTicketTable({ tickets, schools }: AdminTicketTableProps) {
       </div>
 
       {/* Status tabs */}
-      <div className="flex gap-1 overflow-x-auto no-scrollbar" role="tablist">
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar" role="tablist">
         {(Object.keys(FILTER_LABELS) as StatusFilter[]).map((f) => (
           <button
             key={f}
             role="tab"
             aria-selected={filter === f}
             onClick={() => resetAndSet(setFilter, f)}
-            className={`flex-shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`flex-shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold ring-1 transition-colors ${
               filter === f
-                ? 'bg-brand-navy text-white'
-                : 'bg-white text-slate-500 ring-1 ring-brand-stone hover:bg-brand-cream'
+                ? 'bg-brand-navy text-white ring-brand-navy'
+                : 'bg-white text-slate-600 ring-brand-stone hover:bg-brand-cream hover:text-brand-ink'
             }`}
           >
             {FILTER_LABELS[f]}
+            <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+              filter === f ? 'bg-white/20 text-white' : 'bg-brand-cream text-brand-ink/70'
+            }`}>
+              {countByFilter[f]}
+            </span>
           </button>
         ))}
       </div>

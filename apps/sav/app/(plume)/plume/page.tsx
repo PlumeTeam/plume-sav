@@ -230,18 +230,53 @@ export default async function PlumeDashboardPage() {
   const alertGroups = buildAlertGroups(tickets)
 
   return (
-    <main className="mx-auto max-w-6xl space-y-8 px-4 py-8">
-      {/* Header */}
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-brand-gold">Plume HQ</p>
-          <h1 className="mt-0.5 font-display text-2xl font-bold text-brand-ink">Tableau de bord</h1>
+    <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:py-8">
+      {/* Hero / Greeting — cohérent avec école / atelier */}
+      <section className="rounded-3xl bg-gradient-to-br from-brand-navy via-brand-ink to-black px-5 py-6 text-white shadow-soft">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-brand-gold">
+              🦅 Plume HQ
+            </p>
+            <h1 className="mt-1 font-display text-2xl font-bold">Tableau de bord</h1>
+            <p className="mt-1 text-sm text-white/70">
+              {tickets.length} ticket{tickets.length > 1 ? 's' : ''} au total
+            </p>
+            {(urgentActive > 0 || stagnant.length > 0) && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {urgentActive > 0 && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-red-400/20 px-3 py-1 text-xs font-semibold text-red-100 ring-1 ring-red-300/40">
+                    <span aria-hidden>🔥</span>
+                    {urgentActive} urgent{urgentActive > 1 ? 's' : ''}
+                  </span>
+                )}
+                {stagnant.length > 0 && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-400/20 px-3 py-1 text-xs font-semibold text-orange-100 ring-1 ring-orange-300/40">
+                    <span aria-hidden>⏰</span>
+                    {stagnant.length} stagnant{stagnant.length > 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/school"
+              className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-4 py-2 text-xs font-semibold text-white ring-1 ring-white/20 hover:bg-white/20 transition-colors"
+            >
+              <span aria-hidden>🏫</span>
+              Vue École
+            </Link>
+            <Link
+              href="/workshop"
+              className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-4 py-2 text-xs font-semibold text-white ring-1 ring-white/20 hover:bg-white/20 transition-colors"
+            >
+              <span aria-hidden>🛠️</span>
+              Vue Atelier
+            </Link>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Link href="/school" className="btn-secondary text-xs px-4 py-2">Vue École</Link>
-          <Link href="/workshop" className="btn-secondary text-xs px-4 py-2">Vue Atelier</Link>
-        </div>
-      </header>
+      </section>
 
       {/* Alertes SLA — bandeau compteur + 3 catégories collapsibles */}
       <AdminAlerts groups={alertGroups} />

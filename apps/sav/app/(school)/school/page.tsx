@@ -33,19 +33,38 @@ export default async function SchoolPage() {
         <h1 className="mt-1 font-display text-2xl font-bold">Bonjour {greetingName}</h1>
         <p className="mt-1 text-sm text-white/70">
           {tickets.length} ticket{tickets.length !== 1 ? 's' : ''} au total
-          {pending > 0 && ` · ${pending} à traiter`}
-          {urgent > 0 && ` · ${urgent} urgent${urgent > 1 ? 's' : ''}`}
         </p>
+        {(pending > 0 || urgent > 0) && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {pending > 0 && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-400/20 px-3 py-1 text-xs font-semibold text-amber-100 ring-1 ring-amber-300/40">
+                <span aria-hidden>📥</span>
+                {pending} à traiter
+              </span>
+            )}
+            {urgent > 0 && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-red-400/20 px-3 py-1 text-xs font-semibold text-red-100 ring-1 ring-red-300/40">
+                <span aria-hidden>🔥</span>
+                {urgent} urgent{urgent > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+        )}
         {school && (school.city || school.region) && (
-          <p className="mt-1 text-xs text-white/50">
+          <p className="mt-3 text-xs text-white/50">
             {[school.city, school.region].filter(Boolean).join(' · ')}
           </p>
         )}
       </section>
 
       {/* ── File de tickets ─────────────────────────────────────── */}
-      <section>
-        <h2 className="section-title mb-3 px-1">File de tickets</h2>
+      <section className="space-y-3">
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className="section-title">File de tickets</h2>
+          {tickets.length > 0 && (
+            <span className="text-xs text-slate-400">{tickets.length} au total</span>
+          )}
+        </div>
         <SchoolTicketQueue tickets={tickets} />
       </section>
     </main>

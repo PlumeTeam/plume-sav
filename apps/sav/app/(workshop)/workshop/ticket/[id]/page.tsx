@@ -190,43 +190,43 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
         <section className="card grid grid-cols-1 gap-x-5 gap-y-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
           {/* ─── Expédition ─────────────────────────────────────────────── */}
           <div className="min-w-0">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
               Expédition
             </p>
             {ticket.school_workshop_tracking ? (
-              <div className="space-y-0.5 text-sm text-brand-ink">
+              <div className="space-y-1 text-sm text-brand-ink">
                 <p className="flex items-center gap-1.5">
                   <span aria-hidden>📦</span>
-                  <span>Transporteur GLS</span>
+                  <span className="font-medium">Transporteur GLS</span>
                 </p>
-                <p className="break-all font-mono text-[11px] text-slate-500">
+                <p className="break-all font-mono text-xs text-slate-500">
                   {ticket.school_workshop_tracking}
                 </p>
                 <a
                   href={buildGlsTrackingUrl(ticket.school_workshop_tracking)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-block text-xs font-medium text-brand-gold hover:underline"
+                  className="inline-block text-xs font-semibold text-brand-gold hover:underline"
                 >
                   Suivre →
                 </a>
                 {ticket.wing_received_workshop_at && (
-                  <p className="text-[11px] text-emerald-700">
+                  <p className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
                     ✓ Reçue le {formatDate(ticket.wing_received_workshop_at)}
                   </p>
                 )}
               </div>
             ) : ticket.escalated_to_workshop_at ? (
-              <div className="space-y-0.5 text-sm text-brand-ink">
+              <div className="space-y-1 text-sm text-brand-ink">
                 <p className="flex items-center gap-1.5">
                   <span aria-hidden>🤝</span>
-                  <span>Remise en main propre</span>
+                  <span className="font-medium">Remise en main propre</span>
                 </p>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-xs text-slate-500">
                   Escaladée le {formatDate(ticket.escalated_to_workshop_at)}
                 </p>
                 {ticket.wing_received_workshop_at && (
-                  <p className="text-[11px] text-emerald-700">
+                  <p className="inline-block rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
                     ✓ Reçue le {formatDate(ticket.wing_received_workshop_at)}
                   </p>
                 )}
@@ -238,31 +238,32 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
 
           {/* ─── École partenaire ───────────────────────────────────────── */}
           <div className="min-w-0">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
               École
             </p>
             {school ? (
-              <div className="space-y-0.5 text-sm text-brand-ink">
-                <p className="truncate font-medium">{school.name}</p>
+              <div className="space-y-1 text-sm text-brand-ink">
+                <p className="truncate font-semibold">{school.name}</p>
                 {(school.city || school.region) && (
-                  <p className="truncate text-[11px] text-slate-500">
+                  <p className="truncate text-xs text-slate-500">
                     {[school.city, school.region].filter(Boolean).join(' · ')}
                   </p>
                 )}
                 {school.email && (
                   <a
                     href={`mailto:${school.email}`}
-                    className="block truncate text-[11px] text-brand-gold hover:underline"
+                    className="block truncate text-xs text-brand-gold hover:underline"
+                    title={school.email}
                   >
-                    {school.email}
+                    ✉ {school.email}
                   </a>
                 )}
                 {school.phone && (
                   <a
                     href={`tel:${school.phone.replace(/\s+/g, '')}`}
-                    className="block truncate text-[11px] text-brand-gold hover:underline"
+                    className="block truncate text-xs text-brand-gold hover:underline"
                   >
-                    {school.phone}
+                    📞 {school.phone}
                   </a>
                 )}
               </div>
@@ -273,25 +274,26 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
 
           {/* ─── Client final ──────────────────────────────────────────── */}
           <div className="min-w-0">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
               Client
             </p>
-            <div className="space-y-0.5 text-sm text-brand-ink">
-              <p className="truncate font-medium">{clientName}</p>
+            <div className="space-y-1 text-sm text-brand-ink">
+              <p className="truncate font-semibold">{clientName}</p>
               {ticket.email && (
                 <a
                   href={`mailto:${ticket.email}`}
-                  className="block truncate text-[11px] text-brand-gold hover:underline"
+                  className="block truncate text-xs text-brand-gold hover:underline"
+                  title={ticket.email}
                 >
-                  {ticket.email}
+                  ✉ {ticket.email}
                 </a>
               )}
               {ticket.phone && (
                 <a
                   href={`tel:${ticket.phone.replace(/\s+/g, '')}`}
-                  className="block truncate text-[11px] text-brand-gold hover:underline"
+                  className="block truncate text-xs text-brand-gold hover:underline"
                 >
-                  {ticket.phone}
+                  📞 {ticket.phone}
                 </a>
               )}
             </div>
@@ -299,31 +301,31 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
 
           {/* ─── Aile ──────────────────────────────────────────────────── */}
           <div className="min-w-0">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
               Aile
             </p>
-            <div className="space-y-0.5 text-sm text-brand-ink">
-              <p className="truncate font-medium">
+            <div className="space-y-1 text-sm text-brand-ink">
+              <p className="truncate font-semibold">
                 {[ticket.product_brand, ticket.product_model].filter(Boolean).join(' ') || '—'}
               </p>
-              <p className="truncate text-[11px] text-slate-500">
+              <p className="truncate text-xs text-slate-500">
                 {[
                   ticket.wing_size && `Taille ${ticket.wing_size}`,
                   ticket.wing_color,
                 ].filter(Boolean).join(' · ') || '—'}
               </p>
               {ticket.serial_number && (
-                <p className="break-all font-mono text-[11px] text-slate-500">
+                <p className="break-all font-mono text-xs text-slate-500">
                   S/N {ticket.serial_number}
                 </p>
               )}
               {ticket.purchase_date && (
-                <p className="text-[11px] text-slate-500">
+                <p className="text-xs text-slate-500">
                   Achetée le {formatDate(ticket.purchase_date)}
                   {wingAge && <span className="text-slate-400"> — {wingAge}</span>}
                 </p>
               )}
-              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
                 <WarrantyTierBadge tier={ticketWarrantyTier} size="sm" compact />
                 {warranty && <WarrantyBadge warranty={warranty} />}
               </div>
