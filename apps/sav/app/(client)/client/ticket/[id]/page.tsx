@@ -7,7 +7,7 @@ import { markTicketNotificationsReadAction } from '@/features/notifications/acti
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { ClientJourneyTimeline } from '@/features/tickets/components/ClientJourneyTimeline'
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
-import { CommentThread } from '@/features/tickets/components/CommentThread'
+import { TicketChannelSwitch, type TicketChannel } from '@/features/tickets/components/TicketChannelSwitch'
 import { ClientDeclarationPanel } from '@/features/tickets/components/ClientDeclarationPanel'
 import { TicketHeaderInfo, ticketHeaderProps } from '@/features/tickets/components/TicketHeaderInfo'
 import { WingLocationCard } from '@/features/tickets/components/WingLocationCard'
@@ -18,7 +18,6 @@ import { RevisionReportView } from '@/features/tickets/components/RevisionReport
 import { formatAge, formatDate, resolveWarrantyTierForDisplay } from '@/features/tickets/utils'
 import { filterMessagesForRole } from '@/features/tickets/channels'
 import type { ClientShippingAddress, CloserRole, ClosureOutcome } from '@/features/tickets/types'
-import { MessageForm } from './MessageForm'
 import { ClientTicketTabs } from './ClientTicketTabs'
 
 function readClientShippingAddress(raw: unknown): ClientShippingAddress | null {
@@ -199,29 +198,94 @@ export default async function TicketDetailPage({ params }: PageProps) {
     </>
   )
 
-  const messagesNode = (
-    <section className="card p-5">
-      <h2 className="section-title mb-4">
-        Échanges{school?.name ? ` avec ${school.name}` : " avec votre école"}
-      </h2>
-      {warrantyTier === 'out_of_warranty' && (
-        <div className="mb-4 rounded-2xl border border-brand-stone bg-brand-cream px-4 py-3">
-          <p className="text-sm font-semibold text-brand-ink">Canal direct avec l&apos;atelier</p>
+  // Trois canaux côté client : école (legacy 'all' inclus), atelier (gated sur
+  // assigned_workshop_id) et groupe (école + atelier + Plume HQ). Le composant
+  // partagé TicketChannelSwitch gère onglets + composer + filtrage. Server-side
+  // l'écriture passe par addRoleMessageAction qui valide l'allowlist ROLE_CHANNELS.client.
+  const schoolName     = school?.name ?? 'votre école'
+  const workshopName   = assignedWorkshop?.label ?? ticket.assigned_workshop_label ?? null
+  const hasWorkshop    = !!ticket.assigned_workshop_id
+  const workshopLabel  = workshopName ?? "l'atelier"
+
+  const clientChannels: TicketChannel[] = [
+    {
+      id:               'school',
+      label:            'École',
+      emoji:            '🏫',
+      channel:          'school_client',
+      // Messages pré-migration 5-canaux (channel NULL, visibility_level='all').
+      legacyVisibility: 'all',
+      composer: {
+        senderRole:      'client',
+        visibilityLevel: 'all',
+        channel:         'school_client',
+        placeholder:     `Écrire à ${schoolName}…`,
+        submitLabel:     "Envoyer à l'école",
+        helperText:      `Privé — vous ↔ ${schoolName}`,
+      },
+      emptyText: `Aucun message pour l'instant. Écrivez ci-dessous pour démarrer la conversation — ${schoolName} vous répondra ici.`,
+    },
+    {
+      id:      'workshop',
+      label:   'Atelier',
+      emoji:   '🛠️',
+      channel: 'client_workshop',
+      banner: warrantyTier === 'out_of_warranty' ? (
+        <div className="rounded-2xl border border-brand-stone bg-brand-cream px-4 py-3">
+          <p className="text-sm font-semibold text-brand-ink">Hors garantie — devis & facture</p>
           <p className="mt-1 text-xs leading-relaxed text-brand-ink/80">
             L&apos;atelier peut vous transmettre un devis et une facture en pièce
-            jointe (photo du document) directement dans cette messagerie.
+            jointe (photo du document) directement dans cette messagerie. Le
+            paiement se fait directement entre vous et l&apos;atelier.
           </p>
         </div>
-      )}
-      <div className="mb-4">
-        <CommentThread
-          messages={publicMessages}
-          ownRoles={['client']}
-          emptyText={`Aucun message pour l'instant. Écrivez ci-dessous pour démarrer la conversation — ${school?.name ?? 'votre école'} vous répondra ici.`}
-        />
-      </div>
-      <MessageForm ticketId={ticket.id} />
-    </section>
+      ) : null,
+      composer: hasWorkshop
+        ? {
+            senderRole:      'client',
+            visibilityLevel: 'all',
+            channel:         'client_workshop',
+            placeholder:     `Écrire à ${workshopLabel}…`,
+            submitLabel:     "Envoyer à l'atelier",
+            helperText:      `Privé — vous ↔ ${workshopLabel}`,
+          }
+        : {
+            senderRole:      'client',
+            visibilityLevel: 'all',
+            channel:         'client_workshop',
+            placeholder:     '',
+            submitLabel:     '',
+            helperText:      '',
+            disabledReason:  `Ce canal sera actif dès que ${schoolName} aura assigné un atelier à votre demande.`,
+          },
+      emptyText: hasWorkshop
+        ? `Démarrez la conversation avec ${workshopLabel} ci-dessous.`
+        : "Pas encore d'atelier assigné — ce canal sera disponible bientôt.",
+    },
+    {
+      id:      'group',
+      label:   'Groupe',
+      emoji:   '👥',
+      channel: 'group',
+      composer: {
+        senderRole:      'client',
+        visibilityLevel: 'all',
+        channel:         'group',
+        placeholder:     'Message pour le groupe (école + atelier)…',
+        submitLabel:     'Envoyer au groupe',
+        helperText:      "Visible par l'école, l'atelier et Plume",
+      },
+      emptyText: 'Aucun message dans la discussion de groupe pour le moment.',
+    },
+  ]
+
+  const messagesNode = (
+    <TicketChannelSwitch
+      ticketId={ticket.id}
+      messages={publicMessages}
+      channels={clientChannels}
+      ownRoles={['client']}
+    />
   )
 
   const contactNode = school ? (

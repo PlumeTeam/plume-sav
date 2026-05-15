@@ -34,6 +34,12 @@ export interface TicketChannel {
   visibility?: Visibility
   /** Filtre 5-canaux : utilisé en priorité sur `visibility` quand fourni. */
   channel?:  MessageChannel
+  /**
+   * Filtre legacy (channel = NULL) à inclure dans ce canal. Permet de
+   * conserver l'historique des messages pré-migration 5-canaux dans le
+   * bon onglet (ex : école/client antérieurs au 2026-05-12 → onglet école).
+   */
+  legacyVisibility?: Visibility
   /** When true, ignore messages flagged `is_internal` even on this channel. */
   excludeInternal?: boolean
   /** Message ids hoisted out of the thread (e.g. spotlight card on top). */
@@ -65,7 +71,11 @@ interface Props {
 function matchesChannel(m: TicketMessage, c: TicketChannel): boolean {
   if (c.channel) {
     const ch = (m as TicketMessage & { channel?: MessageChannel | null }).channel ?? null
-    if (ch !== c.channel) return false
+    const direct = ch === c.channel
+    const legacy = ch === null
+      && c.legacyVisibility !== undefined
+      && m.visibility_level === c.legacyVisibility
+    if (!direct && !legacy) return false
   } else if (c.visibility) {
     if (m.visibility_level !== c.visibility) return false
   }
