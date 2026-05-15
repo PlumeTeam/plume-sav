@@ -430,6 +430,18 @@ export const refuseShippingSchema = z.object({
   reason:   z.string().trim().min(10, 'Expliquez la raison du refus (10 caractères min.)').max(2000),
 })
 
+// Plume HQ : validation de l'envoi postal pour les clients ayant dépassé le
+// seuil annuel (auto_approved_shipping = FALSE). Mêmes contraintes que la
+// version école — raison obligatoire pour un refus.
+export const adminApproveClientShippingSchema = z.object({
+  ticketId: z.string().uuid(),
+})
+
+export const adminRefuseClientShippingSchema = z.object({
+  ticketId: z.string().uuid(),
+  reason:   z.string().trim().min(10, 'Expliquez la raison du refus (10 caractères min.)').max(2000),
+})
+
 export type WingInfoInput = z.infer<typeof wingInfoSchema>
 export type ProblemInput = z.infer<typeof problemSchema>
 export type CreateTicketInput = z.infer<typeof createTicketSchema>

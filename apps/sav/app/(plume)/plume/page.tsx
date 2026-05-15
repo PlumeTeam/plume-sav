@@ -5,6 +5,7 @@ import type { RequestStatus, TicketWithPhotos } from '@/features/tickets/types'
 import type { TicketWithContacts } from '@/features/tickets/contacts'
 import { AdminTicketTable } from './AdminTicketTable'
 import { AdminAlerts, type AdminAlertGroup } from './AdminAlerts'
+import { PlumeShippingApprovalCard } from './PlumeShippingApprovalCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -225,6 +226,17 @@ export default async function PlumeDashboardPage() {
   // Stagnant tickets (T3)
   const stagnant = findStagnantTickets(tickets)
 
+  // Validations d'envoi en attente Plume HQ — tickets flaggés par
+  // generateSavShippingLabelAction (auto_approved_shipping=FALSE) qui n'ont
+  // pas encore reçu de décision (plume_shipping_approved=NULL) et pour
+  // lesquels aucun label n'a encore été émis (idempotence).
+  const pendingShippingApprovals = tickets.filter(
+    (t) =>
+      t.auto_approved_shipping === false &&
+      (t.plume_shipping_approved === null || t.plume_shipping_approved === undefined) &&
+      !t.client_school_label_url
+  )
+
   // Alertes SLA (T8) — 3 catégories : sans activité > 3 j, attente école > 24 h,
   // attente atelier > 48 h. Calcul côté serveur, ouverture/fermeture côté client.
   const alertGroups = buildAlertGroups(tickets)
@@ -350,6 +362,70 @@ export default async function PlumeDashboardPage() {
                         </span>
                         <span className="shrink-0 text-xs text-brand-gold">Triage requis →</span>
                       </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Validations d'envoi postal en attente (anti-abus seuil annuel) */}
+      {pendingShippingApprovals.length > 0 && (
+        <section
+          id="pending-shipping-approvals"
+          className="rounded-3xl border-2 border-amber-300 bg-amber-50 p-5"
+        >
+          <div className="flex items-start gap-3">
+            <span aria-hidden className="text-2xl">📮</span>
+            <div className="flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-amber-800">
+                Action Plume HQ requise
+              </p>
+              <h2 className="mt-0.5 font-display text-lg font-bold text-brand-ink">
+                {pendingShippingApprovals.length} validation{pendingShippingApprovals.length > 1 ? 's' : ''} d&apos;envoi postal en attente
+              </h2>
+              <p className="mt-1 text-xs text-brand-ink/70">
+                Ces clients ont déjà dépassé le seuil annuel de SAV. Ils ne peuvent
+                pas générer leur bon de transport sans votre feu vert.
+              </p>
+              <ul className="mt-3 space-y-2">
+                {pendingShippingApprovals.map((t) => {
+                  const ref = t.ticket_number ?? `#${t.id.slice(0, 8).toUpperCase()}`
+                  const fallbackName = [t.first_name, t.last_name].filter(Boolean).join(' ').trim()
+                  const clientName = t.contacts.client.name ?? (fallbackName.length > 0 ? fallbackName : 'Client')
+                  const wing = [t.product_brand, t.product_model].filter(Boolean).join(' ') || 'Aile'
+                  const days = Math.max(0, Math.floor((Date.now() - new Date(t.created_at).getTime()) / 86_400_000))
+                  return (
+                    <li key={t.id} className="rounded-2xl border border-amber-200 bg-white p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium text-brand-ink">
+                            <span className="font-mono text-xs text-slate-500">{ref}</span>
+                            {' — '}
+                            <span>{clientName}</span>
+                            <span className="text-slate-500"> · {wing}</span>
+                          </p>
+                          {t.contacts.school?.name && (
+                            <p className="mt-0.5 text-xs text-slate-500">
+                              École référente : {t.contacts.school.name}
+                            </p>
+                          )}
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            Ouvert il y a {days} j{days > 1 ? '' : ''}
+                          </p>
+                        </div>
+                        <Link
+                          href={`/school/ticket/${t.id}`}
+                          className="shrink-0 rounded-full bg-brand-cream px-3 py-1 text-xs font-semibold text-brand-ink hover:bg-brand-stone/40"
+                        >
+                          Voir le ticket →
+                        </Link>
+                      </div>
+                      <div className="mt-3">
+                        <PlumeShippingApprovalCard ticketId={t.id} />
+                      </div>
                     </li>
                   )
                 })}

@@ -186,6 +186,12 @@ export interface Database {
           shipping_refusal_reason:     string | null
           shipping_decided_at:         string | null
           shipping_decided_by:         string | null
+          // Plume HQ approval of the client's postal shipping (migration 20260515000000)
+          // Triggered when auto_approved_shipping = FALSE (≥ threshold annuel).
+          plume_shipping_approved:       boolean | null
+          plume_shipping_refusal_reason: string | null
+          plume_shipping_decided_at:     string | null
+          plume_shipping_decided_by:     string | null
           // Repair vs replacement decision (migration 20260512010000)
           workshop_estimated_repair_cost:     number | null
           workshop_decision:                  'repair' | 'replacement' | 'no_issue' | null
@@ -295,6 +301,10 @@ export interface Database {
           shipping_refusal_reason?:     string | null
           shipping_decided_at?:         string | null
           shipping_decided_by?:         string | null
+          plume_shipping_approved?:       boolean | null
+          plume_shipping_refusal_reason?: string | null
+          plume_shipping_decided_at?:     string | null
+          plume_shipping_decided_by?:     string | null
           workshop_estimated_repair_cost?:     number | null
           workshop_decision?:                  'repair' | 'replacement' | 'no_issue' | null
           workshop_decision_at?:               string | null
@@ -398,6 +408,10 @@ export interface Database {
           shipping_refusal_reason?:     string | null
           shipping_decided_at?:         string | null
           shipping_decided_by?:         string | null
+          plume_shipping_approved?:       boolean | null
+          plume_shipping_refusal_reason?: string | null
+          plume_shipping_decided_at?:     string | null
+          plume_shipping_decided_by?:     string | null
           workshop_estimated_repair_cost?:     number | null
           workshop_decision?:                  'repair' | 'replacement' | 'no_issue' | null
           workshop_decision_at?:               string | null
