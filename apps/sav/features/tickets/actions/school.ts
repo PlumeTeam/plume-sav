@@ -18,7 +18,7 @@ import type {
 } from '../types'
 import {
   approveShippingSchema,
-  confirmReceptionByScanSchema,
+  schoolConfirmReceptionByScanSchema,
   diagnosisSchema,
   refuseShippingSchema,
   schoolChecklistSchema,
@@ -295,7 +295,7 @@ export async function markWingReceivedSchoolAction(formData: FormData) {
  * Cible : `pending | school_acknowledged → wing_received_school`.
  */
 export async function schoolConfirmReceptionByScanAction(formData: FormData) {
-  const parsed = confirmReceptionByScanSchema.safeParse({
+  const parsed = schoolConfirmReceptionByScanSchema.safeParse({
     ticketId:      formData.get('ticketId'),
     scannedSerial: formData.get('scannedSerial'),
   })
