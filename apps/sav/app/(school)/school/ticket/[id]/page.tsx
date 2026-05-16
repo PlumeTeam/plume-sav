@@ -15,9 +15,9 @@ import { CloseTicketButton } from '@/features/tickets/components/CloseTicketButt
 import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
 import { ClientDeclarationPanel } from '@/features/tickets/components/ClientDeclarationPanel'
 import { TicketHeaderInfo, ticketHeaderProps } from '@/features/tickets/components/TicketHeaderInfo'
+import { DeclarationComparison, type ComparisonPanel } from '@/features/tickets/components/DeclarationComparison'
 import { SchoolStepPanel } from './SchoolStepPanel'
 import { SchoolTicketTabs } from './SchoolTicketTabs'
-import { DeclarationComparison } from './DeclarationComparison'
 import { SchoolWorkshopChannel } from './SchoolWorkshopChannel'
 import type { CloserRole, ClosureOutcome, TicketMessage, WarrantyTier } from '@/features/tickets/types'
 
@@ -215,23 +215,34 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
     />
   )
 
-  // Une fois le check école saisi (payload V2 dans school_checklist), on passe
-  // en vue comparative : déclaration client | état des lieux école. Tant que
-  // le check n'existe pas, on n'affiche que la déclaration client.
+  // Vue comparative : déclaration client + état des lieux école dès que le
+  // check école (payload V2) existe. Sans check, DeclarationComparison rend
+  // la seule déclaration client nue (1 panel).
   const schoolCheckPayload = readSchoolCheckPayload(ticket.school_checklist)
-  const declarationTab = schoolCheckPayload ? (
-    <DeclarationComparison
-      clientPanel={clientDeclaration}
-      schoolPanel={
+  const declarationPanels: ComparisonPanel[] = [
+    {
+      id:       'client',
+      title:    'Déclaration client',
+      tabLabel: 'Client',
+      emoji:    '👤',
+      content:  clientDeclaration,
+    },
+  ]
+  if (schoolCheckPayload) {
+    declarationPanels.push({
+      id:       'school',
+      title:    'État des lieux école',
+      tabLabel: 'École',
+      emoji:    '🏫',
+      content: (
         <SchoolCheckSummary
           raw={ticket.school_checklist}
           schoolName={destinationSchool?.name ?? null}
         />
-      }
-    />
-  ) : (
-    clientDeclaration
-  )
+      ),
+    })
+  }
+  const declarationTab = <DeclarationComparison panels={declarationPanels} />
 
   // ── Tab 3: Messages — 2 canaux : Client / Atelier ───────────────────────
   // Spotlight (message du client à la création) + photos restent dans le

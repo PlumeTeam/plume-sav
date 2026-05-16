@@ -22,8 +22,8 @@ import { RevisionReportUploader } from '@/features/tickets/components/RevisionRe
 import { WorkshopActionBar } from './WorkshopActionBar'
 import { WorkshopStepPanel } from './WorkshopStepPanel'
 import { WorkshopTicketTabs } from './WorkshopTicketTabs'
-import { DiagnosticViewSwitcher } from './DiagnosticViewSwitcher'
 import { ClientDeclarationPanel } from '@/features/tickets/components/ClientDeclarationPanel'
+import { DeclarationComparison, type ComparisonPanel } from '@/features/tickets/components/DeclarationComparison'
 import { TicketHeaderInfo, ticketHeaderProps } from '@/features/tickets/components/TicketHeaderInfo'
 import type { CloserRole, ClosureOutcome, TicketMessage, WarrantyStatus, WarrantyTier, WorkshopDecision, WorkshopReturnDestination } from '@/features/tickets/types'
 
@@ -156,6 +156,153 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
       'wing_returned',
     ].includes(ticket.status)
   const closerRole: CloserRole = isPlumeAdmin ? 'plume_admin' : 'workshop'
+
+  // ── Onglet Diagnostic — vue comparative client / école / atelier ─────────
+  // Colonne client  : déclaration du pilote — toujours présente.
+  // Colonne école   : check structuré V2 — affichée seulement si l'école l'a
+  //                   saisi (schoolCheckPayload non-null).
+  // Colonne atelier : espace de travail de l'atelier (éditeur de checklist +
+  //                   diagnostic technicien). Toujours présente — c'est l'outil
+  //                   de saisie, la masquer empêcherait de poser le diagnostic.
+  // Cette vue sert aussi le rôle plume_admin (pas de page ticket Plume dédiée).
+  const diagnosticPanels: ComparisonPanel[] = [
+    {
+      id:       'client',
+      title:    'Déclaration client',
+      tabLabel: 'Client',
+      emoji:    '👤',
+      content: (
+        <ClientDeclarationPanel
+          ticket={ticket}
+          showWing
+          showPhotos
+          showClientContact
+          detailLevel="technical"
+          schoolName={school?.name ?? null}
+          referentSchoolName={referentSchool?.name ?? null}
+        />
+      ),
+    },
+  ]
+
+  if (schoolCheckPayload) {
+    diagnosticPanels.push({
+      id:       'school',
+      title:    'État des lieux école',
+      tabLabel: 'École',
+      emoji:    '🏫',
+      content: (
+        <>
+          {/* Check structuré école (V2) — code couleur vert/jaune/rouge
+              + photos par item embarquées dans SchoolCheckSummary. */}
+          <section className="card p-5">
+            <h2 className="section-title mb-3">Check de l&apos;école</h2>
+            <SchoolCheckSummary
+              raw={ticket.school_checklist}
+              schoolName={school?.name ?? null}
+            />
+          </section>
+
+          {/* Note libre d'escalade — complète le check structuré. */}
+          {ticket.school_resolution === 'escalated_to_workshop' && ticket.school_resolution_note && (
+            <section className="card p-5 bg-brand-gold/5 border-brand-gold/30">
+              <h2 className="section-title mb-3">Note d&apos;escalade de l&apos;école</h2>
+              <p className="whitespace-pre-line text-sm text-brand-ink">{ticket.school_resolution_note}</p>
+            </section>
+          )}
+        </>
+      ),
+    })
+  }
+
+  diagnosticPanels.push({
+    id:       'workshop',
+    title:    'Diagnostic atelier',
+    tabLabel: 'Atelier',
+    emoji:    '🛠️',
+    content: (
+      <>
+        {/* Checklist diagnostic technique v2 — 6 sections inspirées de la
+            procédure AIRDESIGN, adaptées Plume. Accordéons, code couleur,
+            badge progression par section. */}
+        <section className="card p-5">
+          <h2 className="section-title mb-3">Checklist diagnostic technique</h2>
+          <WorkshopDiagnosticChecklist
+            ticketId={ticket.id}
+            initial={workshopChecklistPayload}
+            defaultInspectorName={inspectorDefaultName}
+          />
+        </section>
+
+        {/* Diagnostic technicien — saisie + récap fusionnés. */}
+        <section className="card p-5">
+          <h2 className="section-title mb-4">Diagnostic technicien</h2>
+          <WorkshopActionBar
+            ticketId={ticket.id}
+            diagnosisNotes={ticket.diagnosis_notes}
+            estimatedCost={ticket.estimated_cost}
+            estimatedHours={ticket.estimated_hours}
+            partsNeeded={ticket.parts_needed}
+          />
+          {(canCloseFromWorkshop || isPlumeAdmin) && (
+            <div className="mt-4 border-t border-brand-stone/40 pt-4">
+              <p className="mb-2 text-xs text-slate-500">
+                Quand le SAV est terminé : déclarez le statut final pour clôturer le ticket.
+              </p>
+              <CloseTicketButton
+                ticketId={ticket.id}
+                ticketRef={ticketRef}
+                closerRole={closerRole}
+                variant="ghost"
+              />
+            </div>
+          )}
+        </section>
+
+        {/* Rapport de révision — uniquement pour les tickets request_type='inspection'. */}
+        {ticket.request_type === 'inspection' && (
+          <section className="card p-5">
+            <h2 className="section-title mb-3">Rapport de révision</h2>
+            <p className="mb-4 text-sm text-slate-600">
+              Uploadez ici le rapport de contrôle/révision (PDF, image ou document).
+              Il sera attaché au carnet d&apos;entretien de l&apos;aile et visible
+              du client comme de Plume HQ.
+            </p>
+            <RevisionReportUploader
+              ticketId={ticket.id}
+              initialPath={ticket.revision_report_path}
+              initialFilename={ticket.revision_report_filename}
+              initialUploadedAt={ticket.revision_report_uploaded_at}
+            />
+          </section>
+        )}
+
+        {/* Pré-check : trace des observations + tarif figé (facturé à Plume). */}
+        {ticket.pre_check_observations && (
+          <section className="card p-5">
+            <h2 className="section-title mb-3">Pré-check</h2>
+            <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">
+              {ticket.pre_check_observations}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {ticket.pre_check_fee_eur != null && (
+                <span className="rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
+                  💰 {ticket.pre_check_fee_eur} € facturés à Plume
+                </span>
+              )}
+              {ticket.pre_check_started_at && ticket.pre_check_completed_at && (
+                <span className="rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
+                  ⏱ {formatDate(ticket.pre_check_started_at)}
+                  {' → '}
+                  {formatDate(ticket.pre_check_completed_at)}
+                </span>
+              )}
+            </div>
+          </section>
+        )}
+      </>
+    ),
+  })
 
   return (
     <div className="min-h-screen">
@@ -357,137 +504,7 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
             </>
           }
           diagnostic={
-            <DiagnosticViewSwitcher
-              workshop={
-                <>
-                  {/* Checklist diagnostic technique v2 — 6 sections inspirées
-                      de la procédure AIRDESIGN, adaptées Plume. Accordéons,
-                      code couleur, badge progression par section. */}
-                  <section className="card p-5">
-                    <h2 className="section-title mb-3">Checklist diagnostic technique</h2>
-                    <WorkshopDiagnosticChecklist
-                      ticketId={ticket.id}
-                      initial={workshopChecklistPayload}
-                      defaultInspectorName={inspectorDefaultName}
-                    />
-                  </section>
-
-                  {/* Diagnostic technicien — saisie + récap fusionnés. Le composer
-                      messages a été retiré : la messagerie passe par l'onglet
-                      Messages uniquement. */}
-                  <section className="card p-5">
-                    <h2 className="section-title mb-4">Diagnostic technicien</h2>
-                    <WorkshopActionBar
-                      ticketId={ticket.id}
-                      diagnosisNotes={ticket.diagnosis_notes}
-                      estimatedCost={ticket.estimated_cost}
-                      estimatedHours={ticket.estimated_hours}
-                      partsNeeded={ticket.parts_needed}
-                    />
-                    {(canCloseFromWorkshop || isPlumeAdmin) && (
-                      <div className="mt-4 border-t border-brand-stone/40 pt-4">
-                        <p className="mb-2 text-xs text-slate-500">
-                          Quand le SAV est terminé : déclarez le statut final pour clôturer le ticket.
-                        </p>
-                        <CloseTicketButton
-                          ticketId={ticket.id}
-                          ticketRef={ticketRef}
-                          closerRole={closerRole}
-                          variant="ghost"
-                        />
-                      </div>
-                    )}
-                  </section>
-
-                  {/* Rapport de révision — uniquement pour les tickets dont le
-                      client a demandé un contrôle/révision (request_type='inspection').
-                      Le fichier est attaché au carnet d'entretien de l'aile via le ticket. */}
-                  {ticket.request_type === 'inspection' && (
-                    <section className="card p-5">
-                      <h2 className="section-title mb-3">Rapport de révision</h2>
-                      <p className="mb-4 text-sm text-slate-600">
-                        Uploadez ici le rapport de contrôle/révision (PDF, image ou document).
-                        Il sera attaché au carnet d&apos;entretien de l&apos;aile et visible
-                        du client comme de Plume HQ.
-                      </p>
-                      <RevisionReportUploader
-                        ticketId={ticket.id}
-                        initialPath={ticket.revision_report_path}
-                        initialFilename={ticket.revision_report_filename}
-                        initialUploadedAt={ticket.revision_report_uploaded_at}
-                      />
-                    </section>
-                  )}
-
-                  {/* Pré-check : trace des observations + tarif figé (facturé à Plume) */}
-                  {ticket.pre_check_observations && (
-                    <section className="card p-5">
-                      <h2 className="section-title mb-3">Pré-check</h2>
-                      <p className="whitespace-pre-line text-sm leading-relaxed text-brand-ink">
-                        {ticket.pre_check_observations}
-                      </p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {ticket.pre_check_fee_eur != null && (
-                          <span className="rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
-                            💰 {ticket.pre_check_fee_eur} € facturés à Plume
-                          </span>
-                        )}
-                        {ticket.pre_check_started_at && ticket.pre_check_completed_at && (
-                          <span className="rounded-full bg-brand-cream px-3 py-1 text-xs font-medium text-brand-navy ring-1 ring-brand-stone">
-                            ⏱ {formatDate(ticket.pre_check_started_at)}
-                            {' → '}
-                            {formatDate(ticket.pre_check_completed_at)}
-                          </span>
-                        )}
-                      </div>
-                    </section>
-                  )}
-                </>
-              }
-              school={
-                <>
-                  {/* Check structuré école (V2) — code couleur vert/jaune/rouge
-                      + photos par item embarquées dans SchoolCheckSummary. */}
-                  {schoolCheckPayload ? (
-                    <section className="card p-5">
-                      <h2 className="section-title mb-3">Check de l&apos;école</h2>
-                      {/* SchoolCheckSummary rend déjà la méta inspecteur+école+date
-                          en interne — pas de bandeau header redondant ici. */}
-                      <SchoolCheckSummary
-                        raw={ticket.school_checklist}
-                        schoolName={school?.name ?? null}
-                      />
-                    </section>
-                  ) : (
-                    <section className="card border-dashed p-4 text-center">
-                      <p className="text-sm text-slate-500">
-                        L&apos;école n&apos;a pas encore renseigné de check structuré pour ce ticket.
-                      </p>
-                    </section>
-                  )}
-
-                  {/* Note libre d'escalade — complète le check, surtout utile
-                      sur les anciens tickets sans payload V2. */}
-                  {ticket.school_resolution === 'escalated_to_workshop' && ticket.school_resolution_note && (
-                    <section className="card p-5 bg-brand-gold/5 border-brand-gold/30">
-                      <h2 className="section-title mb-3">Note d&apos;escalade de l&apos;école</h2>
-                      <p className="whitespace-pre-line text-sm text-brand-ink">{ticket.school_resolution_note}</p>
-                    </section>
-                  )}
-                </>
-              }
-              client={
-                <ClientDeclarationPanel
-                  ticket={ticket}
-                  showWing
-                  showPhotos
-                  showClientContact
-                  detailLevel="technical"
-                  schoolName={school?.name ?? null}
-                  referentSchoolName={referentSchool?.name ?? null}
-                />
-              }
-            />
+            <DeclarationComparison panels={diagnosticPanels} defaultPanelId="workshop" />
           }
           messages={
             <>
