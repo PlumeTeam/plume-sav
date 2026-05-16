@@ -402,7 +402,6 @@ export default async function TicketDetailPage({ params }: PageProps) {
         <ClientTicketTabs
           state={stateNode}
           messages={messagesNode}
-          contact={contactNode}
           infos={infosNode}
           messagesCount={publicMessages.length}
         />
