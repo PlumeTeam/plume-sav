@@ -22,8 +22,9 @@ interface WorkshopReturnStepsProps {
   ticketId:    string
   status:      RequestStatus
   wingSerial:  string | null
-  /** Décision atelier — non-null quand ce composant est monté. */
-  decision:    WorkshopDecision
+  /** Décision atelier — null tant qu'elle n'est pas prise : on affiche alors
+   *  le squelette verrouillé des étapes 4-7. */
+  decision:    WorkshopDecision | null
   // Branche réparation
   repairEstimatedDate:  string | null
   workshopRepairDoneAt: string | null
@@ -97,6 +98,48 @@ export function WorkshopReturnSteps(props: WorkshopReturnStepsProps) {
       if (!ok) return
     }
     run(() => revertWorkshopStepAction(fd({ step })))
+  }
+
+  // ── Décision pas encore prise : squelette verrouillé des étapes 4-7 ─────────
+  // Parcours réparation pris comme référence (le plus complet). Les libellés
+  // restent génériques tant que la branche n'est pas connue.
+  if (decision == null) {
+    return (
+      <>
+        <StepCard
+          idx={4}
+          emoji="🔧"
+          title="Check / Réparation"
+          helpText="Intervention à l'atelier — disponible une fois la décision prise."
+          state="locked"
+          doneAt={null}
+        />
+        <StepCard
+          idx={5}
+          emoji="✓"
+          title="Réparation terminée"
+          helpText="Confirmation de la fin d'intervention."
+          state="locked"
+          doneAt={null}
+        />
+        <StepCard
+          idx={6}
+          emoji="🖨️"
+          title="Imprimer le ticket d'envoi"
+          helpText="Bon de transport retour et choix du destinataire."
+          state="locked"
+          doneAt={null}
+        />
+        <StepCard
+          idx={7}
+          emoji="✈️"
+          title="Voile envoyée"
+          helpText="Confirmation du départ de l'aile chez le transporteur."
+          state="locked"
+          doneAt={null}
+        />
+      </>
+    )
   }
 
   // ── Numérotation dynamique : la décision est l'étape 3 ──────────────────────
