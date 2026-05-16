@@ -8,7 +8,8 @@ import { TicketTimeline } from '@/features/tickets/components/TicketTimeline'
 import { PhotoLightbox } from '@/features/tickets/components/PhotoLightbox'
 import { TicketChannelSwitch, type TicketChannel } from '@/features/tickets/components/TicketChannelSwitch'
 import { filterMessagesForRole } from '@/features/tickets/channels'
-import { readSchoolCheckInspector } from '@/features/tickets/inspection/steps'
+import { readSchoolCheckInspector, readSchoolCheckPayload } from '@/features/tickets/inspection/steps'
+import { SchoolCheckSummary } from '@/features/tickets/inspection/SchoolCheckSummary'
 import { formatDateTime, resolveWarrantyTierForDisplay } from '@/features/tickets/utils'
 import { CloseTicketButton } from '@/features/tickets/components/CloseTicketButton'
 import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
@@ -16,6 +17,7 @@ import { ClientDeclarationPanel } from '@/features/tickets/components/ClientDecl
 import { TicketHeaderInfo, ticketHeaderProps } from '@/features/tickets/components/TicketHeaderInfo'
 import { SchoolStepPanel } from './SchoolStepPanel'
 import { SchoolTicketTabs } from './SchoolTicketTabs'
+import { DeclarationComparison } from './DeclarationComparison'
 import { SchoolWorkshopChannel } from './SchoolWorkshopChannel'
 import type { CloserRole, ClosureOutcome, TicketMessage, WarrantyTier } from '@/features/tickets/types'
 
@@ -202,7 +204,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
   // Panel délégué partagé avec client / atelier — bandeau verdict, historique
   // color-codé, problème signalé, aile concernée + garantie, photos client,
   // coordonnées client (utiles pour l'école qui rappelle directement).
-  const declarationTab = (
+  const clientDeclaration = (
     <ClientDeclarationPanel
       ticket={ticket}
       showWing
@@ -211,6 +213,24 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
       schoolName={destinationSchool?.name ?? null}
       referentSchoolName={referentSchool?.name ?? null}
     />
+  )
+
+  // Une fois le check école saisi (payload V2 dans school_checklist), on passe
+  // en vue comparative : déclaration client | état des lieux école. Tant que
+  // le check n'existe pas, on n'affiche que la déclaration client.
+  const schoolCheckPayload = readSchoolCheckPayload(ticket.school_checklist)
+  const declarationTab = schoolCheckPayload ? (
+    <DeclarationComparison
+      clientPanel={clientDeclaration}
+      schoolPanel={
+        <SchoolCheckSummary
+          raw={ticket.school_checklist}
+          schoolName={destinationSchool?.name ?? null}
+        />
+      }
+    />
+  ) : (
+    clientDeclaration
   )
 
   // ── Tab 3: Messages — 2 canaux : Client / Atelier ───────────────────────
