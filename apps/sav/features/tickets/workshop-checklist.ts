@@ -349,6 +349,24 @@ export function progressConclusion(p: WorkshopChecklistPayload['conclusion']): S
   return { filled: slots.filter(isFilled).length, total: slots.length }
 }
 
+/**
+ * Vrai si le checklist atelier contient au moins une donnée saisie. Sert à
+ * décider d'afficher le résumé read-only (rempli) vs le formulaire éditeur
+ * (vide). Robuste aux payloads legacy / null : readWorkshopChecklist retombe
+ * sur un squelette vide → filled === 0 → false.
+ */
+export function isWorkshopChecklistFilled(raw: unknown): boolean {
+  const p = readWorkshopChecklist(raw)
+  const filled =
+    progressIdentification(p.identification).filled +
+    progressCanopy(p.canopy).filled +
+    progressRisers(p.risers).filled +
+    progressLines(p.lines).filled +
+    progressTrim(p.trim).filled +
+    progressConclusion(p.conclusion).filled
+  return filled > 0
+}
+
 // ─── Validation Zod (server side) ────────────────────────────────────────────
 
 const visualPanelSchema = z.object({

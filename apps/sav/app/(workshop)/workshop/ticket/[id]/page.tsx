@@ -11,8 +11,7 @@ import { PlumeNoteComposer } from '@/features/tickets/components/PlumeNoteCompos
 import { WorkshopChannelTabs } from '@/features/tickets/components/WorkshopChannelTabs'
 import { readSchoolCheckInspector, readSchoolCheckPayload } from '@/features/tickets/inspection/steps'
 import { SchoolCheckSummary } from '@/features/tickets/inspection/SchoolCheckSummary'
-import { WorkshopDiagnosticChecklist } from '@/features/tickets/components/WorkshopDiagnosticChecklist'
-import { readWorkshopChecklist } from '@/features/tickets/workshop-checklist'
+import { readWorkshopChecklist, isWorkshopChecklistFilled } from '@/features/tickets/workshop-checklist'
 import { formatAge, formatDate, formatDateTime, resolveWarrantyTierForDisplay } from '@/features/tickets/utils'
 import { WarrantyTierBadge } from '@/features/tickets/components/WarrantyTierBadge'
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
@@ -22,6 +21,7 @@ import { RevisionReportUploader } from '@/features/tickets/components/RevisionRe
 import { WorkshopActionBar } from './WorkshopActionBar'
 import { WorkshopStepPanel } from './WorkshopStepPanel'
 import { WorkshopTicketTabs } from './WorkshopTicketTabs'
+import { WorkshopDiagnosticSection } from './WorkshopDiagnosticSection'
 import { ClientDeclarationPanel } from '@/features/tickets/components/ClientDeclarationPanel'
 import { DeclarationComparison, type ComparisonPanel } from '@/features/tickets/components/DeclarationComparison'
 import { TicketHeaderInfo, ticketHeaderProps } from '@/features/tickets/components/TicketHeaderInfo'
@@ -131,6 +131,7 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
   // retourne un état vide v2 (l'atelier ressaisit). Le user connecté
   // pré-alimente le champ inspecteur (email à défaut d'un nom).
   const workshopChecklistPayload = readWorkshopChecklist(ticket.workshop_checklist)
+  const workshopChecklistFilled  = isWorkshopChecklistFilled(ticket.workshop_checklist)
   const inspectorDefaultName     = currentUser?.email ?? ''
 
   // Le bon de transport retour est utile à partir du moment où la réparation
@@ -227,10 +228,11 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
             badge progression par section. */}
         <section className="card p-5">
           <h2 className="section-title mb-3">Checklist diagnostic technique</h2>
-          <WorkshopDiagnosticChecklist
+          <WorkshopDiagnosticSection
             ticketId={ticket.id}
-            initial={workshopChecklistPayload}
+            payload={workshopChecklistPayload}
             defaultInspectorName={inspectorDefaultName}
+            isFilled={workshopChecklistFilled}
           />
         </section>
 
