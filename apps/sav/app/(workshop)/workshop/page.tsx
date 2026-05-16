@@ -1,6 +1,7 @@
 import { getWorkshopTickets } from '@/features/tickets/queries'
 import { getCurrentUserWorkshop } from '@/features/auth/queries'
 import { WorkshopTicketList } from './WorkshopTicketList'
+import { WorkshopPendingAcceptance } from './WorkshopPendingAcceptance'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +23,16 @@ export default async function WorkshopPage() {
       t.status !== 'wing_returned' &&
       t.status !== 'workshop_done'
   ).length
+
+  // Demandes escaladées en attente de validation atelier. Le test
+  // `'workshop_accepted' in t` masque la section si la migration
+  // 20260516000000 n'est pas encore appliquée (colonne absente).
+  const pendingAcceptance = tickets.filter(
+    (t) =>
+      t.status === 'escalated_to_workshop' &&
+      'workshop_accepted' in t &&
+      t.workshop_accepted == null
+  )
 
   const greetingName = workshop?.label ?? 'Atelier'
 
@@ -64,6 +75,9 @@ export default async function WorkshopPage() {
           </p>
         )}
       </section>
+
+      {/* ── Demandes à valider (escalades en attente) ─────────────── */}
+      <WorkshopPendingAcceptance tickets={pendingAcceptance} />
 
       {/* ── Liste de tickets ────────────────────────────────────── */}
       <section className="space-y-3">

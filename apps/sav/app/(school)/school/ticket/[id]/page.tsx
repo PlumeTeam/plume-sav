@@ -171,6 +171,11 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           extendedCoversSchoolWorkshopShipping={policy.extendedCoversSchoolWorkshopShipping}
           workshops={workshops}
           wingReturnedAt={ticket.wing_returned_at ?? null}
+          assignedWorkshopId={ticket.assigned_workshop_id ?? null}
+          workshopAccepted={ticket.workshop_accepted ?? null}
+          workshopRefusalReason={ticket.workshop_refusal_reason ?? null}
+          workshopAcceptedAt={ticket.workshop_accepted_at ?? null}
+          workshopAcceptanceEnabled={'workshop_accepted' in ticket}
         />
       </section>
 

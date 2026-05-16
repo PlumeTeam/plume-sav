@@ -192,6 +192,11 @@ export interface Database {
           plume_shipping_refusal_reason: string | null
           plume_shipping_decided_at:     string | null
           plume_shipping_decided_by:     string | null
+          // Workshop acceptance of an escalated ticket (migration 20260516000000)
+          workshop_accepted:         boolean | null
+          workshop_accepted_at:      string | null
+          workshop_accepted_by:      string | null
+          workshop_refusal_reason:   string | null
           // Repair vs replacement decision (migration 20260512010000)
           workshop_estimated_repair_cost:     number | null
           workshop_decision:                  'repair' | 'replacement' | 'no_issue' | null
@@ -305,6 +310,10 @@ export interface Database {
           plume_shipping_refusal_reason?: string | null
           plume_shipping_decided_at?:     string | null
           plume_shipping_decided_by?:     string | null
+          workshop_accepted?:         boolean | null
+          workshop_accepted_at?:      string | null
+          workshop_accepted_by?:      string | null
+          workshop_refusal_reason?:   string | null
           workshop_estimated_repair_cost?:     number | null
           workshop_decision?:                  'repair' | 'replacement' | 'no_issue' | null
           workshop_decision_at?:               string | null
@@ -412,6 +421,10 @@ export interface Database {
           plume_shipping_refusal_reason?: string | null
           plume_shipping_decided_at?:     string | null
           plume_shipping_decided_by?:     string | null
+          workshop_accepted?:         boolean | null
+          workshop_accepted_at?:      string | null
+          workshop_accepted_by?:      string | null
+          workshop_refusal_reason?:   string | null
           workshop_estimated_repair_cost?:     number | null
           workshop_decision?:                  'repair' | 'replacement' | 'no_issue' | null
           workshop_decision_at?:               string | null

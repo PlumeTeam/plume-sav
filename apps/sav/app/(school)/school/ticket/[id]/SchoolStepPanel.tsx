@@ -17,6 +17,8 @@ import type { DeliveryMethod, RequestStatus, SchoolResolution, WarrantyTier } fr
 import { SchoolResolutionModal } from './SchoolResolutionModal'
 import { SchoolReturnFlowModal } from './SchoolReturnFlowModal'
 import { SchoolShippingApprovalCard } from './SchoolShippingApprovalCard'
+import { SchoolWorkshopPickerModal } from './SchoolWorkshopPickerModal'
+import { SchoolWorkshopValidationCard } from './SchoolWorkshopValidationCard'
 
 interface SchoolStepPanelProps {
   ticketId:                string
@@ -53,12 +55,27 @@ interface SchoolStepPanelProps {
   extendedCoversSchoolWorkshopShipping:  boolean
   /** Ateliers affiliés (chargés côté serveur, passés à la modal décision). */
   workshops:                             PartnerWorkshop[]
-  /** Horodatage de confirmation d'envoi par l'école (étape 6). NULL = pas
+  /** Horodatage de confirmation d'envoi par l'école (étape 8). NULL = pas
    *  encore expédiée. Posé par confirmWingSentBySchoolAction. */
   wingReturnedAt:                        string | null
+  /** ID de l'atelier assigné (étape 5 « Choix de l'atelier »). */
+  assignedWorkshopId:                    string | null
+  /** Validation atelier (étape 6) : TRUE accepté, FALSE refusé, NULL en attente. */
+  workshopAccepted:                      boolean | null
+  /** Raison du refus saisie par l'atelier. */
+  workshopRefusalReason:                 string | null
+  /** Horodatage de la décision de l'atelier. */
+  workshopAcceptedAt:                    string | null
+  /** Feature-gate : false si la migration workshop_accepted n'est pas encore
+   *  appliquée (colonne absente). Masque l'étape « Validation atelier » et ne
+   *  bloque pas l'impression du ticket d'envoi. */
+  workshopAcceptanceEnabled:             boolean
 }
 
-type StepKey = 'ack' | 'wing' | 'check' | 'decision' | 'return' | 'ship'
+type StepKey =
+  | 'ack' | 'wing' | 'check' | 'decision'
+  | 'workshop_choice' | 'workshop_validation'
+  | 'return' | 'ship'
 
 interface StepCtx {
   status:                  RequestStatus
@@ -68,8 +85,23 @@ interface StepCtx {
   schoolWorkshopTracking:  string | null
   /** Tracking GLS atelier/école → client — présent = aile effectivement expédiée. */
   workshopReturnTracking:  string | null
-  /** Horodatage de confirmation d'envoi manuelle par l'école (étape 6). */
+  /** Horodatage de confirmation d'envoi manuelle par l'école (étape 8). */
   wingReturnedAt:          string | null
+  /** ID de l'atelier assigné. */
+  assignedWorkshopId:      string | null
+  /** Validation atelier : TRUE/FALSE/NULL. */
+  workshopAccepted:        boolean | null
+  /** Feature-gate de la validation atelier. */
+  workshopAcceptanceEnabled: boolean
+}
+
+// L'atelier a-t-il donné son feu vert ? Pour les tickets non escaladés — ou si
+// la migration workshop_accepted n'est pas encore appliquée — on considère le
+// feu vert acquis (pas de blocage de l'impression du ticket d'envoi).
+function workshopGreenLight(c: StepCtx): boolean {
+  if (c.schoolResolution !== 'escalated_to_workshop') return true
+  if (!c.workshopAcceptanceEnabled) return true
+  return c.workshopAccepted === true
 }
 
 // L'étape « Envoyer l'aile » est franchie quand l'école confirme l'envoi
@@ -102,6 +134,9 @@ interface StepDef {
   emoji:      string
   isActive:   (ctx: StepCtx) => boolean
   isDone:     (ctx: StepCtx) => boolean
+  /** Étape conditionnelle : si défini et false, l'étape est masquée (filtrée
+   *  avant rendu). Par défaut toujours visible. */
+  visible?:   (ctx: StepCtx) => boolean
   /** Si true, exige un scan flashcode avant l'action (Module Flashcode v1). */
   requiresScan: boolean
   scanTitle?:    string
@@ -171,22 +206,52 @@ const STEPS: StepDef[] = [
     isDone:     (c) => c.schoolResolution !== null,
     requiresScan: false,
   },
-  // ── 5. Imprimer le ticket d'envoi ───────────────────────────────────────
+  // ── 5. Choix de l'atelier (escalade uniquement) ─────────────────────────
+  //
+  // L'atelier est généralement choisi dès la décision (étape 4) ; cette étape
+  // sert de confirmation visible et, surtout, de point de re-sélection quand
+  // l'atelier a refusé la demande (workshopAccepted === false).
+  {
+    key:        'workshop_choice',
+    label:      "Choix de l'atelier",
+    helpText:   "Sélectionnez l'atelier partenaire qui prendra en charge l'aile.",
+    emoji:      '🛠️',
+    visible:    (c) => c.schoolResolution === 'escalated_to_workshop',
+    isActive:   (c) => c.assignedWorkshopId === null || c.workshopAccepted === false,
+    isDone:     (c) => c.assignedWorkshopId !== null && c.workshopAccepted !== false,
+    requiresScan: false,
+  },
+  // ── 6. Validation atelier (escalade uniquement) ─────────────────────────
+  //
+  // L'atelier accepte ou refuse depuis son espace. Étape sans bouton côté
+  // école — SchoolWorkshopValidationCard reflète l'état. Tant que l'atelier
+  // n'a pas accepté, l'étape « Imprimer le ticket d'envoi » reste verrouillée.
+  {
+    key:        'workshop_validation',
+    label:      'Validation atelier',
+    helpText:   "L'atelier confirme qu'il accepte la demande et qu'il est disponible.",
+    emoji:      '✅',
+    visible:    (c) => c.schoolResolution === 'escalated_to_workshop' && c.workshopAcceptanceEnabled,
+    isActive:   (c) => c.assignedWorkshopId !== null && c.workshopAccepted === null,
+    isDone:     (c) => c.workshopAccepted === true,
+    requiresScan: false,
+  },
+  // ── 7. Imprimer le ticket d'envoi ───────────────────────────────────────
   //
   // Ouvre la modal de renvoi : choix de l'option (retour client / atelier),
   // puis génération + impression du bon de transport GLS. L'étape est
-  // franchie dès qu'un tracking est généré — `escalated_to_workshop`, posé
-  // dès la décision (étape 4), ne suffit donc PAS à la cocher.
+  // franchie dès qu'un tracking est généré. Pour une escalade, elle reste
+  // verrouillée tant que l'atelier n'a pas validé la demande (workshopGreenLight).
   {
     key:        'return',
     label:      "Imprimer le ticket d'envoi",
     helpText:   "Générez et imprimez le bon de transport à joindre au colis.",
     emoji:      '🖨️',
-    isActive:   (c) => c.schoolResolution !== null,
+    isActive:   (c) => c.schoolResolution !== null && workshopGreenLight(c),
     isDone:     ticketPrinted,
     requiresScan: false,
   },
-  // ── 6. Envoyer l'aile (confirmation manuelle école) ─────────────────────
+  // ── 8. Envoyer l'aile (confirmation manuelle école) ─────────────────────
   //
   // Une fois le ticket d'envoi imprimé et le colis remis au transporteur,
   // l'école valide manuellement cet envoi. confirmWingSentBySchoolAction
@@ -235,12 +300,18 @@ export function SchoolStepPanel({
   extendedCoversSchoolWorkshopShipping,
   workshops,
   wingReturnedAt,
+  assignedWorkshopId,
+  workshopAccepted,
+  workshopRefusalReason,
+  workshopAcceptedAt,
+  workshopAcceptanceEnabled,
 }: SchoolStepPanelProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [scanGateFor, setScanGateFor] = useState<StepKey | null>(null)
   const [decisionModalOpen, setDecisionModalOpen] = useState(false)
   const [returnModalOpen, setReturnModalOpen] = useState(false)
+  const [workshopPickerOpen, setWorkshopPickerOpen] = useState(false)
   // Raccourci "Confirmer la réception (scan QR)" — bypass shipping. Sépare le
   // scan du flow step 2 standard pour qu'on puisse l'ouvrir même quand status
   // === 'pending' (étape 2 verrouillée). Voir schoolConfirmReceptionByScanAction.
@@ -253,6 +324,9 @@ export function SchoolStepPanel({
     schoolWorkshopTracking,
     workshopReturnTracking,
     wingReturnedAt,
+    assignedWorkshopId,
+    workshopAccepted,
+    workshopAcceptanceEnabled,
   }
 
   function executeStep(key: StepKey) {
@@ -260,6 +334,10 @@ export function SchoolStepPanel({
       // Ouvre la modal contenant SchoolResolutionPanel — remplace l'ancien
       // mécanisme de switch d'onglet + scroll vers la section "Décision".
       setDecisionModalOpen(true)
+      return
+    }
+    if (key === 'workshop_choice') {
+      setWorkshopPickerOpen(true)
       return
     }
     if (key === 'return') {
@@ -339,32 +417,45 @@ export function SchoolStepPanel({
   const activeScanStep = scanGateFor ? STEPS.find((s) => s.key === scanGateFor) : null
 
   const timestampByKey: Record<StepKey, string | null> = {
-    ack:      schoolAcknowledgedAt,
-    wing:     wingReceivedSchoolAt,
-    check:    null, // matérialisé par le remplissage de school_checklist
-    decision: null, // matérialisé par le remplissage de school_resolution
-    return:   null, // matérialisé par le tracking GLS / passage en completed
-    ship:     wingReturnedAt, // confirmation manuelle d'envoi (étape 6)
+    ack:                 schoolAcknowledgedAt,
+    wing:                wingReceivedSchoolAt,
+    check:               null, // matérialisé par le remplissage de school_checklist
+    decision:            null, // matérialisé par le remplissage de school_resolution
+    workshop_choice:     null, // matérialisé par l'atelier assigné
+    // « Validé le » seulement à l'acceptation — un refus ne coche pas l'étape.
+    workshop_validation: workshopAccepted === true ? workshopAcceptedAt : null,
+    return:              null, // matérialisé par le tracking GLS / passage en completed
+    ship:                wingReturnedAt, // confirmation manuelle d'envoi (étape 8)
   }
+
+  // Étapes effectivement affichées — workshop_choice / workshop_validation
+  // sont conditionnelles (escalade atelier uniquement).
+  const visibleSteps = STEPS.filter((s) => (s.visible ? s.visible(ctx) : true))
 
   return (
     <>
       <div className="space-y-3">
-        {STEPS.map((step, idx) => {
+        {visibleSteps.map((step, idx) => {
           const isDone   = step.isDone(ctx)
           const isActive = step.isActive(ctx) && !isDone
           const isLocked = !isActive && !isDone
           const at       = timestampByKey[step.key]
 
           // Helptext dynamique :
-          //  - étape 4 (decision) : on affiche la résolution choisie au lieu de la description
-          //  - étape 3 (check)    : si validée, on indique le moniteur pour traçabilité
+          //  - decision         : on affiche la résolution choisie
+          //  - check            : si validée, on indique le moniteur
+          //  - workshop_choice  : on affiche l'atelier retenu
+          //  - return verrouillé : on explique l'attente de validation atelier
           const helpText =
             step.key === 'decision' && schoolResolution
               ? `Décision : ${RESOLUTION_LABEL[schoolResolution]}`
               : step.key === 'check' && isDone && checkInspector
                 ? `Effectué par ${checkInspector}`
-                : step.helpText
+                : step.key === 'workshop_choice' && assignedWorkshopLabel
+                  ? `Atelier : ${assignedWorkshopLabel}`
+                  : step.key === 'return' && isLocked && schoolResolution === 'escalated_to_workshop'
+                    ? "Disponible une fois la demande validée par l'atelier."
+                    : step.helpText
 
           return (
             <div
@@ -417,8 +508,10 @@ export function SchoolStepPanel({
                   )}
                 </div>
 
-                {/* Bouton desktop : à droite, sur la même ligne. */}
-                {isActive && (
+                {/* Bouton desktop : à droite, sur la même ligne.
+                    L'étape « Validation atelier » n'a pas de bouton côté
+                    école — c'est l'atelier qui agit depuis son espace. */}
+                {isActive && step.key !== 'workshop_validation' && (
                   <button
                     type="button"
                     onClick={() => handleStep(step.key)}
@@ -431,7 +524,7 @@ export function SchoolStepPanel({
               </div>
 
               {/* Bouton mobile : pleine largeur, sur sa propre ligne. */}
-              {isActive && (
+              {isActive && step.key !== 'workshop_validation' && (
                 <button
                   type="button"
                   onClick={() => handleStep(step.key)}
@@ -467,6 +560,17 @@ export function SchoolStepPanel({
                   ticketId={ticketId}
                   shippingApproved={shippingApproved}
                   shippingRefusalReason={shippingRefusalReason}
+                />
+              )}
+
+              {/* Étape « Validation atelier » — carte d'état lecture seule.
+                  L'atelier accepte / refuse depuis son espace ; l'école suit
+                  ici l'avancement et réoriente le ticket en cas de refus. */}
+              {step.key === 'workshop_validation' && (
+                <SchoolWorkshopValidationCard
+                  workshopAccepted={workshopAccepted}
+                  workshopRefusalReason={workshopRefusalReason}
+                  workshopLabel={assignedWorkshopLabel}
                 />
               )}
 
@@ -531,6 +635,14 @@ export function SchoolStepPanel({
         assignedWorkshopLabel={assignedWorkshopLabel}
         isPlumeUrgent={isPlumeUrgent}
         workshops={workshops}
+      />
+
+      <SchoolWorkshopPickerModal
+        open={workshopPickerOpen}
+        onClose={() => setWorkshopPickerOpen(false)}
+        ticketId={ticketId}
+        workshops={workshops}
+        currentWorkshopId={assignedWorkshopId}
       />
 
       <SchoolReturnFlowModal

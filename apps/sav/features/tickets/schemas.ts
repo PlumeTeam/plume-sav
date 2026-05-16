@@ -217,6 +217,18 @@ export const assignWorkshopSchema = z.object({
   workshopLabel: z.string().min(1),
 })
 
+// Atelier : accepte une demande escaladée — pas de payload (juste le ticket).
+export const acceptWorkshopAssignmentSchema = z.object({
+  ticketId: z.string().uuid(),
+})
+
+// Atelier : refuse une demande escaladée — raison obligatoire pour que
+// l'école comprenne et puisse réorienter le ticket vers un autre atelier.
+export const refuseWorkshopAssignmentSchema = z.object({
+  ticketId: z.string().uuid(),
+  reason:   z.string().trim().min(10, 'Expliquez la raison du refus (10 caractères min.)').max(2000),
+})
+
 export const addMessageSchema = z.object({
   ticketId: z.string().uuid(),
   content: z.string().min(1).max(5000),

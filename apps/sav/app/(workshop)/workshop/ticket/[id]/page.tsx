@@ -18,6 +18,7 @@ import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabel
 import { CloseTicketButton } from '@/features/tickets/components/CloseTicketButton'
 import { TicketClosureCard } from '@/features/tickets/components/TicketClosureCard'
 import { RevisionReportUploader } from '@/features/tickets/components/RevisionReportUploader'
+import { WorkshopAcceptancePanel } from '../../WorkshopAcceptancePanel'
 import { WorkshopActionBar } from './WorkshopActionBar'
 import { WorkshopStepPanel } from './WorkshopStepPanel'
 import { WorkshopTicketTabs } from './WorkshopTicketTabs'
@@ -441,6 +442,22 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                     </div>
                   )}
                   <p className="whitespace-pre-line text-sm text-brand-ink">{ticket.school_resolution_note}</p>
+                </section>
+              )}
+
+              {/* Validation de la demande escaladée — l'atelier accepte ou
+                  refuse avant que l'école n'expédie l'aile. Affiché tant que
+                  le ticket est au statut escalated_to_workshop. Le test
+                  `'workshop_accepted' in ticket` masque la carte si la
+                  migration 20260516000000 n'est pas encore appliquée. */}
+              {ticket.status === 'escalated_to_workshop' && 'workshop_accepted' in ticket && (
+                <section className="card p-5">
+                  <h2 className="section-title mb-3">Validation de la demande</h2>
+                  <WorkshopAcceptancePanel
+                    ticketId={ticket.id}
+                    workshopAccepted={ticket.workshop_accepted ?? null}
+                    workshopRefusalReason={ticket.workshop_refusal_reason ?? null}
+                  />
                 </section>
               )}
 

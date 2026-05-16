@@ -17,6 +17,10 @@ export {
   startSchoolCheckAction,
 } from './school'
 export {
+  acceptWorkshopAssignmentAction,
+  refuseWorkshopAssignmentAction,
+} from './workshop-acceptance'
+export {
   finishWorkshopPreCheckAction,
   markWingReceivedWorkshopAction,
   markWorkshopDoneAction,

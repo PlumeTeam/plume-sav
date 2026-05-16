@@ -54,15 +54,40 @@ export async function assignWorkshopForCommunicationAction(formData: FormData) {
 
   const now = new Date().toISOString()
 
-  const { error } = await supabase
+  // Changer d'atelier remet la validation atelier à zéro : le nouvel atelier
+  // doit re-confirmer qu'il accepte la demande (workshop_accepted → NULL).
+  const baseUpdate: TicketUpdate = {
+    assigned_workshop_id:    workshopId,
+    assigned_workshop_label: workshopLabel,
+    workshop_assigned_at:    now,
+    workshop_assigned_by:    user.id,
+  }
+  const fullUpdate: TicketUpdate = {
+    ...baseUpdate,
+    workshop_accepted:       null,
+    workshop_accepted_at:    null,
+    workshop_accepted_by:    null,
+    workshop_refusal_reason: null,
+  }
+
+  let { error } = await supabase
     .from('service_requests')
-    .update({
-      assigned_workshop_id:    workshopId,
-      assigned_workshop_label: workshopLabel,
-      workshop_assigned_at:    now,
-      workshop_assigned_by:    user.id,
-    })
+    .update(fullUpdate)
     .eq('id', ticketId)
+
+  // Tier 2 : si les colonnes workshop_accepted_* n'existent pas encore
+  // (migration 20260516000000 non appliquée), on retombe sur l'update de base.
+  if (error) {
+    const looksLikeMissingColumn =
+      error.code === '42703' || error.code === 'PGRST204' ||
+      /column .* does not exist/i.test(error.message) ||
+      /could not find the .* column/i.test(error.message)
+    if (looksLikeMissingColumn) {
+      console.warn('assignWorkshopForCommunicationAction: retrying without workshop_accepted —', error.message)
+      const r = await supabase.from('service_requests').update(baseUpdate).eq('id', ticketId)
+      error = r.error
+    }
+  }
 
   if (error) return { error: { _form: [`Erreur lors de l'assignation (${error.message})`] } }
 
