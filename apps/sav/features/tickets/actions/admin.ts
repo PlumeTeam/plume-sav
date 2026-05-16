@@ -465,7 +465,15 @@ async function applyPlumeShippingDecision(params: {
     .eq('id', params.ticketId)
     .maybeSingle()
 
-  if (fetchError || !ticket) {
+  // Distinguer une vraie erreur DB d'un ticket réellement absent. Confondre les
+  // deux masquait un échec PostgREST (ex. colonne plume_shipping_* manquante,
+  // migration 20260515000000 non appliquée) derrière un « Demande introuvable »
+  // trompeur — l'admin ne pouvait pas diagnostiquer.
+  if (fetchError) {
+    console.error('[applyPlumeShippingDecision] lecture service_requests échouée:', fetchError)
+    return { error: { _form: [`Erreur lors de la lecture de la demande (${fetchError.message})`] } }
+  }
+  if (!ticket) {
     return { error: { _form: ['Demande introuvable'] } }
   }
   if (ticket.auto_approved_shipping !== false) {
