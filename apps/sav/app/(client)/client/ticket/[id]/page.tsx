@@ -20,6 +20,7 @@ import { formatAge, formatDate, resolveWarrantyTierForDisplay } from '@/features
 import { filterMessagesForRole } from '@/features/tickets/channels'
 import type { ClientShippingAddress, CloserRole, ClosureOutcome } from '@/features/tickets/types'
 import { ClientTicketTabs } from './ClientTicketTabs'
+import { MarkTicketRead } from '../../../_components/MarkTicketRead'
 
 function readClientShippingAddress(raw: unknown): ClientShippingAddress | null {
   if (!raw || typeof raw !== 'object') return null
@@ -326,6 +327,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
       </header>
 
       <main className="mx-auto max-w-2xl space-y-4 p-4 pb-12">
+        <MarkTicketRead ticketId={ticket.id} />
         <TicketHeaderInfo {...ticketHeaderProps(ticket, headerSchool, assignedWorkshop)} />
         <ClientTicketTabs
           state={stateNode}

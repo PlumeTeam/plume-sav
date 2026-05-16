@@ -8,6 +8,7 @@ import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { TicketChannelSwitch } from '@/features/tickets/components/TicketChannelSwitch'
 import { buildClientChannels } from '@/features/tickets/client-channels'
 import { filterMessagesForRole } from '@/features/tickets/channels'
+import { MarkTicketRead } from '../../../_components/MarkTicketRead'
 
 interface PageProps { params: { id: string } }
 
@@ -77,6 +78,7 @@ export default async function ClientConversationPage({ params }: PageProps) {
       </header>
 
       <main className="mx-auto max-w-2xl space-y-4 p-4 pb-12">
+        <MarkTicketRead ticketId={ticket.id} />
         <TicketChannelSwitch
           ticketId={ticket.id}
           messages={messages}
