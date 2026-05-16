@@ -2,16 +2,25 @@
 
 import { useState, type ReactNode } from 'react'
 
-type Tab = 'wings' | 'history'
+type Tab = 'wings' | 'history' | 'messages'
 
 interface ClientHomeTabsProps {
   wingsSection: ReactNode
   ticketsSection: ReactNode
+  messagesSection: ReactNode
   /** When > 0, shows a small red pill next to "Mes demandes SAV" with the count. */
   historyBadge?: number
+  /** When > 0, shows a small red pill next to "Messages" with the count. */
+  messagesBadge?: number
 }
 
-export function ClientHomeTabs({ wingsSection, ticketsSection, historyBadge = 0 }: ClientHomeTabsProps) {
+export function ClientHomeTabs({
+  wingsSection,
+  ticketsSection,
+  messagesSection,
+  historyBadge = 0,
+  messagesBadge = 0,
+}: ClientHomeTabsProps) {
   const [tab, setTab] = useState<Tab>('wings')
 
   const baseBtn =
@@ -57,6 +66,25 @@ export function ClientHomeTabs({ wingsSection, ticketsSection, historyBadge = 0 
             </span>
           )}
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'messages'}
+          aria-controls="panel-messages"
+          id="tab-messages"
+          onClick={() => setTab('messages')}
+          className={`${baseBtn} relative inline-flex items-center justify-center gap-2 ${tab === 'messages' ? activeBtn : idleBtn}`}
+        >
+          <span>Messages</span>
+          {messagesBadge > 0 && (
+            <span
+              aria-label={`${messagesBadge} message${messagesBadge > 1 ? 's' : ''} non lu${messagesBadge > 1 ? 's' : ''}`}
+              className="inline-flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white"
+            >
+              {messagesBadge > 9 ? '9+' : messagesBadge}
+            </span>
+          )}
+        </button>
       </div>
 
       <div
@@ -75,6 +103,15 @@ export function ClientHomeTabs({ wingsSection, ticketsSection, historyBadge = 0 
         hidden={tab !== 'history'}
       >
         {tab === 'history' && ticketsSection}
+      </div>
+
+      <div
+        id="panel-messages"
+        role="tabpanel"
+        aria-labelledby="tab-messages"
+        hidden={tab !== 'messages'}
+      >
+        {tab === 'messages' && messagesSection}
       </div>
     </>
   )

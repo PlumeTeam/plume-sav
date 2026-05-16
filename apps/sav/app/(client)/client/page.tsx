@@ -1,6 +1,8 @@
 import { getClientTickets, getClientWings } from '@/features/tickets/queries'
+import { getClientInboxThreads } from '@/features/tickets/messages-unread'
 import { TicketCard } from '@/features/tickets/components/TicketCard'
 import { WingCard } from '@/features/tickets/components/WingCard'
+import { InboxThreadRow } from '@/features/tickets/components/InboxThreadRow'
 import { createClient } from '@/lib/supabase/server'
 import { resolveClientIdentity } from '@/features/auth/identity'
 import { ClientHomeTabs } from './ClientHomeTabs'
@@ -11,10 +13,11 @@ export default async function ClientPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [tickets, wings, identity] = await Promise.all([
+  const [tickets, wings, identity, threads] = await Promise.all([
     getClientTickets(),
     getClientWings(),
     user ? resolveClientIdentity(supabase, user) : Promise.resolve(null),
+    getClientInboxThreads(supabase),
   ])
 
   const activeCount = tickets.filter(
@@ -79,6 +82,37 @@ export default async function ClientPage() {
     </section>
   )
 
+  const messagesSection = (
+    <section>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="section-title">Messages</h2>
+        {threads.length > 0 && (
+          <span className="text-xs text-slate-400">
+            {threads.length} conversation{threads.length > 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+
+      {threads.length === 0 ? (
+        <div className="card border-dashed px-4 py-8 text-center">
+          <p className="text-3xl" aria-hidden>📭</p>
+          <p className="mt-2 text-sm font-medium text-brand-ink">Pas encore de message</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Vos échanges avec votre école apparaîtront ici dès la première réponse.
+          </p>
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {threads.map((t) => (
+            <li key={t.ticketId}>
+              <InboxThreadRow thread={t} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+
   return (
     <main className="space-y-6 px-4 py-6">
       {/* ── Hero / Greeting ─────────────────────────────────────── */}
@@ -98,11 +132,13 @@ export default async function ClientPage() {
         )}
       </section>
 
-      {/* ── Toggle Mes ailes / Historique ───────────────────────── */}
+      {/* ── Onglets Mes ailes / Mes demandes SAV / Messages ──────── */}
       <ClientHomeTabs
         wingsSection={wingsSection}
         ticketsSection={ticketsSection}
+        messagesSection={messagesSection}
         historyBadge={totalUnread}
+        messagesBadge={totalUnread}
       />
     </main>
   )
