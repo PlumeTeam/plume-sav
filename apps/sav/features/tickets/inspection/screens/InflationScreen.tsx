@@ -42,20 +42,24 @@ export function InflationScreen({
       }
     >
       <Field label="Test au sol effectué ?">
-        <SegmentedChoice<'yes' | 'no'>
+        <SegmentedChoice<'yes' | 'no' | 'not_necessary'>
           options={[
-            { value: 'yes', label: "Oui, j'ai fait un check au sol" },
-            { value: 'no',  label: 'Non, pas possible'              },
+            { value: 'yes',           label: "Oui, j'ai fait un check au sol" },
+            { value: 'no',            label: 'Non, pas possible'              },
+            { value: 'not_necessary', label: 'Pas nécessaire'                 },
           ]}
-          value={phase2.skipped ? 'no' : (
+          value={phase2.skipped ? (
+            phase2.skipReason === 'not_necessary' ? 'not_necessary' : 'no'
+          ) : (
             phase2.inflationSurfaceConsistency ||
             phase2.inflationTendency ||
             inflationPhotos.length > 0
               ? 'yes' : undefined
           )}
           onChange={(v) => {
-            if (v === 'no') setPhase2({ skipped: true })
-            else            setPhase2({ skipped: false })
+            if (v === 'no')                 setPhase2({ skipped: true, skipReason: 'not_possible' })
+            else if (v === 'not_necessary') setPhase2({ skipped: true, skipReason: 'not_necessary' })
+            else                            setPhase2({ skipped: false })
           }}
         />
       </Field>

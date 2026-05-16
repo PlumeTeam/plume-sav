@@ -47,8 +47,14 @@ export type Phase1 = {
   risersPhotoPaths?:   string[]
 }
 
+/** Raison pour laquelle le check de gonflage a été sauté.
+ *  `not_possible` = conditions/matériel indisponibles ; `not_necessary` =
+ *  l'inspecteur juge le test au sol superflu. Les deux masquent les
+ *  sous-questions de gonflage de la même façon. */
+export type Phase2SkipReason = 'not_possible' | 'not_necessary'
+
 export type Phase2 =
-  | { skipped: true }
+  | { skipped: true; skipReason?: Phase2SkipReason }
   | {
       skipped:                      false
       /** Remplace inflationSymmetry — la symétrie au gonflage est quasi impossible
