@@ -211,6 +211,7 @@ export interface Database {
           plume_replacement_approved_at:      string | null
           plume_replacement_decided_by:       string | null
           plume_replacement_refusal_reason:   string | null
+          workshop_deep_check_at:             string | null
           workshop_shipping_prepared_at:      string | null
           // Ticket closure (migration 20260512200000 — T7)
           closed_by:        string | null
@@ -333,6 +334,7 @@ export interface Database {
           plume_replacement_approved_at?:      string | null
           plume_replacement_decided_by?:       string | null
           plume_replacement_refusal_reason?:   string | null
+          workshop_deep_check_at?:             string | null
           workshop_shipping_prepared_at?:      string | null
           closed_by?:        string | null
           closed_at?:        string | null
@@ -450,6 +452,7 @@ export interface Database {
           plume_replacement_approved_at?:      string | null
           plume_replacement_decided_by?:       string | null
           plume_replacement_refusal_reason?:   string | null
+          workshop_deep_check_at?:             string | null
           workshop_shipping_prepared_at?:      string | null
           closed_by?:        string | null
           closed_at?:        string | null

@@ -11,6 +11,7 @@ import type {
 } from '../types'
 import {
   approveReplacementSchema,
+  markDeepCheckDoneSchema,
   prepareReturnShippingSchema,
   refuseReplacementSchema,
   revertWorkshopStepSchema,
@@ -69,7 +70,7 @@ export async function prepareReturnShippingAction(formData: FormData): Promise<A
 
   const { data: ticket, error: fetchError } = await supabase
     .from('service_requests')
-    .select('id, status, workshop_decision, plume_replacement_approved, workshop_shipping_prepared_at')
+    .select('id, status, workshop_decision, plume_replacement_approved, workshop_deep_check_at, workshop_shipping_prepared_at')
     .eq('id', ticketId)
     .single()
     .returns<{
@@ -77,6 +78,7 @@ export async function prepareReturnShippingAction(formData: FormData): Promise<A
       status:                        RequestStatus
       workshop_decision:             WorkshopDecision | null
       plume_replacement_approved:    boolean | null
+      workshop_deep_check_at:        string | null
       workshop_shipping_prepared_at: string | null
     }>()
   if (fetchError || !ticket) return { error: { _form: ['Ticket introuvable'] } }
@@ -89,7 +91,7 @@ export async function prepareReturnShippingAction(formData: FormData): Promise<A
   // Garde-fous par branche.
   if (decision === 'replacement') {
     if (ticket.plume_replacement_approved !== true) {
-      return { error: { _form: ['Le remplacement doit être validé par Plume HQ avant de créer le ticket d\'envoi.'] } }
+      return { error: { _form: ['Le remplacement doit être validé par Plume HQ avant d\'imprimer le ticket d\'envoi.'] } }
     }
     if (recipient !== 'plume') {
       return { error: { _form: ['Une aile irréparable est renvoyée à Plume HQ.'] } }
@@ -99,8 +101,13 @@ export async function prepareReturnShippingAction(formData: FormData): Promise<A
       return { error: { _form: ['Destination Plume réservée aux ailes irréparables.'] } }
     }
     if (decision === 'repair' && ticket.status !== 'workshop_done') {
-      return { error: { _form: ['Terminez la réparation avant de créer le ticket d\'envoi.'] } }
+      return { error: { _form: ['Terminez la réparation avant d\'imprimer le ticket d\'envoi.'] } }
     }
+  }
+
+  // Branches non-réparation : le contrôle approfondi doit être validé d'abord.
+  if (decision !== 'repair' && !ticket.workshop_deep_check_at) {
+    return { error: { _form: ['Validez le contrôle approfondi avant d\'imprimer le ticket d\'envoi.'] } }
   }
 
   const { error: updateError } = await supabase
@@ -124,6 +131,64 @@ export async function prepareReturnShippingAction(formData: FormData): Promise<A
     new_status: requestStatusToSavStatus(ticket.status),
     changed_by: user.id,
     note:       `📦 Ticket d'envoi créé — destination : ${destLabel}.`,
+  })
+
+  revalidateTicket(ticketId)
+  return { success: true }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Étape « Check approfondi » — branches no_issue / replacement
+// ────────────────────────────────────────────────────────────────────────────
+export async function markDeepCheckDoneAction(formData: FormData): Promise<ActionResult> {
+  const parsed = markDeepCheckDoneSchema.safeParse({ ticketId: formData.get('ticketId') })
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: { _form: ['Non authentifié'] } }
+
+  const roles = await getCurrentUserRoles()
+  if (!roles.includes('workshop') && !roles.includes('plume_admin')) {
+    return { error: { _form: ["Réservé à l'atelier ou Plume HQ"] } }
+  }
+
+  const { ticketId } = parsed.data
+
+  const { data: ticket, error: fetchError } = await supabase
+    .from('service_requests')
+    .select('id, status, workshop_decision, plume_replacement_approved')
+    .eq('id', ticketId)
+    .single()
+    .returns<{
+      id:                         string
+      status:                     RequestStatus
+      workshop_decision:          WorkshopDecision | null
+      plume_replacement_approved: boolean | null
+    }>()
+  if (fetchError || !ticket) return { error: { _form: ['Ticket introuvable'] } }
+
+  if (ticket.workshop_decision !== 'no_issue' && ticket.workshop_decision !== 'replacement') {
+    return { error: { _form: ['Le contrôle approfondi ne concerne que les décisions « RAS » et « irréparable ».'] } }
+  }
+  if (ticket.workshop_decision === 'replacement' && ticket.plume_replacement_approved !== true) {
+    return { error: { _form: ['Attendez la validation Plume HQ avant le contrôle approfondi.'] } }
+  }
+
+  const { error: updateError } = await supabase
+    .from('service_requests')
+    .update({ workshop_deep_check_at: new Date().toISOString() } satisfies TicketUpdate)
+    .eq('id', ticketId)
+  if (updateError) {
+    return { error: { _form: [`Erreur lors de l'enregistrement (${updateError.message})`] } }
+  }
+
+  await supabase.from('ticket_status_history').insert({
+    ticket_id:  ticketId,
+    old_status: requestStatusToSavStatus(ticket.status),
+    new_status: requestStatusToSavStatus(ticket.status),
+    changed_by: user.id,
+    note:       '🔬 Contrôle approfondi validé par l\'atelier.',
   })
 
   revalidateTicket(ticketId)
@@ -179,6 +244,7 @@ export async function revertWorkshopStepAction(formData: FormData): Promise<Acti
       update.plume_replacement_approved_at      = null
       update.plume_replacement_decided_by       = null
       update.plume_replacement_refusal_reason   = null
+      update.workshop_deep_check_at             = null
       update.workshop_shipping_prepared_at      = null
       update.workshop_return_destination        = null
       update.wing_returned_at                   = null
@@ -191,11 +257,21 @@ export async function revertWorkshopStepAction(formData: FormData): Promise<Acti
       update.plume_replacement_approved_at    = null
       update.plume_replacement_decided_by     = null
       update.plume_replacement_refusal_reason = null
+      update.workshop_deep_check_at           = null
       update.workshop_shipping_prepared_at    = null
       update.workshop_return_destination      = null
       update.wing_returned_at                 = null
       if (ticket.status === 'wing_returned') update.status = 'workshop_diagnosing'
       label = 'Validation Plume HQ'
+      break
+
+    case 'deep_check':
+      update.workshop_deep_check_at        = null
+      update.workshop_shipping_prepared_at = null
+      update.workshop_return_destination   = null
+      update.wing_returned_at              = null
+      if (ticket.status === 'wing_returned') update.status = 'workshop_diagnosing'
+      label = 'Check approfondi'
       break
 
     case 'repair_done':

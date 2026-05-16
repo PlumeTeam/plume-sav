@@ -43,6 +43,7 @@ export { generateSavShippingLabelAction } from './shipping'
 export { revertToStepAction } from './revert'
 export {
   approveReplacementAction,
+  markDeepCheckDoneAction,
   prepareReturnShippingAction,
   refuseReplacementAction,
   revertWorkshopStepAction,

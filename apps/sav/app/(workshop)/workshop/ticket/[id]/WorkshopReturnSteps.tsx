@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
+  markDeepCheckDoneAction,
   markWingReturnedAction,
   markWorkshopDoneAction,
   prepareReturnShippingAction,
@@ -30,6 +31,8 @@ interface WorkshopReturnStepsProps {
   plumeReplacementApproved:      boolean | null
   plumeReplacementApprovedAt:    string | null
   plumeReplacementRefusalReason: string | null
+  // Branches no_issue / replacement — contrôle approfondi
+  workshopDeepCheckAt: string | null
   // Commun — ticket d'envoi + expédition
   workshopShippingPreparedAt: string | null
   workshopReturnDestination:  WorkshopReturnDestination | null
@@ -49,6 +52,7 @@ export function WorkshopReturnSteps(props: WorkshopReturnStepsProps) {
     ticketId, status, wingSerial, decision,
     repairEstimatedDate, workshopRepairDoneAt,
     plumeReplacementApproved, plumeReplacementApprovedAt, plumeReplacementRefusalReason,
+    workshopDeepCheckAt,
     workshopShippingPreparedAt, workshopReturnDestination, wingReturnedAt,
   } = props
 
@@ -64,6 +68,7 @@ export function WorkshopReturnSteps(props: WorkshopReturnStepsProps) {
   const plumeApproved    = plumeReplacementApproved === true
   const plumeRefused     = plumeReplacementApproved === false
   const plumePending     = plumeReplacementApproved == null
+  const deepCheckDone    = !!workshopDeepCheckAt
   const shippingPrepared = !!workshopShippingPreparedAt
   const wingSent         = !!wingReturnedAt
 
@@ -71,11 +76,8 @@ export function WorkshopReturnSteps(props: WorkshopReturnStepsProps) {
     setError(null)
     startTransition(async () => {
       const r = await fn()
-      if (r && 'error' in r && r.error) {
-        setError(r.error._form?.[0] ?? 'Erreur')
-      } else {
-        router.refresh()
-      }
+      if (r && 'error' in r && r.error) setError(r.error._form?.[0] ?? 'Erreur')
+      else router.refresh()
     })
   }
 
@@ -112,7 +114,7 @@ export function WorkshopReturnSteps(props: WorkshopReturnStepsProps) {
           <StepCard
             idx={++n}
             emoji="🔧"
-            title="Réparation en cours"
+            title="Réparation"
             state={repairDone ? 'done' : 'active'}
             doneAt={null}
           >
@@ -138,10 +140,10 @@ export function WorkshopReturnSteps(props: WorkshopReturnStepsProps) {
         </>
       )}
 
-      {/* ════════ Branche IRRÉPARABLE — validation Plume HQ ════════ */}
+      {/* ════════ Branche IRRÉPARABLE — validation Plume HQ (sous-étape 3) ════════ */}
       {decision === 'replacement' && (
         <StepCard
-          idx={++n}
+          idx="🦅"
           emoji="🦅"
           title="Validation Plume HQ"
           state={plumeApproved ? 'done' : 'active'}
@@ -162,18 +164,38 @@ export function WorkshopReturnSteps(props: WorkshopReturnStepsProps) {
           )}
           {plumeApproved && (
             <p className="mt-0.5 text-xs text-emerald-700">
-              ✓ Remplacement validé — l&apos;aile peut être renvoyée à Plume HQ.
+              ✓ Remplacement validé — poursuivez le workflow.
             </p>
           )}
         </StepCard>
       )}
 
-      {/* ════════ Commun — Créer le ticket d'envoi ════════ */}
+      {/* ════════ Étape 4 — Check approfondi (branches no_issue / replacement) ════════ */}
+      {(decision === 'no_issue' || decision === 'replacement') && (() => {
+        const reachable = decision === 'no_issue' ? true : plumeApproved
+        const cardState: CardState = deepCheckDone ? 'done' : reachable ? 'active' : 'locked'
+        return (
+          <StepCard
+            idx={++n}
+            emoji="🔬"
+            title="Check approfondi"
+            helpText="Contrôle détaillé de l'aile avant expédition (checklist diagnostic dans l'onglet Diagnostic)."
+            state={cardState}
+            doneAt={workshopDeepCheckAt}
+            actionLabel="Contrôle approfondi terminé"
+            onAction={cardState === 'active' ? () => run(() => markDeepCheckDoneAction(fd())) : undefined}
+            isPending={isPending}
+            onRevert={deepCheckDone ? () => revert('deep_check', 'Check approfondi') : undefined}
+          />
+        )
+      })()}
+
+      {/* ════════ Imprimer le ticket d'envoi ════════ */}
       {(() => {
         const canPrepare =
           decision === 'repair'      ? repairDone :
-          decision === 'replacement' ? plumeApproved :
-          /* no_issue */               true
+          decision === 'replacement' ? (plumeApproved && deepCheckDone) :
+          /* no_issue */               deepCheckDone
         const cardState: CardState = shippingPrepared ? 'done' : canPrepare ? 'active' : 'locked'
         const isPlume = decision === 'replacement'
         const destLabel =
@@ -182,22 +204,21 @@ export function WorkshopReturnSteps(props: WorkshopReturnStepsProps) {
           workshopReturnDestination === 'school' ? 'École partenaire' : '—'
 
         function prepare() {
-          const r = isPlume ? 'plume' : recipient
-          run(() => prepareReturnShippingAction(fd({ recipient: r })))
+          run(() => prepareReturnShippingAction(fd({ recipient: isPlume ? 'plume' : recipient })))
         }
 
         return (
           <StepCard
             idx={++n}
-            emoji="📦"
-            title="Créer le ticket d'envoi"
-            helpText="Prépare le bon de transport retour et fige le destinataire."
+            emoji="🖨️"
+            title="Imprimer le ticket d'envoi"
+            helpText="Génère le bon de transport retour et fige le destinataire."
             state={cardState}
             doneAt={workshopShippingPreparedAt}
-            actionLabel="Créer le ticket d'envoi"
+            actionLabel="Imprimer le ticket d'envoi"
             onAction={cardState === 'active' ? prepare : undefined}
             isPending={isPending}
-            onRevert={shippingPrepared ? () => revert('shipping_prepared', "Ticket d'envoi créé") : undefined}
+            onRevert={shippingPrepared ? () => revert('shipping_prepared', "Ticket d'envoi") : undefined}
           >
             {cardState === 'done' && (
               <p className="mt-0.5 text-xs text-slate-500">Destination : <strong>{destLabel}</strong>.</p>
@@ -234,20 +255,20 @@ export function WorkshopReturnSteps(props: WorkshopReturnStepsProps) {
         )
       })()}
 
-      {/* ════════ Commun — Envoyer l'aile ════════ */}
+      {/* ════════ Voile envoyée ════════ */}
       <StepCard
         idx={++n}
         emoji="✈️"
-        title="Envoyer l'aile"
-        helpText="Une fois le colis confié au transporteur, marquez l'aile comme expédiée."
+        title="Voile envoyée"
+        helpText="Une fois le colis confié au transporteur, confirmez le départ de l'aile."
         state={wingSent ? 'done' : shippingPrepared ? 'active' : 'locked'}
         doneAt={wingReturnedAt}
         scanBadge={!wingSent}
-        actionLabel="Marquer l'aile envoyée"
+        actionLabel="Marquer la voile envoyée"
         onAction={shippingPrepared && !wingSent ? () => setScanOpen(true) : undefined}
         onBypassScan={shippingPrepared && !wingSent ? () => run(() => markWingReturnedAction(fd())) : undefined}
         isPending={isPending}
-        onRevert={wingSent ? () => revert('wing_sent', "Aile envoyée") : undefined}
+        onRevert={wingSent ? () => revert('wing_sent', 'Voile envoyée') : undefined}
       />
 
       <ScanGateModal
@@ -266,7 +287,7 @@ export function WorkshopReturnSteps(props: WorkshopReturnStepsProps) {
 // Carte d'étape générique (post-décision)
 // ────────────────────────────────────────────────────────────────────────────
 interface StepCardProps {
-  idx:          number
+  idx:          number | string
   emoji:        string
   title:        string
   helpText?:    string

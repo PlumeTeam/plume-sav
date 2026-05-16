@@ -227,6 +227,8 @@ export async function finishWorkshopPreCheckAction(formData: FormData) {
   // de ce ticket.
   const feeEur = await getPreCheckFeeEur()
 
+  const skipped = !observations || observations.trim().length === 0
+
   return advanceTicketStep({
     ticketId,
     from:            ['workshop_pre_checking'],
@@ -235,10 +237,12 @@ export async function finishWorkshopPreCheckAction(formData: FormData) {
     emailStep:       'workshop_diagnosing',
     patch: {
       pre_check_completed_at: new Date().toISOString(),
-      pre_check_observations: observations,
+      pre_check_observations: observations ?? null,
       pre_check_fee_eur:      feeEur,
     },
-    historyNote: `Pré-check terminé (facturé ${feeEur} € à Plume)`,
+    historyNote: skipped
+      ? `Pré-check clôturé sans observations (facturé ${feeEur} € à Plume)`
+      : `Pré-check terminé (facturé ${feeEur} € à Plume)`,
   })
 }
 

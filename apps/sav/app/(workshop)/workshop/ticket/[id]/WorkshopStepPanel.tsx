@@ -29,7 +29,6 @@ interface WorkshopStepPanelProps {
   preCheckStartedAt:       string | null
   preCheckCompletedAt:     string | null
   preCheckFeeEurConfig:    number
-  workshopDiagnosisAt:     string | null
   workshopRepairDoneAt:    string | null
   wingReturnedAt:          string | null
   // Étape "Prise de décision"
@@ -44,7 +43,9 @@ interface WorkshopStepPanelProps {
   plumeReplacementApproved:          boolean | null
   plumeReplacementApprovedAt:        string | null
   plumeReplacementRefusalReason:     string | null
-  /** Commun — ticket d'envoi + destination. */
+  /** Étape "Check approfondi" (branches no_issue / replacement). */
+  workshopDeepCheckAt:               string | null
+  /** Étape "Imprimer le ticket d'envoi" + destination. */
   workshopShippingPreparedAt:        string | null
   workshopReturnDestination:         WorkshopReturnDestination | null
   /** Seuils Plume pour la modal de décision. */
@@ -53,9 +54,6 @@ interface WorkshopStepPanelProps {
   extendedCoversReplacement:         boolean
   warrantyTier:                      WarrantyTier | null
 }
-
-// Seule étape pilotée par statut hors triage : la réception de l'aile.
-type ScanGateKey = 'received' | 'diagnose_direct'
 
 export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
   const {
@@ -66,7 +64,6 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
     preCheckStartedAt,
     preCheckCompletedAt,
     preCheckFeeEurConfig,
-    workshopDiagnosisAt,
     workshopRepairDoneAt,
     wingReturnedAt,
     workshopDecision,
@@ -77,6 +74,7 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
     plumeReplacementApproved,
     plumeReplacementApprovedAt,
     plumeReplacementRefusalReason,
+    workshopDeepCheckAt,
     workshopShippingPreparedAt,
     workshopReturnDestination,
     repairReplacementThresholdEur,
@@ -87,10 +85,10 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
 
   const [isPending, startTransition] = useTransition()
   const [feedback, setFeedback] = useState<{ msg: string } | null>(null)
-  const [scanGateFor, setScanGateFor] = useState<ScanGateKey | null>(null)
+  const [scanOpen, setScanOpen] = useState(false)
 
   // Pré-check : observations + état UI (form ouvert/fermé)
-  const [preCheckOpen, setPreCheckOpen] = useState(false)
+  const [preCheckFormOpen, setPreCheckFormOpen] = useState(false)
   const [observations, setObservations] = useState('')
 
   function showError(msg: string) { setFeedback({ msg }) }
@@ -98,7 +96,7 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
 
   function readErr(r: unknown): string {
     const err = (r as { error?: Record<string, string[] | undefined> } | null)?.error
-    return err?._form?.[0] ?? 'Erreur'
+    return err?._form?.[0] ?? err?.observations?.[0] ?? err?.ticketId?.[0] ?? 'Erreur'
   }
 
   function executeReceived() {
@@ -111,7 +109,8 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
     })
   }
 
-  function executeDiagnoseDirect() {
+  // Pré-check « Non » → diagnostic direct (pas de pré-check).
+  function skipPreCheck() {
     startTransition(async () => {
       const fd = new FormData()
       fd.set('ticketId', ticketId)
@@ -121,61 +120,28 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
     })
   }
 
-  function handleStartPreCheck() {
+  // Pré-check « Oui » → ouvre la checklist de pré-check.
+  function startPreCheck() {
     startTransition(async () => {
       const fd = new FormData()
       fd.set('ticketId', ticketId)
       const r = await startWorkshopPreCheckAction(fd)
-      if (r && 'error' in r && r.error) {
-        const flat = r.error as Record<string, string[] | undefined>
-        showError(flat._form?.[0] ?? flat.ticketId?.[0] ?? 'Erreur')
-      } else {
-        setPreCheckOpen(true)
-        clearError()
-      }
+      if (r && 'error' in r && r.error) showError(readErr(r))
+      else { setPreCheckFormOpen(true); clearError() }
     })
   }
 
-  function handleFinishPreCheck(e: React.FormEvent) {
-    e.preventDefault()
-    if (observations.trim().length < 10) {
-      showError('Observations trop courtes (10 caractères min)')
-      return
-    }
+  // Clôture du pré-check — `skip` = checklist passée (observations vides OK).
+  function finishPreCheck(skip: boolean) {
     startTransition(async () => {
       const fd = new FormData()
       fd.set('ticketId', ticketId)
-      fd.set('observations', observations.trim())
+      if (!skip && observations.trim()) fd.set('observations', observations.trim())
       const r = await finishWorkshopPreCheckAction(fd)
-      if (r && 'error' in r && r.error) {
-        const flat = r.error as Record<string, string[] | undefined>
-        showError(flat._form?.[0] ?? flat.observations?.[0] ?? 'Erreur')
-      } else {
-        setPreCheckOpen(false)
-        setObservations('')
-        clearError()
-      }
+      if (r && 'error' in r && r.error) showError(readErr(r))
+      else { setPreCheckFormOpen(false); setObservations(''); clearError() }
     })
   }
-
-  function handleScanSuccess() {
-    const k = scanGateFor
-    setScanGateFor(null)
-    if (k === 'diagnose_direct') executeDiagnoseDirect()
-    else if (k === 'received') executeReceived()
-  }
-
-  const SCAN_META: Record<ScanGateKey, { title: string; subtitle: string }> = {
-    received: {
-      title:    "Réception de l'aile",
-      subtitle: "Scannez le QR cousu sur l'aile (ou sur le sac) pour confirmer la réception à l'atelier.",
-    },
-    diagnose_direct: {
-      title:    'Avant le diagnostic',
-      subtitle: "Scannez l'aile pour démarrer le diagnostic sur le bon ticket.",
-    },
-  }
-  const activeScanMeta = scanGateFor ? SCAN_META[scanGateFor] : null
 
   // Ticket pas encore dans le pipeline atelier.
   if (!statusGte(status, 'pending_workshop')) {
@@ -187,13 +153,16 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
     )
   }
 
-  const receivedDone = statusGte(status, 'wing_received_workshop')
-  const receivedActive =
-    !receivedDone && (status === 'pending_workshop' || status === 'escalated_to_workshop')
+  const receivedDone   = statusGte(status, 'wing_received_workshop')
+  const receivedActive = !receivedDone && (status === 'pending_workshop' || status === 'escalated_to_workshop')
 
-  const hasPreCheckStarted = status === 'workshop_pre_checking' || !!preCheckStartedAt
-  const preCheckIsCurrent  = status === 'workshop_pre_checking'
-  const diagnosisDone      = statusGte(status, 'workshop_diagnosing') && status !== 'workshop_pre_checking'
+  // Étape 2 — Pré-check.
+  const preCheckQuestion   = status === 'wing_received_workshop'   // doit choisir oui/non
+  const preCheckInProgress = status === 'workshop_pre_checking'
+  const preCheckResolved   = statusGte(status, 'workshop_diagnosing')
+  const preCheckWasRun     = !!preCheckStartedAt
+
+  const diagnosisDone = preCheckResolved
 
   return (
     <>
@@ -202,7 +171,7 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
           <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{feedback.msg}</p>
         )}
 
-        {/* Étape 1 — Aile reçue */}
+        {/* ════════ Étape 1 — Aile reçue ════════ */}
         <div
           className={`rounded-card border p-4 transition-colors ${
             receivedDone
@@ -240,17 +209,13 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
                 </p>
               )}
               {receivedDone && (
-                <RevertStepLink
-                  ticketId={ticketId}
-                  targetStatus="wing_received_workshop"
-                  stepLabel="Aile reçue"
-                />
+                <RevertStepLink ticketId={ticketId} targetStatus="wing_received_workshop" stepLabel="Aile reçue" />
               )}
             </div>
             {receivedActive && (
               <button
                 type="button"
-                onClick={() => setScanGateFor('received')}
+                onClick={() => setScanOpen(true)}
                 disabled={isPending}
                 className="btn-primary hidden shrink-0 sm:inline-flex"
               >
@@ -262,7 +227,7 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
             <>
               <button
                 type="button"
-                onClick={() => setScanGateFor('received')}
+                onClick={() => setScanOpen(true)}
                 disabled={isPending}
                 className="btn-primary mt-3 w-full sm:hidden"
               >
@@ -280,169 +245,122 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
           )}
         </div>
 
-        {/* Branche triage post-réception */}
-        {status === 'wing_received_workshop' && !hasPreCheckStarted && (
-          <div className="rounded-card border border-brand-gold bg-brand-gold/5 p-4 shadow-plume">
-            <p className="text-sm font-semibold text-brand-ink">
-              <span className="mr-1.5" aria-hidden>🧭</span>
-              Quelle est la prochaine étape&nbsp;?
-            </p>
-            <p className="mt-1 text-xs text-slate-600">
-              À la réception, indique si le problème est évident ou s&apos;il faut
-              un pré-check rapide (~1h, facturé {preCheckFeeEurConfig} € à Plume).
-            </p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => setScanGateFor('diagnose_direct')}
-                disabled={isPending}
-                className="btn-primary text-sm"
-              >
-                🎯 Problème évident → diagnostic
-              </button>
-              <button
-                type="button"
-                onClick={handleStartPreCheck}
-                disabled={isPending}
-                className="btn-secondary text-sm"
-              >
-                🔎 Pas clair → démarrer pré-check
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={executeDiagnoseDirect}
-              disabled={isPending}
-              className="mt-2 w-full text-center text-[11px] text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline"
-            >
-              Passer le scan & démarrer diagnostic (test)
-            </button>
-          </div>
-        )}
-
-        {/* Carte pré-check */}
-        {hasPreCheckStarted && (
+        {/* ════════ Étape 2 — Pré-check ════════ */}
+        {receivedDone && (
           <div
-            className={`rounded-card border p-4 ${
-              preCheckIsCurrent
-                ? 'border-brand-gold bg-brand-gold/5 shadow-plume'
-                : 'border-emerald-200 bg-emerald-50/50'
+            className={`rounded-card border p-4 transition-colors ${
+              preCheckResolved
+                ? 'border-emerald-200 bg-emerald-50/50'
+                : (preCheckQuestion || preCheckInProgress)
+                  ? 'border-brand-gold bg-brand-gold/5 shadow-plume'
+                  : 'border-brand-stone bg-white opacity-60'
             }`}
           >
-            <div className="flex items-start gap-4">
+            <div className="flex items-start gap-3 sm:gap-4">
               <div
                 className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-bold ${
-                  preCheckIsCurrent ? 'bg-brand-gold text-white' : 'bg-emerald-500 text-white'
+                  preCheckResolved
+                    ? 'bg-emerald-500 text-white'
+                    : (preCheckQuestion || preCheckInProgress)
+                      ? 'bg-brand-gold text-white'
+                      : 'bg-brand-stone text-slate-400'
                 }`}
                 aria-hidden
               >
-                {preCheckIsCurrent ? '⏱' : '✓'}
+                {preCheckResolved ? '✓' : 2}
               </div>
               <div className="min-w-0 flex-1">
-                <p className={`text-sm font-semibold ${preCheckIsCurrent ? 'text-brand-ink' : 'text-slate-500'}`}>
+                <p className={`text-sm font-semibold ${preCheckResolved ? 'text-slate-500 line-through decoration-emerald-500/60' : 'text-brand-ink'}`}>
                   <span className="mr-1.5" aria-hidden>🔎</span>
-                  Pré-check ({preCheckFeeEurConfig} € facturés à Plume)
+                  Pré-check
                 </p>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  Durée &lt; 1 h. Documente les observations pour décider la suite.
-                </p>
-                {preCheckStartedAt && (
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    Démarré le {formatDateTime(preCheckStartedAt)}
+
+                {/* État : question oui / non */}
+                {preCheckQuestion && (
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Un pré-check est-il nécessaire&nbsp;? Si oui (~1 h, facturé{' '}
+                    {preCheckFeeEurConfig} € à Plume), vous remplissez la checklist.
+                    Sinon, on passe directement à la prise de décision.
                   </p>
                 )}
-                {preCheckCompletedAt && (
-                  <p className="mt-0.5 text-[11px] text-emerald-700">
-                    ✓ Terminé le {formatDateTime(preCheckCompletedAt)}
+
+                {/* État : résolu (effectué ou non) */}
+                {preCheckResolved && (
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {preCheckWasRun ? 'Pré-check effectué.' : 'Pré-check jugé non nécessaire.'}
                   </p>
+                )}
+                {preCheckResolved && preCheckCompletedAt && (
+                  <p className="mt-1 text-[11px] text-emerald-700">
+                    ✓ Clôturé le {formatDateTime(preCheckCompletedAt)}
+                  </p>
+                )}
+                {preCheckResolved && (
+                  <RevertStepLink ticketId={ticketId} targetStatus="wing_received_workshop" stepLabel="Pré-check" />
                 )}
               </div>
-              {preCheckIsCurrent && !preCheckOpen && (
-                <button
-                  type="button"
-                  onClick={() => setPreCheckOpen(true)}
-                  disabled={isPending}
-                  className="btn-primary hidden shrink-0 sm:inline-flex"
-                >
-                  Clôturer le pré-check
-                </button>
-              )}
             </div>
 
-            {preCheckIsCurrent && !preCheckOpen && (
-              <button
-                type="button"
-                onClick={() => setPreCheckOpen(true)}
-                disabled={isPending}
-                className="btn-primary mt-3 w-full sm:hidden"
-              >
-                Clôturer le pré-check
-              </button>
+            {/* Boutons oui / non */}
+            {preCheckQuestion && (
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <button type="button" onClick={startPreCheck} disabled={isPending} className="btn-primary text-sm">
+                  🔎 Oui — faire un pré-check
+                </button>
+                <button type="button" onClick={skipPreCheck} disabled={isPending} className="btn-secondary text-sm">
+                  ⏭️ Non — passer à la décision
+                </button>
+              </div>
             )}
 
-            {preCheckIsCurrent && preCheckOpen && (
-              <form onSubmit={handleFinishPreCheck} className="mt-3 space-y-2">
-                <label className="block text-xs font-medium text-slate-600">Observations</label>
+            {/* Pré-check en cours : checklist d'observations (skippable) */}
+            {preCheckInProgress && !preCheckFormOpen && (
+              <button
+                type="button"
+                onClick={() => setPreCheckFormOpen(true)}
+                disabled={isPending}
+                className="btn-primary mt-3 w-full"
+              >
+                Remplir la checklist de pré-check
+              </button>
+            )}
+            {preCheckInProgress && preCheckFormOpen && (
+              <div className="mt-3 space-y-2">
+                <label className="block text-xs font-medium text-slate-600">
+                  Observations du pré-check <span className="text-slate-400">(optionnel)</span>
+                </label>
                 <textarea
                   value={observations}
                   onChange={(e) => setObservations(e.target.value)}
                   rows={4}
                   maxLength={5000}
-                  placeholder="Ce que vous avez constaté pendant le pré-check (état général, déformations, suspentes, etc.)…"
+                  placeholder="État général, déformations, suspentes… (laissez vide pour passer la checklist)"
                   className="field-input resize-none"
-                  required
                 />
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <button
-                    type="submit"
-                    disabled={isPending || observations.trim().length < 10}
+                    type="button"
+                    onClick={() => finishPreCheck(false)}
+                    disabled={isPending}
                     className="btn-primary flex-1"
                   >
-                    {isPending ? '…' : 'Terminer & démarrer diagnostic'}
+                    {isPending ? '…' : 'Terminer le pré-check'}
                   </button>
                   <button
                     type="button"
-                    onClick={() => setPreCheckOpen(false)}
-                    className="btn-secondary"
+                    onClick={() => finishPreCheck(true)}
                     disabled={isPending}
+                    className="btn-secondary"
                   >
-                    Annuler
+                    Passer la checklist
                   </button>
                 </div>
-              </form>
+              </div>
             )}
           </div>
         )}
 
-        {/* Étape 2 — diagnostic démarré */}
-        {diagnosisDone && (
-          <div className="flex items-start gap-4 rounded-card border border-emerald-200 bg-emerald-50/50 p-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-base font-bold text-white" aria-hidden>
-              ✓
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-slate-500 line-through decoration-emerald-500/60">
-                <span className="mr-1.5" aria-hidden>🔬</span>
-                Diagnostic démarré
-              </p>
-              <p className="mt-0.5 text-xs text-slate-500">
-                Remplissez la checklist diagnostic et notez le devis dans la section dédiée.
-              </p>
-              {workshopDiagnosisAt && (
-                <p className="mt-1 text-[11px] text-emerald-700">
-                  ✓ Validé le {formatDateTime(workshopDiagnosisAt)}
-                </p>
-              )}
-              <RevertStepLink
-                ticketId={ticketId}
-                targetStatus="workshop_diagnosing"
-                stepLabel="Diagnostic démarré"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Étape 3 — Prise de décision */}
+        {/* ════════ Étape 3 — Prise de décision ════════ */}
         {diagnosisDone && (
           <WorkshopDecisionStep
             ticketId={ticketId}
@@ -463,7 +381,7 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
           />
         )}
 
-        {/* Étapes 4+ — sous-pipeline post-décision (3 branches) */}
+        {/* ════════ Étapes 4+ — sous-pipeline post-décision ════════ */}
         {diagnosisDone && workshopDecision && (
           <WorkshopReturnSteps
             ticketId={ticketId}
@@ -475,20 +393,22 @@ export function WorkshopStepPanel(props: WorkshopStepPanelProps) {
             plumeReplacementApproved={plumeReplacementApproved}
             plumeReplacementApprovedAt={plumeReplacementApprovedAt}
             plumeReplacementRefusalReason={plumeReplacementRefusalReason}
+            workshopDeepCheckAt={workshopDeepCheckAt}
             workshopShippingPreparedAt={workshopShippingPreparedAt}
             workshopReturnDestination={workshopReturnDestination}
             wingReturnedAt={wingReturnedAt}
           />
         )}
+
       </div>
 
       <ScanGateModal
-        open={scanGateFor !== null}
-        onClose={() => setScanGateFor(null)}
-        onScanSuccess={handleScanSuccess}
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onScanSuccess={() => { setScanOpen(false); executeReceived() }}
         expectedSerial={wingSerial}
-        title={activeScanMeta?.title ?? 'Scan flashcode'}
-        subtitle={activeScanMeta?.subtitle ?? ''}
+        title="Réception de l'aile"
+        subtitle="Scannez le QR cousu sur l'aile (ou sur le sac) pour confirmer la réception à l'atelier."
       />
     </>
   )

@@ -166,8 +166,9 @@ export type WorkshopDecision = 'no_issue' | 'repair' | 'replacement'
 export type WorkshopRevertStep =
   | 'decision'          // annule la prise de décision (retour au diagnostic)
   | 'plume_validation'  // annule la validation Plume HQ du remplacement
+  | 'deep_check'        // annule le contrôle approfondi (branches no_issue/replacement)
   | 'repair_done'       // ré-ouvre la réparation (workshop_done → repairing)
-  | 'shipping_prepared' // annule la création du ticket d'envoi
+  | 'shipping_prepared' // annule l'impression du ticket d'envoi
   | 'wing_sent'         // annule l'expédition de l'aile
 
 // Statut de garantie au moment de la décision atelier — figé à la prise

@@ -35,12 +35,19 @@ Chaque entrée doit suivre ce gabarit pour rester scannable. Date au format `YYY
 **Intent** : JB trouvait le workflow atelier post-diagnostic trop rigide. Il voulait une prise de décision à 3 options (irréparable / réparation / RAS), une validation Plume HQ pour les ailes irréparables, une étape « créer le ticket d'envoi », et un bouton « Modifier » sur chaque étape validée.
 **Status** : ✅ livré (code) — 🟡 migration SQL à appliquer en prod
 
+### Séquence définitive (validée par JB)
+1. Aile reçue · 2. Pré-check (oui/non — oui ouvre une checklist skippable) ·
+3. Prise de décision (irréparable → validation Plume HQ requise / réparation / RAS) ·
+4. Check approfondi *ou* Réparation (selon décision) · 5. Réparation terminée ·
+6. Imprimer le ticket d'envoi · 7. Voile envoyée. Bouton « Modifier » sur chaque étape.
+
 ### Ce qui a été fait
-- **Migration** `supabase/migrations/20260516120000_sav_workshop_workflow_revamp.sql` : colonnes `workshop_repair_estimated_date`, `plume_replacement_approved` (+ `_approved_at`, `_decided_by`, `_refusal_reason`), `workshop_shipping_prepared_at` ; CHECK `workshop_return_destination` élargi à `'plume'`.
+- **Migration** `supabase/migrations/20260516120000_sav_workshop_workflow_revamp.sql` : colonnes `workshop_repair_estimated_date`, `plume_replacement_approved` (+ `_approved_at`, `_decided_by`, `_refusal_reason`), `workshop_deep_check_at`, `workshop_shipping_prepared_at` ; CHECK `workshop_return_destination` élargi à `'plume'`.
 - **Décision atelier** (`submitWorkshopDecisionAction`) : capture une date de fin estimée pour `repair` ; `no_issue` ne saute plus vers `wing_returned` (étapes suivantes pilotées par flag) ; (re)soumettre une décision ré-ouvre tout l'aval.
-- **Nouveau fichier** `actions/workshop-return.ts` : `prepareReturnShippingAction` (créer ticket d'envoi), `revertWorkshopStepAction` (retour arrière unifié sur 5 étapes), `approveReplacementAction` / `refuseReplacementAction` (validation Plume HQ).
+- **Nouveau fichier** `actions/workshop-return.ts` : `prepareReturnShippingAction`, `markDeepCheckDoneAction`, `revertWorkshopStepAction` (retour arrière unifié sur 6 étapes), `approveReplacementAction` / `refuseReplacementAction` (validation Plume HQ).
+- **Pré-check skippable** : `finishWorkshopPreCheckSchema.observations` devient optionnel.
 - **`markWingReturnedAction`** : ne demande plus le destinataire (figé à l'étape « ticket d'envoi ») ; exige `workshop_shipping_prepared_at`.
-- **UI** : `WorkshopReturnSteps.tsx` (nouveau) rend le sous-pipeline 3 branches ; `WorkshopStepPanel.tsx` réécrit/allégé ; modal décision avec champ date + libellé « Aile irréparable ».
+- **UI** : `WorkshopReturnSteps.tsx` (nouveau) rend le sous-pipeline 3 branches ; `WorkshopStepPanel.tsx` réécrit (carte pré-check oui/non, suppression de la carte « Diagnostic démarré ») ; modal décision avec champ date + libellé « Aile irréparable ».
 - **Dashboard Plume** : section « Remplacements à valider » + `PlumeReplacementApprovalCard.tsx` (pattern de `PlumeShippingApprovalCard`).
 
 ### Décisions techniques

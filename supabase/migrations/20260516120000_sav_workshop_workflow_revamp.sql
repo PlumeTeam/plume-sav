@@ -21,8 +21,11 @@
 --               - plume_replacement_approved + audit : validation Plume HQ
 --                 du remplacement (branche 'replacement'). NULL = en attente,
 --                 TRUE = approuvé, FALSE = refusé (raison obligatoire).
---               - workshop_shipping_prepared_at : étape « ticket d'envoi
---                 créé » — débloque l'étape finale « Envoyer l'aile ».
+--               - workshop_deep_check_at : étape « Check approfondi » des
+--                 branches 'no_issue' / 'replacement' (contrôle détaillé
+--                 confirmé avant expédition).
+--               - workshop_shipping_prepared_at : étape « Imprimer le ticket
+--                 d'envoi » — débloque l'étape finale « Voile envoyée ».
 --
 --             `workshop_return_destination` accepte désormais 'plume' (renvoi
 --             de l'aile irréparable vers Plume HQ).
@@ -39,6 +42,7 @@ ALTER TABLE public.service_requests
   ADD COLUMN IF NOT EXISTS plume_replacement_approved_at     TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS plume_replacement_decided_by      UUID REFERENCES auth.users(id),
   ADD COLUMN IF NOT EXISTS plume_replacement_refusal_reason  TEXT,
+  ADD COLUMN IF NOT EXISTS workshop_deep_check_at            TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS workshop_shipping_prepared_at     TIMESTAMPTZ;
 
 -- ------------------------------------------------------------

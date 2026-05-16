@@ -80,6 +80,7 @@ const FIELDS_BY_STATUS_ENTRY: Array<{ status: RequestStatus; fields: (keyof Tick
       'plume_replacement_approved_at',
       'plume_replacement_decided_by',
       'plume_replacement_refusal_reason',
+      'workshop_deep_check_at',
   ] },
   { status: 'workshop_done',   fields: ['workshop_repair_done_at'] },
   { status: 'wing_returned',   fields: ['wing_returned_at', 'workshop_return_destination', 'workshop_shipping_prepared_at'] },

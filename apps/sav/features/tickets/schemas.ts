@@ -189,15 +189,15 @@ export const startWorkshopPreCheckSchema = z.object({
   ticketId: z.string().uuid(),
 })
 
-// Atelier : clôture du pré-check — observations obligatoires (au moins 10
-// caractères pour éviter les bouts de phrase vides). Tarif figé côté serveur
-// depuis plume_settings, pas envoyé par le client.
+// Atelier : clôture du pré-check. Les observations sont OPTIONNELLES — la
+// checklist de pré-check peut être passée/skippée (cf. workflow étape 2).
+// Tarif figé côté serveur depuis plume_settings, pas envoyé par le client.
 export const finishWorkshopPreCheckSchema = z.object({
   ticketId:     z.string().uuid(),
-  observations: z.string()
-    .trim()
-    .min(10, 'Décrivez vos observations (10 caractères min)')
-    .max(5000, 'Observations trop longues (5000 caractères max)'),
+  observations: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+    z.string().trim().max(5000, 'Observations trop longues (5000 caractères max)').optional(),
+  ),
 })
 
 // Atelier : upload d'un rapport de révision (ticket request_type='inspection').
@@ -439,7 +439,15 @@ export const prepareReturnShippingSchema = z.object({
 // Retour en arrière sur une étape post-décision pilotée par flag.
 export const revertWorkshopStepSchema = z.object({
   ticketId: z.string().uuid(),
-  step: z.enum(['decision', 'plume_validation', 'repair_done', 'shipping_prepared', 'wing_sent']),
+  step: z.enum([
+    'decision', 'plume_validation', 'deep_check', 'repair_done', 'shipping_prepared', 'wing_sent',
+  ]),
+})
+
+// Étape « Check approfondi » (branches no_issue / replacement) — pas de
+// payload : c'est une validation manuelle de l'atelier.
+export const markDeepCheckDoneSchema = z.object({
+  ticketId: z.string().uuid(),
 })
 
 // Plume HQ : validation / refus du remplacement d'une aile irréparable.

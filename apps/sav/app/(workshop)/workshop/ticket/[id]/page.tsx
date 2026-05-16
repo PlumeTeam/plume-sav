@@ -471,7 +471,6 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                   preCheckStartedAt={ticket.pre_check_started_at}
                   preCheckCompletedAt={ticket.pre_check_completed_at}
                   preCheckFeeEurConfig={plumeSettings.preCheckFeeEur}
-                  workshopDiagnosisAt={ticket.workshop_diagnosis_at}
                   workshopRepairDoneAt={ticket.workshop_repair_done_at}
                   wingReturnedAt={ticket.wing_returned_at}
                   workshopDecision={ticket.workshop_decision as WorkshopDecision | null}
@@ -487,6 +486,7 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                   plumeReplacementApproved={ticket.plume_replacement_approved}
                   plumeReplacementApprovedAt={ticket.plume_replacement_approved_at}
                   plumeReplacementRefusalReason={ticket.plume_replacement_refusal_reason}
+                  workshopDeepCheckAt={ticket.workshop_deep_check_at}
                   workshopShippingPreparedAt={ticket.workshop_shipping_prepared_at}
                   workshopReturnDestination={ticket.workshop_return_destination}
                   repairReplacementThresholdEur={plumeSettings.repairReplacementThresholdEur}
