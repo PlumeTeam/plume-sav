@@ -177,7 +177,7 @@ export interface Database {
           school_workshop_label_url:   string | null
           workshop_return_tracking:    string | null
           workshop_return_label_url:   string | null
-          workshop_return_destination: 'school' | 'client' | null
+          workshop_return_destination: 'school' | 'client' | 'plume' | null
           auto_approved_shipping:      boolean
           // Lazy-captured client shipping address (added with shipping migration)
           client_shipping_address:     Json | null
@@ -205,6 +205,13 @@ export interface Database {
           workshop_decision_warranty_status:  'under_warranty' | 'out_of_warranty' | null
           workshop_decision_warranty_covered: boolean | null
           workshop_decision_note:             string | null
+          // Workshop workflow revamp (migration 20260516120000)
+          workshop_repair_estimated_date:     string | null
+          plume_replacement_approved:         boolean | null
+          plume_replacement_approved_at:      string | null
+          plume_replacement_decided_by:       string | null
+          plume_replacement_refusal_reason:   string | null
+          workshop_shipping_prepared_at:      string | null
           // Ticket closure (migration 20260512200000 — T7)
           closed_by:        string | null
           closed_at:        string | null
@@ -299,7 +306,7 @@ export interface Database {
           school_workshop_label_url?:   string | null
           workshop_return_tracking?:    string | null
           workshop_return_label_url?:   string | null
-          workshop_return_destination?: 'school' | 'client' | null
+          workshop_return_destination?: 'school' | 'client' | 'plume' | null
           auto_approved_shipping?:      boolean
           client_shipping_address?:     Json | null
           shipping_approved?:           boolean | null
@@ -321,6 +328,12 @@ export interface Database {
           workshop_decision_warranty_status?:  'under_warranty' | 'out_of_warranty' | null
           workshop_decision_warranty_covered?: boolean | null
           workshop_decision_note?:             string | null
+          workshop_repair_estimated_date?:     string | null
+          plume_replacement_approved?:         boolean | null
+          plume_replacement_approved_at?:      string | null
+          plume_replacement_decided_by?:       string | null
+          plume_replacement_refusal_reason?:   string | null
+          workshop_shipping_prepared_at?:      string | null
           closed_by?:        string | null
           closed_at?:        string | null
           closed_by_role?:   'school' | 'workshop' | 'plume_admin' | null
@@ -410,7 +423,7 @@ export interface Database {
           school_workshop_label_url?:   string | null
           workshop_return_tracking?:    string | null
           workshop_return_label_url?:   string | null
-          workshop_return_destination?: 'school' | 'client' | null
+          workshop_return_destination?: 'school' | 'client' | 'plume' | null
           auto_approved_shipping?:      boolean
           client_shipping_address?:     Json | null
           shipping_approved?:           boolean | null
@@ -432,6 +445,12 @@ export interface Database {
           workshop_decision_warranty_status?:  'under_warranty' | 'out_of_warranty' | null
           workshop_decision_warranty_covered?: boolean | null
           workshop_decision_note?:             string | null
+          workshop_repair_estimated_date?:     string | null
+          plume_replacement_approved?:         boolean | null
+          plume_replacement_approved_at?:      string | null
+          plume_replacement_decided_by?:       string | null
+          plume_replacement_refusal_reason?:   string | null
+          workshop_shipping_prepared_at?:      string | null
           closed_by?:        string | null
           closed_at?:        string | null
           closed_by_role?:   'school' | 'workshop' | 'plume_admin' | null

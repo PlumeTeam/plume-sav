@@ -30,18 +30,25 @@ interface WorkshopDecisionStepProps {
   /** True quand le ticket est dans la fenêtre de décision (workshop_diagnosing
    *  + statuts ultérieurs). Sinon l'étape reste verrouillée. */
   isReachable:    boolean
+  /** Date de fin de réparation estimée (branche 'repair'). */
+  repairEstimatedDate:           string | null
+  /** Validation Plume HQ du remplacement (branche 'replacement') :
+   *  null = en attente, true = validé, false = refusé. */
+  plumeReplacementApproved:      boolean | null
+  /** Motif de refus Plume HQ — affiché en bandeau pour inviter à réviser. */
+  plumeReplacementRefusalReason: string | null
 }
 
 const DECISION_LABEL: Record<WorkshopDecision, string> = {
-  no_issue:    'Pas de problème détecté',
-  repair:      'Réparation',
-  replacement: 'Remplacement de l\'aile',
+  no_issue:    'RAS — pas de problème',
+  repair:      'Réparation possible',
+  replacement: 'Aile irréparable',
 }
 
 const DECISION_EMOJI: Record<WorkshopDecision, string> = {
   no_issue:    '✅',
   repair:      '🔧',
-  replacement: '🆕',
+  replacement: '🛑',
 }
 
 function formatEur(n: number): string {
@@ -50,6 +57,13 @@ function formatEur(n: number): string {
     currency: 'EUR',
     maximumFractionDigits: 0,
   }).format(n)
+}
+
+function formatDay(iso: string | null): string {
+  if (!iso) return '—'
+  // iso est une date pure 'YYYY-MM-DD' — on évite le décalage de fuseau.
+  const [y, m, d] = iso.split('-')
+  return y && m && d ? `${d}/${m}/${y}` : iso
 }
 
 export function WorkshopDecisionStep({
@@ -64,6 +78,9 @@ export function WorkshopDecisionStep({
   extendedCoversReplacement,
   warrantyTier,
   isReachable,
+  repairEstimatedDate,
+  plumeReplacementApproved,
+  plumeReplacementRefusalReason,
 }: WorkshopDecisionStepProps) {
   const [modalOpen, setModalOpen] = useState(false)
 
@@ -133,12 +150,22 @@ export function WorkshopDecisionStep({
                   {decision === 'repair' && estimatedCost != null && (
                     <span className="text-slate-500"> — {formatEur(estimatedCost)}</span>
                   )}
+                  {decision === 'repair' && repairEstimatedDate && (
+                    <span className="text-slate-500"> · fin estimée le {formatDay(repairEstimatedDate)}</span>
+                  )}
                 </p>
                 {note && (
                   <p className="italic text-slate-500">« {note} »</p>
                 )}
                 {decisionAt && (
                   <p className="text-emerald-700">✓ Validé le {formatDateTime(decisionAt)}</p>
+                )}
+                {decision === 'replacement' && plumeReplacementApproved === false && (
+                  <p className="mt-1 rounded-lg bg-red-50 px-2 py-1.5 text-red-800 ring-1 ring-red-200">
+                    🛑 Plume HQ a refusé le remplacement
+                    {plumeReplacementRefusalReason ? ` : ${plumeReplacementRefusalReason}` : '.'}
+                    {' '}Cliquez sur « Réviser » pour reprendre la décision.
+                  </p>
                 )}
               </div>
             )}
@@ -183,6 +210,7 @@ export function WorkshopDecisionStep({
           extendedCoversReplacement={extendedCoversReplacement}
           initialDecision={decision}
           initialCost={estimatedCost}
+          initialRepairDate={repairEstimatedDate}
           initialNote={note}
           onClose={() => setModalOpen(false)}
         />
@@ -203,6 +231,7 @@ interface ModalProps {
   extendedCoversReplacement: boolean
   initialDecision:           WorkshopDecision | null
   initialCost:               number | null
+  initialRepairDate:         string | null
   initialNote:               string | null
   onClose:                   () => void
 }
@@ -214,11 +243,13 @@ function WorkshopDecisionModal({
   extendedCoversReplacement,
   initialDecision,
   initialCost,
+  initialRepairDate,
   initialNote,
   onClose,
 }: ModalProps) {
   const [choice, setChoice] = useState<WorkshopDecision | null>(initialDecision)
   const [costInput, setCostInput] = useState(initialCost != null ? String(initialCost) : '')
+  const [repairDate, setRepairDate] = useState(initialRepairDate ?? '')
   const [note, setNote] = useState(initialNote ?? '')
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -261,6 +292,10 @@ function WorkshopDecisionModal({
       setError('Saisissez le coût estimé HT de la réparation.')
       return
     }
+    if (choice === 'repair' && !repairDate) {
+      setError('Indiquez la date de fin de réparation estimée.')
+      return
+    }
     // Plus de check de plafond ici — c'est une recommandation, pas un blocage.
     // Le replacement reste bloqué quand non couvert par Plume sur garantie
     // étendue : c'est une règle métier (pas de prise en charge) et non une
@@ -276,6 +311,9 @@ function WorkshopDecisionModal({
       fd.set('decision', choice)
       if (choice === 'repair' && parsedCost != null) {
         fd.set('estimatedCost', String(parsedCost))
+      }
+      if (choice === 'repair' && repairDate) {
+        fd.set('estimatedRepairDate', repairDate)
       }
       if (note.trim()) fd.set('note', note.trim())
 
@@ -387,6 +425,21 @@ function WorkshopDecisionModal({
                     autoFocus
                   />
                 </div>
+                <div>
+                  <label htmlFor="decision-repair-date" className="block text-xs font-medium text-slate-600">
+                    Date de fin de réparation estimée
+                  </label>
+                  <input
+                    id="decision-repair-date"
+                    type="date"
+                    value={repairDate}
+                    onChange={(e) => setRepairDate(e.target.value)}
+                    className="field-input mt-1"
+                  />
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Affichée au client et à l&apos;école pendant la réparation.
+                  </p>
+                </div>
                 {!isOutOfWarranty && costWithinBudget && (
                   <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800 ring-1 ring-emerald-200">
                     ✅ Devis dans le budget — réparation dans les conditions Plume.
@@ -418,14 +471,12 @@ function WorkshopDecisionModal({
             value="replacement"
             checked={choice === 'replacement'}
             onSelect={() => { if (!replacementBlocked) setChoice('replacement') }}
-            emoji="🆕"
-            title="Remplacement de l'aile"
+            emoji="🛑"
+            title="Aile irréparable"
             subtitle={
               replacementBlocked
                 ? 'Non couvert par Plume en garantie étendue — coordonnez avec Plume HQ pour un override.'
-                : isOutOfWarranty
-                  ? "Hors garantie : le client doit financer le remplacement. Plume HQ pilote la mise à disposition."
-                  : "Coût > seuil, réparation impossible, ou aile irrécupérable. Plume HQ pilote la suite."
+                : "L'aile doit partir chez Plume HQ (remplacement si sous garantie). Plume HQ valide d'abord le remplacement."
             }
             disabled={replacementBlocked}
           />

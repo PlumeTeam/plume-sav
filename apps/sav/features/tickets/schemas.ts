@@ -393,8 +393,9 @@ export const repairDecisionSchema = z.object({
 })
 
 // Décision atelier 3-options (étape "Prise de décision" du WorkshopStepPanel).
-// Cost requis uniquement pour 'repair' ; 'no_issue' et 'replacement' acceptent
-// une note libre optionnelle. Le check coût ≤ seuil reste côté serveur.
+// Cost + date estimée requis uniquement pour 'repair' ; 'no_issue' et
+// 'replacement' acceptent une note libre optionnelle. Le check coût ≤ seuil
+// reste côté serveur.
 export const workshopDecisionSchema = z.object({
   ticketId: z.string().uuid(),
   decision: z.enum(['no_issue', 'repair', 'replacement']),
@@ -405,6 +406,11 @@ export const workshopDecisionSchema = z.object({
       .max(100000, 'Coût trop élevé')
       .optional(),
   ),
+  // Date de fin de réparation estimée (branche 'repair') — format ISO YYYY-MM-DD.
+  estimatedRepairDate: z.preprocess(
+    (v) => (v === '' || v == null ? undefined : v),
+    z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide').optional(),
+  ),
   note: z.string().trim().max(2000).optional(),
 }).superRefine((data, ctx) => {
   if (data.decision === 'repair' && data.estimatedCost == null) {
@@ -414,6 +420,36 @@ export const workshopDecisionSchema = z.object({
       message: 'Coût estimé requis pour une réparation',
     })
   }
+  if (data.decision === 'repair' && data.estimatedRepairDate == null) {
+    ctx.addIssue({
+      code:    z.ZodIssueCode.custom,
+      path:    ['estimatedRepairDate'],
+      message: 'Date de fin de réparation estimée requise',
+    })
+  }
+})
+
+// Étape « Créer le ticket d'envoi » — l'atelier prépare l'expédition retour
+// et fige le destinataire (école / client, ou Plume HQ si aile irréparable).
+export const prepareReturnShippingSchema = z.object({
+  ticketId:  z.string().uuid(),
+  recipient: z.enum(['school', 'client', 'plume']),
+})
+
+// Retour en arrière sur une étape post-décision pilotée par flag.
+export const revertWorkshopStepSchema = z.object({
+  ticketId: z.string().uuid(),
+  step: z.enum(['decision', 'plume_validation', 'repair_done', 'shipping_prepared', 'wing_sent']),
+})
+
+// Plume HQ : validation / refus du remplacement d'une aile irréparable.
+export const approveReplacementSchema = z.object({
+  ticketId: z.string().uuid(),
+})
+
+export const refuseReplacementSchema = z.object({
+  ticketId: z.string().uuid(),
+  reason:   z.string().trim().min(10, 'Expliquez la raison du refus (10 caractères min.)').max(2000),
 })
 
 export const diagnosisSchema = z.object({

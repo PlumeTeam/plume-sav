@@ -6,6 +6,7 @@ import type { TicketWithContacts } from '@/features/tickets/contacts'
 import { AdminTicketTable } from './AdminTicketTable'
 import { AdminAlerts, type AdminAlertGroup } from './AdminAlerts'
 import { PlumeShippingApprovalCard } from './PlumeShippingApprovalCard'
+import { PlumeReplacementApprovalCard } from './PlumeReplacementApprovalCard'
 import { WarrantyMaxHoursForm } from './WarrantyMaxHoursForm'
 
 export const dynamic = 'force-dynamic'
@@ -239,6 +240,17 @@ export default async function PlumeDashboardPage() {
       !t.client_school_label_url
   )
 
+  // Validations de remplacement en attente Plume HQ — tickets dont l'atelier
+  // a conclu « aile irréparable » (workshop_decision='replacement') et qui
+  // n'ont pas encore reçu de décision Plume (plume_replacement_approved=NULL).
+  const pendingReplacements = tickets.filter(
+    (t) =>
+      t.workshop_decision === 'replacement' &&
+      (t.plume_replacement_approved === null || t.plume_replacement_approved === undefined) &&
+      t.status !== 'completed' &&
+      t.status !== 'cancelled',
+  )
+
   // Alertes SLA (T8) — 3 catégories : sans activité > 3 j, attente école > 24 h,
   // attente atelier > 48 h. Calcul côté serveur, ouverture/fermeture côté client.
   const alertGroups = buildAlertGroups(tickets)
@@ -427,6 +439,72 @@ export default async function PlumeDashboardPage() {
                       </div>
                       <div className="mt-3">
                         <PlumeShippingApprovalCard ticketId={t.id} />
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Remplacements d'ailes irréparables à valider */}
+      {pendingReplacements.length > 0 && (
+        <section
+          id="pending-replacements"
+          className="rounded-3xl border-2 border-amber-300 bg-amber-50 p-5"
+        >
+          <div className="flex items-start gap-3">
+            <span aria-hidden className="text-2xl">🦅</span>
+            <div className="flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-amber-800">
+                Action Plume HQ requise
+              </p>
+              <h2 className="mt-0.5 font-display text-lg font-bold text-brand-ink">
+                {pendingReplacements.length} remplacement{pendingReplacements.length > 1 ? 's' : ''} d&apos;aile à valider
+              </h2>
+              <p className="mt-1 text-xs text-brand-ink/70">
+                L&apos;atelier a jugé ces ailes irréparables. Validez le remplacement
+                pour qu&apos;il puisse renvoyer l&apos;aile vers Plume HQ, ou refusez
+                pour qu&apos;il reprenne sa décision.
+              </p>
+              <ul className="mt-3 space-y-2">
+                {pendingReplacements.map((t) => {
+                  const ref = t.ticket_number ?? `#${t.id.slice(0, 8).toUpperCase()}`
+                  const fallbackName = [t.first_name, t.last_name].filter(Boolean).join(' ').trim()
+                  const clientName = t.contacts.client.name ?? (fallbackName.length > 0 ? fallbackName : 'Client')
+                  const wing = [t.product_brand, t.product_model].filter(Boolean).join(' ') || 'Aile'
+                  return (
+                    <li key={t.id} className="rounded-2xl border border-amber-200 bg-white p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium text-brand-ink">
+                            <span className="font-mono text-xs text-slate-500">{ref}</span>
+                            {' — '}
+                            <span>{clientName}</span>
+                            <span className="text-slate-500"> · {wing}</span>
+                          </p>
+                          {t.assigned_workshop_label && (
+                            <p className="mt-0.5 text-xs text-slate-500">
+                              Atelier : {t.assigned_workshop_label}
+                            </p>
+                          )}
+                          {t.workshop_decision_note && (
+                            <p className="mt-0.5 text-xs italic text-slate-500">
+                              « {t.workshop_decision_note} »
+                            </p>
+                          )}
+                        </div>
+                        <Link
+                          href={`/workshop/ticket/${t.id}`}
+                          className="shrink-0 rounded-full bg-brand-cream px-3 py-1 text-xs font-semibold text-brand-ink hover:bg-brand-stone/40"
+                        >
+                          Voir le ticket →
+                        </Link>
+                      </div>
+                      <div className="mt-3">
+                        <PlumeReplacementApprovalCard ticketId={t.id} />
                       </div>
                     </li>
                   )

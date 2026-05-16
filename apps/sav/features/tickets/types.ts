@@ -146,16 +146,29 @@ export type ShipmentLeg =
   | 'school_to_workshop'  // École → Atelier (escalade)
   | 'workshop_to_return'  // Atelier → École ou Client (renvoi)
 
-export type WorkshopReturnDestination = 'school' | 'client'
+// Destination du renvoi atelier :
+//  - 'school' / 'client' : renvoi normal après RAS ou réparation
+//  - 'plume'             : renvoi vers Plume HQ d'une aile jugée irréparable
+export type WorkshopReturnDestination = 'school' | 'client' | 'plume'
 
-// T6 — Décision atelier après pré-check
-//  - repair       : coût estimé ≤ seuil plume_settings → réparation
-//  - replacement  : coût estimé > seuil → aile neuve
-// T6+ — Décision atelier après pré-check / diagnostic :
-//  - 'no_issue'    : aucun défaut, l'aile repart telle quelle (skip réparation)
-//  - 'repair'      : coût ≤ seuil → réparation
-//  - 'replacement' : coût > seuil OU non réparable → remplacement aile neuve
+// Décision atelier après diagnostic — étape « Prise de décision » :
+//  - 'no_issue'    : aucun défaut → renvoi direct au client / à l'école
+//  - 'repair'      : réparation possible → date de fin estimée saisie
+//  - 'replacement' : aile irréparable → validation Plume HQ requise avant
+//                    renvoi de l'aile vers Plume (remplacement si sous garantie)
+//
+// Note : la valeur DB 'replacement' porte le concept « irréparable ». Le libellé
+// UI est « Aile irréparable » — on garde la valeur historique pour ne pas casser
+// le pipeline de décision existant.
 export type WorkshopDecision = 'no_issue' | 'repair' | 'replacement'
+
+// Étapes post-décision pilotées par flag (cf. revertWorkshopStepAction).
+export type WorkshopRevertStep =
+  | 'decision'          // annule la prise de décision (retour au diagnostic)
+  | 'plume_validation'  // annule la validation Plume HQ du remplacement
+  | 'repair_done'       // ré-ouvre la réparation (workshop_done → repairing)
+  | 'shipping_prepared' // annule la création du ticket d'envoi
+  | 'wing_sent'         // annule l'expédition de l'aile
 
 // Statut de garantie au moment de la décision atelier — figé à la prise
 // de décision pour traçabilité (purchase_date pouvant être corrigé plus tard).

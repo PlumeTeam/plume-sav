@@ -75,9 +75,14 @@ const FIELDS_BY_STATUS_ENTRY: Array<{ status: RequestStatus; fields: (keyof Tick
       'workshop_decision_warranty_covered',
       'workshop_decision_note',
       'workshop_estimated_repair_cost',
+      'workshop_repair_estimated_date',
+      'plume_replacement_approved',
+      'plume_replacement_approved_at',
+      'plume_replacement_decided_by',
+      'plume_replacement_refusal_reason',
   ] },
   { status: 'workshop_done',   fields: ['workshop_repair_done_at'] },
-  { status: 'wing_returned',   fields: ['wing_returned_at', 'workshop_return_destination'] },
+  { status: 'wing_returned',   fields: ['wing_returned_at', 'workshop_return_destination', 'workshop_shipping_prepared_at'] },
 ]
 
 function clearForwardFields(target: RequestStatus): TicketUpdate {

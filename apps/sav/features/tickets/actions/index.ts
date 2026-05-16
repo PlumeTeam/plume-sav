@@ -42,6 +42,12 @@ export {
 export { generateSavShippingLabelAction } from './shipping'
 export { revertToStepAction } from './revert'
 export {
+  approveReplacementAction,
+  prepareReturnShippingAction,
+  refuseReplacementAction,
+  revertWorkshopStepAction,
+} from './workshop-return'
+export {
   adminApproveClientShippingAction,
   adminCloseTicketAction,
   adminReassignSchoolAction,

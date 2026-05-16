@@ -30,6 +30,35 @@ Chaque entrée doit suivre ce gabarit pour rester scannable. Date au format `YYY
 
 ---
 
+## 2026-05-16 — Refonte du workflow des étapes atelier (3 branches + retour arrière)
+
+**Intent** : JB trouvait le workflow atelier post-diagnostic trop rigide. Il voulait une prise de décision à 3 options (irréparable / réparation / RAS), une validation Plume HQ pour les ailes irréparables, une étape « créer le ticket d'envoi », et un bouton « Modifier » sur chaque étape validée.
+**Status** : ✅ livré (code) — 🟡 migration SQL à appliquer en prod
+
+### Ce qui a été fait
+- **Migration** `supabase/migrations/20260516120000_sav_workshop_workflow_revamp.sql` : colonnes `workshop_repair_estimated_date`, `plume_replacement_approved` (+ `_approved_at`, `_decided_by`, `_refusal_reason`), `workshop_shipping_prepared_at` ; CHECK `workshop_return_destination` élargi à `'plume'`.
+- **Décision atelier** (`submitWorkshopDecisionAction`) : capture une date de fin estimée pour `repair` ; `no_issue` ne saute plus vers `wing_returned` (étapes suivantes pilotées par flag) ; (re)soumettre une décision ré-ouvre tout l'aval.
+- **Nouveau fichier** `actions/workshop-return.ts` : `prepareReturnShippingAction` (créer ticket d'envoi), `revertWorkshopStepAction` (retour arrière unifié sur 5 étapes), `approveReplacementAction` / `refuseReplacementAction` (validation Plume HQ).
+- **`markWingReturnedAction`** : ne demande plus le destinataire (figé à l'étape « ticket d'envoi ») ; exige `workshop_shipping_prepared_at`.
+- **UI** : `WorkshopReturnSteps.tsx` (nouveau) rend le sous-pipeline 3 branches ; `WorkshopStepPanel.tsx` réécrit/allégé ; modal décision avec champ date + libellé « Aile irréparable ».
+- **Dashboard Plume** : section « Remplacements à valider » + `PlumeReplacementApprovalCard.tsx` (pattern de `PlumeShippingApprovalCard`).
+
+### Décisions techniques
+- **Étapes post-décision pilotées par flags** (timestamps/booléens), pas par de nouveaux statuts : permet le retour arrière granulaire sans toucher au pipeline de statuts. `no_issue`/`replacement` restent à `workshop_diagnosing` jusqu'à l'expédition.
+- **Valeur DB `replacement` conservée** = concept « irréparable » (libellé UI uniquement) — éviter de casser le legacy `submitRepairDecisionAction`.
+- **Types DB édités à la main** (`packages/db/src/types.ts`) faute d'accès MCP Supabase pour `db:gen-types`.
+
+### Ce qui reste à faire
+- **Appliquer la migration** `20260516120000` en prod (MCP `apply_migration` ou `supabase db push`) — sans elle les nouvelles Server Actions échouent (colonnes absentes).
+- Régénérer les types via `pnpm db:gen-types` après application (vérifier la cohérence avec l'édition manuelle).
+- La section GLS « Bon de transport retour » reste gated sur `workshop_done` : non câblée aux branches `no_issue`/`irreparable` (hors scope).
+
+### Pièges rencontrés
+- Le worktree était sans `node_modules` ni `.env.local` → `pnpm install` + copie du `.env.local` requis pour build.
+- Fichier `lifecycle.ts` en mojibake (commentaires) → édition de `markWingReturnedAction` faite via script Python sur ancres ASCII.
+
+---
+
 ## 2026-05-15 — Section dépliable « Détails complets » dans la fiche déclaration
 
 **Intent** : JB trouvait la fiche déclaration partagée (4 dashboards) « beaucoup trop simplifiée » — il voulait un bouton pour voir **toutes** les infos saisies par le pilote, pas juste celles déjà rendues en cartes.

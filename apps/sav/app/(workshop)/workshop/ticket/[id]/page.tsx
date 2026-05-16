@@ -483,6 +483,12 @@ export default async function WorkshopTicketDetailPage({ params }: PageProps) {
                   }
                   workshopDecisionWarrantyStatus={ticket.workshop_decision_warranty_status as WarrantyStatus | null}
                   workshopDecisionNote={ticket.workshop_decision_note}
+                  workshopRepairEstimatedDate={ticket.workshop_repair_estimated_date}
+                  plumeReplacementApproved={ticket.plume_replacement_approved}
+                  plumeReplacementApprovedAt={ticket.plume_replacement_approved_at}
+                  plumeReplacementRefusalReason={ticket.plume_replacement_refusal_reason}
+                  workshopShippingPreparedAt={ticket.workshop_shipping_prepared_at}
+                  workshopReturnDestination={ticket.workshop_return_destination}
                   repairReplacementThresholdEur={plumeSettings.repairReplacementThresholdEur}
                   repairThresholdExtendedEur={plumeSettings.repairThresholdExtendedEur}
                   extendedCoversReplacement={plumeSettings.extendedCoversReplacement}

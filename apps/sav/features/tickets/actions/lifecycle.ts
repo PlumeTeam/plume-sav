@@ -17,6 +17,7 @@ import type {
   TicketStatus,
   TicketUpdate,
   WizardProblemCategory,
+  WorkshopReturnDestination,
 } from '../types'
 import { CLOSURE_OUTCOME_LABELS } from '../types'
 import { closeTicketSchema } from '../schemas'
@@ -45,18 +46,31 @@ export async function acknowledgeTicketAction(formData: FormData) {
 export async function markWingReturnedAction(formData: FormData) {
   const ticketId = String(formData.get('ticketId') ?? '')
   if (!ticketId) return { error: { _form: ['Identifiant manquant'] } }
-  const recipient = String(formData.get('recipient') ?? '')
-  // recipient est requis et doit Ãªtre 'school' ou 'client' â€” refuse explicitement
-  // les valeurs forgÃ©es (anti-injection) plutÃ´t que de fallback silencieusement.
-  if (recipient !== 'school' && recipient !== 'client') {
-    return { error: { _form: ['Destination invalide â€” choisissez Ã©cole ou client'] } }
+
+  const supabase = await createClient()
+  const { data: ticket, error: fetchError } = await supabase
+    .from('service_requests')
+    .select('workshop_shipping_prepared_at, workshop_return_destination')
+    .eq('id', ticketId)
+    .single()
+    .returns<{
+      workshop_shipping_prepared_at: string | null
+      workshop_return_destination:   WorkshopReturnDestination | null
+    }>()
+  if (fetchError || !ticket) return { error: { _form: ['Ticket introuvable'] } }
+  if (!ticket.workshop_shipping_prepared_at) {
+    return { error: { _form: ["Créez d'abord le ticket d'envoi avant d'expédier l'aile."] } }
   }
-  const note = recipient === 'school'
-    ? "Aile renvoyÃ©e Ã  l'Ã©cole partenaire"
-    : 'Aile renvoyÃ©e directement au client'
+
+  const dest = ticket.workshop_return_destination
+  const note =
+    dest === 'plume'  ? 'Aile irréparable renvoyée à Plume HQ' :
+    dest === 'school' ? "Aile renvoyée à l'école partenaire" :
+                        'Aile renvoyée directement au client'
+
   return advanceTicketStep({
     ticketId,
-    from:            ['workshop_done'],
+    from:            ['workshop_done', 'workshop_diagnosing'],
     to:              'wing_returned',
     timestampColumn: 'wing_returned_at',
     emailStep:       'wing_returned',

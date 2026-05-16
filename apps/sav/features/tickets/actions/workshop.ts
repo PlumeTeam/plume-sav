@@ -448,10 +448,11 @@ export async function submitRepairDecisionAction(formData: FormData) {
 // on refuse et on demande à l'atelier de choisir 'replacement'.
 export async function submitWorkshopDecisionAction(formData: FormData) {
   const parsed = workshopDecisionSchema.safeParse({
-    ticketId:      formData.get('ticketId'),
-    decision:      formData.get('decision'),
-    estimatedCost: formData.get('estimatedCost') ?? undefined,
-    note:          formData.get('note') ?? undefined,
+    ticketId:            formData.get('ticketId'),
+    decision:            formData.get('decision'),
+    estimatedCost:       formData.get('estimatedCost') ?? undefined,
+    estimatedRepairDate: formData.get('estimatedRepairDate') ?? undefined,
+    note:                formData.get('note') ?? undefined,
   })
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors }
 
@@ -464,7 +465,7 @@ export async function submitWorkshopDecisionAction(formData: FormData) {
     return { error: { _form: ["Réservé à l'atelier ou Plume HQ"] } }
   }
 
-  const { ticketId, decision, estimatedCost, note } = parsed.data
+  const { ticketId, decision, estimatedCost, estimatedRepairDate, note } = parsed.data
 
   // La prise de décision n'a de sens qu'après réception de l'aile et
   // démarrage du diagnostic atelier. On reste tolérant sur les étapes
@@ -550,14 +551,13 @@ export async function submitWorkshopDecisionAction(formData: FormData) {
 
   const nowIso = new Date().toISOString()
 
-  // Mapping décision → statut suivant.
-  // 'no_issue'    → wing_returned (skip réparation / done)
-  // 'repair'      → workshop_repairing (le bouton step 4 prend le relai après)
-  // 'replacement' → on conserve le statut courant (Plume HQ pilote la suite)
-  const nextStatus: RequestStatus | null =
-    decision === 'no_issue' ? 'wing_returned' :
-    decision === 'repair'   ? 'workshop_repairing' :
-    null
+  // Mapping décision → statut. La décision normalise le pipeline :
+  //  - 'repair'                 → workshop_repairing (la réparation démarre)
+  //  - 'no_issue' / 'replacement' → workshop_diagnosing (les étapes suivantes
+  //    sont pilotées par flag — validation Plume, ticket d'envoi, expédition —
+  //    et non par le statut).
+  const nextStatus: RequestStatus =
+    decision === 'repair' ? 'workshop_repairing' : 'workshop_diagnosing'
 
   const updatePayload: TicketUpdate = {
     workshop_decision:                  decision,
@@ -566,13 +566,21 @@ export async function submitWorkshopDecisionAction(formData: FormData) {
     workshop_decision_warranty_status:  warrantyStatus,
     workshop_decision_warranty_covered: warrantyCovered,
     workshop_decision_note:             note?.trim() ? note.trim() : null,
-    ...(decision === 'repair' && estimatedCost != null
-      ? { workshop_estimated_repair_cost: estimatedCost, estimated_cost: estimatedCost }
-      : {}),
-    ...(nextStatus ? { status: nextStatus } : {}),
-    // 'no_issue' saute repair/done — on pose wing_returned_at tout de suite
-    // pour que le badge final ait son timestamp.
-    ...(decision === 'no_issue' ? { wing_returned_at: nowIso } : {}),
+    status:                             nextStatus,
+    // Branche 'repair' : coût + date de fin estimée. Sinon on nettoie.
+    workshop_estimated_repair_cost: decision === 'repair' && estimatedCost != null ? estimatedCost : null,
+    workshop_repair_estimated_date: decision === 'repair' ? (estimatedRepairDate ?? null) : null,
+    ...(decision === 'repair' && estimatedCost != null ? { estimated_cost: estimatedCost } : {}),
+    // (Re)soumettre une décision ré-ouvre tout l'aval : chaque étape
+    // post-décision repart de zéro (cohérent avec le bouton « Modifier »).
+    workshop_repair_done_at:          null,
+    workshop_shipping_prepared_at:    null,
+    workshop_return_destination:      null,
+    wing_returned_at:                 null,
+    plume_replacement_approved:       null,
+    plume_replacement_approved_at:    null,
+    plume_replacement_decided_by:     null,
+    plume_replacement_refusal_reason: null,
   }
 
   const { error: updateError } = await supabase
@@ -589,8 +597,9 @@ export async function submitWorkshopDecisionAction(formData: FormData) {
   const seuilLabel = effectiveThreshold != null ? `, seuil ${effectiveThreshold} € HT` : ', hors garantie (devis libre)'
   const decisionLabel =
     decision === 'no_issue'    ? 'aucun défaut détecté' :
-    decision === 'repair'      ? `réparation (coût estimé ${estimatedCost} €${seuilLabel})` :
-                                 'remplacement'
+    decision === 'repair'      ? `réparation (coût estimé ${estimatedCost} €${seuilLabel}` +
+                                 `${estimatedRepairDate ? `, fin estimée le ${estimatedRepairDate}` : ''})` :
+                                 'aile irréparable (remplacement à valider par Plume HQ)'
   const auditNote = [
     `[T6] Décision atelier : ${decisionLabel}.`,
     ticketTier ? `Tier : ${ticketTier}.` : null,
