@@ -1,13 +1,13 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getTicketDetail, getPartnerSchoolById } from '@/features/tickets/queries'
+import { getTicketDetail, getPartnerSchoolById, getPartnerWorkshopById } from '@/features/tickets/queries'
 import { markTicketReadByClientAction } from '@/features/tickets/messages-actions'
 import { markTicketReadByPlumeAction } from '@/features/tickets/messages-actions-plume'
 import { markTicketNotificationsReadAction } from '@/features/notifications/actions'
-import { CommentThread } from '@/features/tickets/components/CommentThread'
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
+import { TicketChannelSwitch } from '@/features/tickets/components/TicketChannelSwitch'
+import { buildClientChannels } from '@/features/tickets/client-channels'
 import { filterMessagesForRole } from '@/features/tickets/channels'
-import { MessageForm } from '../../ticket/[id]/MessageForm'
 
 interface PageProps { params: { id: string } }
 
@@ -30,6 +30,12 @@ export default async function ClientConversationPage({ params }: PageProps) {
 
   const school = ticket.referent_school_id
     ? await getPartnerSchoolById(ticket.referent_school_id)
+    : null
+
+  // Atelier assigné — résolu pour nommer le canal « Atelier ». Tolérant :
+  // si partner_workshops est inaccessible, on retombe sur assigned_workshop_label.
+  const assignedWorkshop = ticket.assigned_workshop_id
+    ? await getPartnerWorkshopById(ticket.assigned_workshop_id).catch(() => null)
     : null
 
   // Channel-aware visibility — le client voit ses 3 canaux + legacy 'all'.
@@ -71,16 +77,16 @@ export default async function ClientConversationPage({ params }: PageProps) {
       </header>
 
       <main className="mx-auto max-w-2xl space-y-4 p-4 pb-12">
-        <CommentThread
+        <TicketChannelSwitch
+          ticketId={ticket.id}
           messages={messages}
+          channels={buildClientChannels(
+            ticket,
+            school?.name ?? null,
+            assignedWorkshop?.label ?? null,
+          )}
           ownRoles={['client']}
-          emptyText={`Aucun message pour l'instant. Écrivez ci-dessous pour démarrer la conversation — ${school?.name ?? 'votre école'} vous répondra ici.`}
         />
-        <div className="sticky bottom-2">
-          <div className="card p-3 shadow-soft">
-            <MessageForm ticketId={ticket.id} />
-          </div>
-        </div>
       </main>
     </div>
   )

@@ -7,7 +7,8 @@ import { markTicketNotificationsReadAction } from '@/features/notifications/acti
 import { StatusBadge } from '@/features/tickets/components/StatusBadge'
 import { ClientJourneyTimeline } from '@/features/tickets/components/ClientJourneyTimeline'
 import { ShippingLabelButton } from '@/features/tickets/components/ShippingLabelButton'
-import { TicketChannelSwitch, type TicketChannel } from '@/features/tickets/components/TicketChannelSwitch'
+import { TicketChannelSwitch } from '@/features/tickets/components/TicketChannelSwitch'
+import { buildClientChannels } from '@/features/tickets/client-channels'
 import { ClientDeclarationPanel } from '@/features/tickets/components/ClientDeclarationPanel'
 import { TicketHeaderInfo, ticketHeaderProps } from '@/features/tickets/components/TicketHeaderInfo'
 import { WingLocationCard } from '@/features/tickets/components/WingLocationCard'
@@ -198,92 +199,19 @@ export default async function TicketDetailPage({ params }: PageProps) {
     </>
   )
 
-  // Trois canaux côté client : école (legacy 'all' inclus), atelier (gated sur
-  // assigned_workshop_id) et groupe (école + atelier + Plume HQ). Le composant
-  // partagé TicketChannelSwitch gère onglets + composer + filtrage. Server-side
-  // l'écriture passe par addRoleMessageAction qui valide l'allowlist ROLE_CHANNELS.client.
-  const schoolName     = school?.name ?? 'votre école'
-  const workshopName   = assignedWorkshop?.label ?? ticket.assigned_workshop_label ?? null
-  const hasWorkshop    = !!ticket.assigned_workshop_id
-  const workshopLabel  = workshopName ?? "l'atelier"
-
-  const clientChannels: TicketChannel[] = [
-    {
-      id:               'school',
-      label:            'École',
-      emoji:            '🏫',
-      channel:          'school_client',
-      // Messages pré-migration 5-canaux (channel NULL, visibility_level='all').
-      legacyVisibility: 'all',
-      composer: {
-        senderRole:      'client',
-        visibilityLevel: 'all',
-        channel:         'school_client',
-        placeholder:     `Écrire à ${schoolName}…`,
-        submitLabel:     "Envoyer à l'école",
-        helperText:      `Privé — vous ↔ ${schoolName}`,
-      },
-      emptyText: `Aucun message pour l'instant. Écrivez ci-dessous pour démarrer la conversation — ${schoolName} vous répondra ici.`,
-    },
-    {
-      id:      'workshop',
-      label:   'Atelier',
-      emoji:   '🛠️',
-      channel: 'client_workshop',
-      banner: warrantyTier === 'out_of_warranty' ? (
-        <div className="rounded-2xl border border-brand-stone bg-brand-cream px-4 py-3">
-          <p className="text-sm font-semibold text-brand-ink">Hors garantie — devis & facture</p>
-          <p className="mt-1 text-xs leading-relaxed text-brand-ink/80">
-            L&apos;atelier peut vous transmettre un devis et une facture en pièce
-            jointe (photo du document) directement dans cette messagerie. Le
-            paiement se fait directement entre vous et l&apos;atelier.
-          </p>
-        </div>
-      ) : null,
-      composer: hasWorkshop
-        ? {
-            senderRole:      'client',
-            visibilityLevel: 'all',
-            channel:         'client_workshop',
-            placeholder:     `Écrire à ${workshopLabel}…`,
-            submitLabel:     "Envoyer à l'atelier",
-            helperText:      `Privé — vous ↔ ${workshopLabel}`,
-          }
-        : {
-            senderRole:      'client',
-            visibilityLevel: 'all',
-            channel:         'client_workshop',
-            placeholder:     '',
-            submitLabel:     '',
-            helperText:      '',
-            disabledReason:  `Ce canal sera actif dès que ${schoolName} aura assigné un atelier à votre demande.`,
-          },
-      emptyText: hasWorkshop
-        ? `Démarrez la conversation avec ${workshopLabel} ci-dessous.`
-        : "Pas encore d'atelier assigné — ce canal sera disponible bientôt.",
-    },
-    {
-      id:      'group',
-      label:   'Groupe',
-      emoji:   '👥',
-      channel: 'group',
-      composer: {
-        senderRole:      'client',
-        visibilityLevel: 'all',
-        channel:         'group',
-        placeholder:     'Message pour le groupe (école + atelier)…',
-        submitLabel:     'Envoyer au groupe',
-        helperText:      "Visible par l'école, l'atelier et Plume",
-      },
-      emptyText: 'Aucun message dans la discussion de groupe pour le moment.',
-    },
-  ]
-
+  // Trois canaux côté client (École / Atelier / Groupe) — logique partagée
+  // avec la page conversation /client/messages/[id] via buildClientChannels.
+  // TicketChannelSwitch gère onglets + composer + filtrage ; l'écriture passe
+  // server-side par addRoleMessageAction (allowlist ROLE_CHANNELS.client).
   const messagesNode = (
     <TicketChannelSwitch
       ticketId={ticket.id}
       messages={publicMessages}
-      channels={clientChannels}
+      channels={buildClientChannels(
+        ticket,
+        school?.name ?? null,
+        assignedWorkshop?.label ?? null,
+      )}
       ownRoles={['client']}
     />
   )
