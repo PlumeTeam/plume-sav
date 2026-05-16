@@ -666,7 +666,7 @@ export async function getTicketsForWingSerial(serial: string): Promise<TicketWit
   const { data, error } = await supabase
     .from('service_requests')
     .select('*')
-    .or(`serial_number.eq.${serial},wing_serial_number.eq.${serial}`)
+    .eq('serial_number', serial)
     .order('created_at', { ascending: false })
 
   if (error) {
