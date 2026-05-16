@@ -48,3 +48,6 @@ supabase/.temp/
 
 .vercel
 .gitnexus
+
+# Claude worktrees (local only)
+.claude/worktrees/
