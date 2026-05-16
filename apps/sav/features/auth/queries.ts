@@ -218,3 +218,16 @@ export async function getCurrentUserWorkshop(): Promise<CurrentWorkshop | null> 
 
   return null
 }
+
+/**
+ * Renvoie l'`id` partner_workshops réel de l'atelier courant, ou `null` si on
+ * ne peut pas le résoudre à une vraie row (compte non lié, ou résolu via
+ * synthèse `auth-…` faute de linkage). Sert au scoping « la conversation suit
+ * l'aile » : tant que l'id est null, aucun filtrage par atelier n'est appliqué
+ * — pas de régression pour les comptes atelier non rattachés à partner_workshops.
+ */
+export async function getCurrentUserWorkshopId(): Promise<string | null> {
+  const ws = await getCurrentUserWorkshop()
+  if (!ws || ws.id.startsWith('auth-') || ws.id === '') return null
+  return ws.id
+}

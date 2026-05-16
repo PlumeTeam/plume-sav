@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { getCurrentUserRoles } from '@/features/auth/queries'
+import { getCurrentUserRoles, getCurrentUserWorkshopId } from '@/features/auth/queries'
 import type { RequestStatus, TicketUpdate } from '../types'
 import {
   acceptWorkshopAssignmentSchema,
@@ -53,6 +53,20 @@ async function applyWorkshopAcceptanceDecision(params: {
       error: {
         _form: ["Cette demande n'est pas en attente de validation atelier."],
       },
+    }
+  }
+
+  // Un atelier ne valide que SES demandes. plume_admin n'est pas scopé (rôle
+  // transverse). Atelier non rattaché à partner_workshops → pas de scoping
+  // possible, on laisse passer (la RLS reste la dernière barrière).
+  if (!roles.includes('plume_admin')) {
+    const myWorkshopId = await getCurrentUserWorkshopId()
+    if (
+      myWorkshopId &&
+      ticket.assigned_workshop_id &&
+      ticket.assigned_workshop_id !== myWorkshopId
+    ) {
+      return { error: { _form: ['Cette demande est assignée à un autre atelier.'] } }
     }
   }
 

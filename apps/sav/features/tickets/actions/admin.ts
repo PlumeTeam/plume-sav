@@ -54,6 +54,17 @@ export async function assignWorkshopForCommunicationAction(formData: FormData) {
 
   const now = new Date().toISOString()
 
+  // État atelier AVANT la réassignation — pour détecter un vrai changement et
+  // poster la trace « Atelier changé » dans le canal groupe.
+  const { data: prev } = await supabase
+    .from('service_requests')
+    .select('assigned_workshop_id, assigned_workshop_label')
+    .eq('id', ticketId)
+    .maybeSingle()
+    .returns<{ assigned_workshop_id: string | null; assigned_workshop_label: string | null }>()
+  const previousWorkshopId    = prev?.assigned_workshop_id ?? null
+  const previousWorkshopLabel = prev?.assigned_workshop_label ?? null
+
   // Changer d'atelier remet la validation atelier à zéro : le nouvel atelier
   // doit re-confirmer qu'il accepte la demande (workshop_accepted → NULL).
   const baseUpdate: TicketUpdate = {
@@ -90,6 +101,27 @@ export async function assignWorkshopForCommunicationAction(formData: FormData) {
   }
 
   if (error) return { error: { _form: [`Erreur lors de l'assignation (${error.message})`] } }
+
+  // Messagerie dynamique — « la conversation suit l'aile ». Quand l'école
+  // change réellement d'atelier (un atelier différent était déjà assigné), on
+  // poste une trace dans le canal groupe. Le nouvel atelier hérite de tout
+  // l'historique ; l'ancien perd l'accès via le scoping assigned_workshop_id.
+  // Best-effort : un échec d'insertion ne casse jamais la réassignation.
+  if (previousWorkshopId && previousWorkshopId !== workshopId) {
+    const oldLabel = previousWorkshopLabel ?? "l'atelier précédent"
+    const { error: msgError } = await supabase.from('ticket_messages').insert({
+      ticket_id:        ticketId,
+      sender_id:        user.id,
+      sender_role:      'school',
+      content:          `🔄 Atelier changé : ${oldLabel} → ${workshopLabel}`,
+      is_internal:      false,
+      visibility_level: 'all',
+      channel:          'group',
+    })
+    if (msgError) {
+      console.error('assignWorkshopForCommunicationAction: message insert failed —', msgError.message)
+    }
+  }
 
   revalidatePath(`/school/ticket/${ticketId}`)
   revalidatePath(`/workshop/ticket/${ticketId}`)

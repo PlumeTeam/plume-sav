@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getCurrentUserWorkshopId } from '@/features/auth/queries'
 import type { TicketWithPhotos, TicketDetail, TicketStatus, RequestStatus } from './types'
 import { attachUnreadCounts, type TicketWithUnread } from './messages-unread'
 import { attachContactsToList, type TicketWithContacts } from './contacts'
@@ -783,7 +784,23 @@ export async function getWorkshopTickets(): Promise<TicketWithContacts[]> {
     console.error('getWorkshopTickets error:', error.message)
     return []
   }
-  const withPhotos = await attachPhotosToList(supabase, (data ?? []) as Array<Record<string, unknown>>)
+
+  // « La conversation suit l'aile » : un ticket avec un atelier assigné n'est
+  // visible que par cet atelier. Quand l'école réassigne (assigned_workshop_id
+  // change), l'ancien atelier perd le ticket de sa liste, le nouveau le voit.
+  // Les tickets sans atelier assigné (legacy / non escaladé) restent visibles —
+  // et si l'atelier courant n'est pas résolu, on ne filtre rien (pas de régression).
+  const myWorkshopId = await getCurrentUserWorkshopId()
+  let rows = (data ?? []) as Array<Record<string, unknown>>
+  if (myWorkshopId) {
+    rows = rows.filter((t) => {
+      const awid = t.assigned_workshop_id
+      if (awid == null || awid === '') return true
+      return awid === myWorkshopId
+    })
+  }
+
+  const withPhotos = await attachPhotosToList(supabase, rows)
   return attachContactsToList(supabase, withPhotos)
 }
 
@@ -802,6 +819,19 @@ export async function getWorkshopTicketDetail(ticketId: string): Promise<TicketD
     console.error('getWorkshopTicketDetail error:', error?.message ?? 'no data')
     return null
   }
+
+  // Scoping « la conversation suit l'aile » : si le ticket est assigné à un
+  // autre atelier que l'atelier courant, on refuse l'accès (le caller fait un
+  // notFound()). Idem côté conversation — l'ancien atelier perd l'accès dès la
+  // réassignation. Atelier non résolu → pas de filtrage (pas de régression).
+  const myWorkshopId = await getCurrentUserWorkshopId()
+  if (myWorkshopId) {
+    const awid = (data as Record<string, unknown>).assigned_workshop_id
+    if (awid != null && awid !== '' && awid !== myWorkshopId) {
+      return null
+    }
+  }
+
   return hydrateTicket(supabase, data as Record<string, unknown>)
 }
 
