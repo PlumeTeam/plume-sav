@@ -170,6 +170,7 @@ export default async function SchoolTicketDetailPage({ params }: PageProps) {
           warrantyTier={ticketWarrantyTier}
           extendedCoversSchoolWorkshopShipping={policy.extendedCoversSchoolWorkshopShipping}
           workshops={workshops}
+          wingReturnedAt={ticket.wing_returned_at ?? null}
         />
       </section>
 

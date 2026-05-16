@@ -8,6 +8,7 @@ export {
 export {
   applySchoolResolutionAction,
   approveShippingAction,
+  confirmWingSentBySchoolAction,
   markWingReceivedSchoolAction,
   refuseShippingAction,
   saveDiagnosisAction,

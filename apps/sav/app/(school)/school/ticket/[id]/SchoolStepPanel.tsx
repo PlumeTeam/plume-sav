@@ -4,13 +4,14 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   acknowledgeTicketAction,
+  confirmWingSentBySchoolAction,
   markWingReceivedSchoolAction,
   schoolConfirmReceptionByScanAction,
   startSchoolCheckAction,
 } from '@/features/tickets/actions'
 import { ScanGateModal } from '@/features/tickets/components/ScanGateModal'
 import { RevertStepLink } from '@/features/tickets/components/RevertStepLink'
-import { formatDateTime } from '@/features/tickets/utils'
+import { formatDateTime, statusGte } from '@/features/tickets/utils'
 import type { PartnerWorkshop } from '@/features/tickets/constants'
 import type { DeliveryMethod, RequestStatus, SchoolResolution, WarrantyTier } from '@/features/tickets/types'
 import { SchoolResolutionModal } from './SchoolResolutionModal'
@@ -52,9 +53,12 @@ interface SchoolStepPanelProps {
   extendedCoversSchoolWorkshopShipping:  boolean
   /** Ateliers affiliés (chargés côté serveur, passés à la modal décision). */
   workshops:                             PartnerWorkshop[]
+  /** Horodatage de confirmation d'envoi par l'école (étape 6). NULL = pas
+   *  encore expédiée. Posé par confirmWingSentBySchoolAction. */
+  wingReturnedAt:                        string | null
 }
 
-type StepKey = 'ack' | 'wing' | 'check' | 'decision' | 'return'
+type StepKey = 'ack' | 'wing' | 'check' | 'decision' | 'return' | 'ship'
 
 interface StepCtx {
   status:                  RequestStatus
@@ -64,6 +68,31 @@ interface StepCtx {
   schoolWorkshopTracking:  string | null
   /** Tracking GLS atelier/école → client — présent = aile effectivement expédiée. */
   workshopReturnTracking:  string | null
+  /** Horodatage de confirmation d'envoi manuelle par l'école (étape 6). */
+  wingReturnedAt:          string | null
+}
+
+// L'étape « Envoyer l'aile » est franchie quand l'école confirme l'envoi
+// (wing_returned_at posé), ou que l'aile est déjà passée en aval (atelier
+// l'a réceptionnée, ticket clôturé). Pas de transition de statut côté école.
+function wingShipped(c: StepCtx): boolean {
+  return (
+    c.wingReturnedAt !== null ||
+    c.status === 'wing_returned' ||
+    c.status === 'completed' ||
+    statusGte(c.status, 'wing_received_workshop')
+  )
+}
+
+// L'étape « Imprimer le ticket d'envoi » est franchie dès qu'un bon de
+// transport a été généré (tracking GLS présent), ou que l'aile a quitté
+// l'école d'une autre façon (remise en main propre, atelier venu chercher).
+function ticketPrinted(c: StepCtx): boolean {
+  return (
+    c.schoolWorkshopTracking !== null ||
+    c.workshopReturnTracking !== null ||
+    wingShipped(c)
+  )
 }
 
 interface StepDef {
@@ -142,25 +171,33 @@ const STEPS: StepDef[] = [
     isDone:     (c) => c.schoolResolution !== null,
     requiresScan: false,
   },
-  // ── 5. Renvoyer l'aile (client revient / poste / atelier) ───────────────
+  // ── 5. Imprimer le ticket d'envoi ───────────────────────────────────────
   //
-  // Bug historique : `escalated_to_workshop` est positionné DÈS la prise de
-  // décision (étape 4) par `applySchoolResolutionAction` via
-  // `resolutionToRequestStatus`. Se baser sur ce status pour `isDone` cochait
-  // l'étape 5 alors que l'aile n'avait pas encore été expédiée. On se base
-  // donc sur des signaux d'expédition effective : ticket complété (remise en
-  // main propre), ou tracking GLS généré (atelier ou retour client).
+  // Ouvre la modal de renvoi : choix de l'option (retour client / atelier),
+  // puis génération + impression du bon de transport GLS. L'étape est
+  // franchie dès qu'un tracking est généré — `escalated_to_workshop`, posé
+  // dès la décision (étape 4), ne suffit donc PAS à la cocher.
   {
     key:        'return',
-    label:      "Renvoyer l'aile",
-    helpText:   "Comment l'aile retourne au client ou part à l'atelier.",
-    emoji:      '✈️',
+    label:      "Imprimer le ticket d'envoi",
+    helpText:   "Générez et imprimez le bon de transport à joindre au colis.",
+    emoji:      '🖨️',
     isActive:   (c) => c.schoolResolution !== null,
-    isDone:     (c) =>
-      c.status === 'wing_returned' ||
-      c.status === 'completed' ||
-      c.schoolWorkshopTracking !== null ||
-      c.workshopReturnTracking !== null,
+    isDone:     ticketPrinted,
+    requiresScan: false,
+  },
+  // ── 6. Envoyer l'aile (confirmation manuelle école) ─────────────────────
+  //
+  // Une fois le ticket d'envoi imprimé et le colis remis au transporteur,
+  // l'école valide manuellement cet envoi. confirmWingSentBySchoolAction
+  // pose `wing_returned_at` sans changer le statut.
+  {
+    key:        'ship',
+    label:      "Envoyer l'aile",
+    helpText:   "Confirmez que l'aile a été remise au transporteur (ou déposée).",
+    emoji:      '✈️',
+    isActive:   ticketPrinted,
+    isDone:     wingShipped,
     requiresScan: false,
   },
 ]
@@ -197,6 +234,7 @@ export function SchoolStepPanel({
   warrantyTier,
   extendedCoversSchoolWorkshopShipping,
   workshops,
+  wingReturnedAt,
 }: SchoolStepPanelProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -214,6 +252,7 @@ export function SchoolStepPanel({
     schoolResolution,
     schoolWorkshopTracking,
     workshopReturnTracking,
+    wingReturnedAt,
   }
 
   function executeStep(key: StepKey) {
@@ -236,6 +275,7 @@ export function SchoolStepPanel({
         key === 'ack'  ? await acknowledgeTicketAction(fd)         :
         key === 'wing' ? await markWingReceivedSchoolAction(fd)    :
         key === 'check'? await startSchoolCheckAction(fd)          :
+        key === 'ship' ? await confirmWingSentBySchoolAction(fd)   :
         null
 
       if (!r) return
@@ -304,6 +344,7 @@ export function SchoolStepPanel({
     check:    null, // matérialisé par le remplissage de school_checklist
     decision: null, // matérialisé par le remplissage de school_resolution
     return:   null, // matérialisé par le tracking GLS / passage en completed
+    ship:     wingReturnedAt, // confirmation manuelle d'envoi (étape 6)
   }
 
   return (

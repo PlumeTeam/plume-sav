@@ -656,7 +656,7 @@ function SequentialStep({
             </div>
           )}
 
-          {at && (
+          {at && isDone && (
             <p className="mt-1 text-[11px] text-emerald-700">
               ✓ Validé le {formatDateTime(at)}
             </p>

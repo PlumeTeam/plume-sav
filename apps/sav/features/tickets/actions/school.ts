@@ -495,6 +495,59 @@ export async function refuseShippingAction(formData: FormData) {
   })
 }
 
+// ============================================================
+// Étape 6 — L'école confirme l'envoi physique de l'aile
+// ============================================================
+//
+// Après impression du ticket d'envoi (étape 5), l'école remet le colis au
+// transporteur puis valide manuellement cette étape. On enregistre seulement
+// l'horodatage `wing_returned_at` — PAS de transition de `status` : le ticket
+// doit rester dans sa branche (`school_resolved` pour un retour client,
+// `escalated_to_workshop` pour une escalade) afin que l'atelier puisse
+// réceptionner l'aile normalement. L'envoi est tracé dans le canal `group`.
+
+export async function confirmWingSentBySchoolAction(formData: FormData) {
+  const ticketId = String(formData.get('ticketId') ?? '')
+  if (!ticketId) return { error: { _form: ['Identifiant manquant'] } }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: { _form: ['Non authentifié'] } }
+
+  const { error } = await supabase
+    .from('service_requests')
+    .update({ wing_returned_at: new Date().toISOString() })
+    .eq('id', ticketId)
+
+  if (error) {
+    return { error: { _form: [`Erreur lors de la confirmation (${error.message})`] } }
+  }
+
+  // Trace publique dans le canal `group` (visible client + atelier + Plume).
+  // Best-effort : ne bloque jamais la confirmation.
+  const { error: msgError } = await supabase.from('ticket_messages').insert({
+    ticket_id:        ticketId,
+    sender_id:        user.id,
+    sender_role:      'school',
+    content:          "✈️ L'aile a été expédiée par l'école.",
+    is_internal:      false,
+    visibility_level: 'all',
+    channel:          'group',
+  })
+  if (msgError) {
+    console.error('[confirmWingSentBySchoolAction] message insert failed:', msgError.message)
+  }
+
+  revalidatePath(`/school/ticket/${ticketId}`)
+  revalidatePath(`/client/ticket/${ticketId}`)
+  revalidatePath(`/workshop/ticket/${ticketId}`)
+  revalidatePath('/school')
+  revalidatePath('/client')
+  revalidatePath('/workshop')
+  revalidatePath('/plume')
+  return { success: true as const }
+}
+
 // â”€â”€ Atelier : Ã©tapes post-escalade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
