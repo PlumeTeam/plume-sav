@@ -49,6 +49,18 @@ supabase/.temp/
 # DB backups (contiennent données clients — NE JAMAIS commiter)
 backups/
 
+# Scripts ad-hoc à la racine (anti-pattern : édite les fichiers directement)
+/add-*.js
+/fix-*.js
+/remove-*.js
+/push-*.bat
+/push-*.sh
+
+# Artefacts debug à la racine
+/temptables.json
+/*.tmp
+/*.dump
+
 .vercel
 .gitnexus
 
