@@ -46,6 +46,9 @@ test-results/
 supabase/.branches/
 supabase/.temp/
 
+# DB backups (contiennent données clients — NE JAMAIS commiter)
+backups/
+
 .vercel
 .gitnexus
 
