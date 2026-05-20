@@ -1,7 +1,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **15_Plume_SAV** (1015 symbols, 2040 relationships, 76 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **SAV** (1329 symbols, 3379 relationships, 96 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -17,7 +17,7 @@ This project is indexed by GitNexus as **15_Plume_SAV** (1015 symbols, 2040 rela
 
 1. `gitnexus_query({query: "<error or symptom>"})` — find execution flows related to the issue
 2. `gitnexus_context({name: "<suspect function>"})` — see all callers, callees, and process participation
-3. `READ gitnexus://repo/15_Plume_SAV/process/{processName}` — trace the full execution flow step by step
+3. `READ gitnexus://repo/SAV/process/{processName}` — trace the full execution flow step by step
 4. For regressions: `gitnexus_detect_changes({scope: "compare", base_ref: "main"})` — see what your branch changed
 
 ## When Refactoring
@@ -56,10 +56,10 @@ This project is indexed by GitNexus as **15_Plume_SAV** (1015 symbols, 2040 rela
 
 | Resource | Use for |
 |----------|---------|
-| `gitnexus://repo/15_Plume_SAV/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/15_Plume_SAV/clusters` | All functional areas |
-| `gitnexus://repo/15_Plume_SAV/processes` | All execution flows |
-| `gitnexus://repo/15_Plume_SAV/process/{name}` | Step-by-step execution trace |
+| `gitnexus://repo/SAV/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/SAV/clusters` | All functional areas |
+| `gitnexus://repo/SAV/processes` | All execution flows |
+| `gitnexus://repo/SAV/process/{name}` | Step-by-step execution trace |
 
 ## Self-Check Before Finishing
 
@@ -97,14 +97,5 @@ To check whether embeddings exist, inspect `.gitnexus/meta.json` — the `stats.
 | Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
 | Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
-| Work in the Tickets area (94 symbols) | `.claude/skills/generated/tickets/SKILL.md` |
-| Work in the Actions area (31 symbols) | `.claude/skills/generated/actions/SKILL.md` |
-| Work in the Wizard area (29 symbols) | `.claude/skills/generated/wizard/SKILL.md` |
-| Work in the [id] area (20 symbols) | `.claude/skills/generated/id/SKILL.md` |
-| Work in the Components area (18 symbols) | `.claude/skills/generated/components/SKILL.md` |
-| Work in the Messages area (10 symbols) | `.claude/skills/generated/messages/SKILL.md` |
-| Work in the Auth area (7 symbols) | `.claude/skills/generated/auth/SKILL.md` |
-| Work in the Inspection area (7 symbols) | `.claude/skills/generated/inspection/SKILL.md` |
-| Work in the Plume area (4 symbols) | `.claude/skills/generated/plume/SKILL.md` |
 
 <!-- gitnexus:end -->

@@ -30,6 +30,82 @@ Chaque entrée doit suivre ce gabarit pour rester scannable. Date au format `YYY
 
 ---
 
+## 2026-05-20 — Rattrapage Supabase prod + grand nettoyage Git
+
+**Intent** : JB constatait « un problème avec GitHub » (11 scripts ad-hoc à la racine, état Git confus) et voulait sauvegarder ce qui marchait + corriger le nœud de spaghetti. Au passage, audit a révélé une désynchro Supabase prod (la migration `20260516000000_sav_workshop_acceptance` n'avait jamais été appliquée) qui cassait la feature de validation atelier.
+**Status** : ✅ livré (les 2 chantiers bouclés, tests fonctionnels et dette `sav_status` reportés)
+
+### Commits poussés
+- `3fc7b8b` — chore(db): rattrapage schema prod + snapshot types generes
+- `33ebf4b` — chore: cleanup scripts ad-hoc + durcissement gitignore
+- Branche `backup/before-cleanup-2026-05-20` poussée sur origin (filet de sécurité)
+
+### Chantier 1 — Rattrapage Supabase prod
+
+**Diagnostic clé** : l'audit comparé entre `supabase/migrations/` (36 fichiers SAV) et l'état réel de `gxighesxbavnzzyngjaz` (351 migrations toutes apps confondues) a montré que **la prod a été construite par un autre processus que ces migrations**. Le repo n'est pas auto-suffisant — il suppose qu'une partie de la DB existe déjà (créée à la main / par Lovable / par d'autres apps Plume). Confirmation empirique : créer une branche Supabase de test plante en `MIGRATIONS_FAILED` dès la 1ère migration (`DROP CONSTRAINT ... ON demo_bookings` sur un schéma vierge → `relation "demo_bookings" does not exist`).
+
+**4 fragments SQL appliqués via MCP `apply_migration`** (et non rejeu massif des migrations) :
+1. `sav_workshop_acceptance` : 4 colonnes (`workshop_accepted`, `_at`, `_by`, `workshop_refusal_reason`) + CHECK `service_requests_workshop_refusal_consistent_chk` + index partiel `idx_service_requests_pending_workshop_acceptance` → débloque la feature **validation atelier**.
+2. `sav_workshop_deep_check_at` : 1 colonne (oubliée du revamp workflow).
+3. `sav_warranty_max_hours` : 1 colonne `INTEGER NOT NULL DEFAULT 300 CHECK (0..100000)` sur `plume_settings`.
+4. `sav_workshop_role_compat_fix` : `CREATE OR REPLACE FUNCTION mark_ticket_read_by_workshop` (pointait sur `workshop_ticket_reads` **table inexistante** → toute lecture côté atelier échouait silencieusement). Nouveau code utilise `workshop_last_read_at` directement sur `service_requests`, avec `SET search_path = public, pg_temp`. Plus backfill `UPDATE pending → pending_workshop` (0 ligne concernée en prod).
+
+**Vérifications post-migration** :
+- `packages/db/src/types.ts` (typé à la main) **contenait déjà** ces 6 colonnes → aucun changement de code nécessaire, le déphasage était unilatéral (code en avance sur DB).
+- `generated-types.ts` régénéré via MCP `generate_typescript_types` (442 Ko, 13 440 lignes, 150+ tables) et commité comme snapshot daté de référence (le code ne l'utilise pas, c'est juste pour debug futur).
+- `get_advisors` : 104 lints security (tous WARN, **-1** par rapport à avant — la nouvelle fonction a un `search_path` durci). 1002 lints performance (pollution legacy, aucun nouveau ERROR/CRITICAL).
+- Smoke test prod par JB : site répond normalement.
+
+### Chantier 2 — Nettoyage Git
+
+**État de départ** : 11 scripts `.js`/`.bat` non trackés à la racine (`add-gitignore.js`, `fix-contact.js`, `fix-page.js`, `push-final.bat`, `push-clean-worktrees.bat`, etc.), 2 fichiers commités par erreur (`push-scan.bat`, `temptables.json`), 20 worktrees `.claude/worktrees/*` actifs + 3 orphelins, 20 branches locales `claude/*` non mergées dans main, 24 branches `claude/*` sur origin.
+
+**Anti-pattern identifié** : à chaque problème, un script `fs.readFileSync + replace + writeFileSync` puis un `.bat` faisant `git add/commit/push` avaient été créés au lieu d'éditer le fichier directement. Résultat = pollution sans valeur (les commits produits étaient propres, les détours étaient inutiles).
+
+**Audit avant action** :
+- `git log origin/main..HEAD` = vide (rien de local non poussé)
+- `main` = `origin/main` exactement
+- Aucun secret commité, aucun fichier volumineux suspect
+- 2 branches `claude/*` non mergées examinées en détail :
+  - `claude/distracted-cray-f7239d` (`9aee92c` fix RLS workshop) → **JETER** (la prod tourne sur un autre modèle — `partner_workshops` — qui ne lit ni `user_roles` ni `profiles.role` ; le scénario du bug n'existe plus)
+  - `claude/modest-neumann-8bde3c` (`e078f42` validation atelier) → **JETER** (main contient `1c6e849` qui fait la même chose en mieux et avec un schéma différent, cherry-pick aurait créé un conflit DB)
+
+**Actions exécutées** :
+- Branche `backup/before-cleanup-2026-05-20` créée sur main et pushée (filet)
+- `.gitignore` durci : `backups/`, `/add-*.js`, `/fix-*.js`, `/remove-*.js`, `/push-*.bat`, `/push-*.sh`, `/temptables.json`, `/*.tmp`, `/*.dump`
+- 11 scripts ad-hoc supprimés (jamais trackés → simple `rm`)
+- `push-scan.bat` et `temptables.json` retirés via `git rm` (commit `33ebf4b`)
+- 20 worktrees Claude supprimés via boucle `git worktree remove --force` puis `rm -rf .claude/worktrees/*/` (14 dossiers ne pouvaient pas être supprimés par git sur Windows → file locks → `rm -rf` brut a fini le boulot) + `git worktree prune`
+- 20 branches locales `claude/*` supprimées via boucle `git branch -D` (toutes sauvegardées sur origin si jamais)
+
+**État final** : `git status` vide, `git worktree list` = 1 entrée (le repo lui-même), `git branch` = main + backup, plus aucun script à la racine.
+
+### Refresh GitNexus
+
+- Constat : l'index pointait sur l'ancien chemin `C:\Plume_code\07_SAV_Plume\SAV\code` (analyse du 10 mai, 1001 nodes / 2040 edges / 75 processes)
+- `npx gitnexus analyze` lancé sur `C:\Plume_code\website\SAV` → nouvel index `SAV` (commit `33ebf4b`, 1329 nodes / 3379 edges / 96 processes / 270 files) en 38,4s
+- CLAUDE.md mis à jour automatiquement (bloc `<!-- gitnexus:start/end -->`) + correction manuelle de la ligne 5 (stats du préambule)
+
+### Ce qui reste à faire
+- **Test fonctionnel** de la feature validation atelier en démo : créer un ticket type 'repair' (client) → ouvrir côté atelier → tester "Accepter" (vérifier `workshop_accepted`, `_at`, `_by` remplis) puis "Refuser avec raison" (exiger `workshop_refusal_reason`).
+- **Dette `sav_status`** : le code (`features/tickets/actions/admin.ts` ligne 219, `actions/lifecycle.ts` ligne 184) écrit `sav_status: 'closed'` à la clôture mais la colonne n'existe pas en prod. **Toute clôture renvoie actuellement une erreur silencieuse en démo** (personne n'a essayé encore). 3 options à trancher dans une session séparée :
+  - A) ajouter la colonne `sav_status ticket_status DEFAULT 'submitted'` (5 min, mais redondance avec `status` qui est déjà étendue) ;
+  - B) retirer `sav_status` du code (~10 min, plus propre, mais demande un audit du reste du code qui lit `sav_status`) ;
+  - C) status quo (bug latent reste).
+  Recommandation architecte : B sur le moyen terme.
+- Nettoyage **remote** des 24 branches `origin/claude/*` (gardées pour l'historique tant qu'on n'est pas à 100% sûr). À supprimer dans ~1 mois.
+- Suppression branche test Supabase orpheline `test_sav_catchup_20260520` (project_ref `tlpbmgdkiaxsqjpkhdvy`, MIGRATIONS_FAILED) — coût ~0,013 $/h. Permission `delete_branch` MCP avait été refusée pendant la session, à faire manuellement via dashboard.
+- Branche `backup/before-cleanup-2026-05-20` à supprimer dans ~1 mois si tout reste stable.
+
+### Pièges rencontrés (à mémoriser)
+- **Le repo `supabase/migrations/` n'est PAS la vérité sur l'historique prod.** Toute approche « rejouer toutes les migrations en bloc » est condamnée à échouer (`DROP CONSTRAINT` sur des tables qui ne préexistent pas dans un schéma frais). Pour le rattrapage, faire un diff par effet sur la prod, pas par nom de fichier de migration, et appliquer des fragments ciblés via MCP `apply_migration`.
+- **Branche Supabase de test = inutilisable** dans notre config tant que les migrations bloquantes (`DROP CONSTRAINT ... ON demo_bookings`) ne sont pas retirées du repo. Si on veut s'en servir un jour, il faut soit nettoyer ces migrations, soit utiliser `with_data=true` (probablement payant).
+- **Anti-pattern « script Git ad-hoc »** : si une commande Git « ne marche pas », demander pourquoi, jamais wrapper dans un `.bat`. Les `push-*.bat` accumulés étaient tous équivalents à `git add/commit/push` standard — détours inutiles. Désormais bloqués par `.gitignore`.
+- **Suppression de worktrees Claude sur Windows** : `git worktree remove --force` échoue souvent avec "Directory not empty" à cause de file locks Windows ou de fichiers non trackés (node_modules). Solution : `rm -rf .claude/worktrees/*/` derrière + `git worktree prune` pour cleanup le registre.
+- **L'index GitNexus contient un repo orphelin `code`** au chemin obsolète (`C:\Plume_code\07_SAV_Plume\SAV\code`). Pas critique mais bruit dans `gitnexus_list_repos`. À nettoyer un autre jour.
+
+---
+
 ## 2026-05-16 — Refonte du workflow des étapes atelier (3 branches + retour arrière)
 
 **Intent** : JB trouvait le workflow atelier post-diagnostic trop rigide. Il voulait une prise de décision à 3 options (irréparable / réparation / RAS), une validation Plume HQ pour les ailes irréparables, une étape « créer le ticket d'envoi », et un bouton « Modifier » sur chaque étape validée.
